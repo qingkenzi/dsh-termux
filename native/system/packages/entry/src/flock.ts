@@ -12,6 +12,13 @@ let binding: FlockBinding | undefined
 function loadBinding(): FlockBinding {
   if (binding) return binding
   const { platform, arch } = process
+  // Termux/Android (bionic) implements flock(2); a locally built N-API addon
+  // lives beside this entry and is loaded directly for that platform.
+  if (platform === 'android') {
+    const require = createRequire(import.meta.url)
+    binding = require('../bin/glibc/system.node') as FlockBinding
+    return binding
+  }
   if (platform !== 'linux' && platform !== 'darwin') {
     throw Object.assign(new Error(`flock is not supported on ${platform}-${arch}`), {
       code: 'ERR_FLOCK_UNSUPPORTED_PLATFORM',

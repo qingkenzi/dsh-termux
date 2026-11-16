@@ -167,7 +167,10 @@ async function openNativePathWithIntent(
   const platform = internals.platform ?? process.platform
   const run = internals.run ?? runNativeCommand
   const env = internals.env ?? process.env
-  const wsl = platform === 'linux' && isWsl(internals)
+  // Termux reports `android`; its xdg-open is a symlink to termux-open, which
+  // hands the path to Android's own viewer, so it shares Linux's open path.
+  const effectivePlatform = platform === 'android' ? 'linux' : platform
+  const wsl = effectivePlatform === 'linux' && isWsl(internals)
 
   if (!wsl && intent === 'default' && BROWSER_DOCUMENTS.has(extname(path).toLowerCase())
     && await openInBrowser(path, signal, platform, run, env)) return
@@ -182,7 +185,7 @@ async function openNativePathWithIntent(
     return
   }
 
-  if (platform === 'linux') {
+  if (effectivePlatform === 'linux') {
     if (wsl) {
       await openWslPath(path, signal, run)
       return
@@ -208,6 +211,8 @@ async function openNativePathWithIntent(
 export function canOpenNativePath(internals: PathOpenerInternals = {}): boolean {
   const platform = internals.platform ?? process.platform
   if (platform === 'darwin' || platform === 'win32') return true
+  // Termux/Android reaches Android's viewer through its xdg-open (termux-open).
+  if (platform === 'android') return true
   if (platform !== 'linux') return false
   const env = internals.env ?? process.env
   return isWsl(internals) || present(env.DISPLAY) || present(env.WAYLAND_DISPLAY)

@@ -14,7 +14,7 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readdir, realpath, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -34,6 +34,7 @@ import {
 } from '@deepseek-ai/dsh-session-persistence'
 import { JsonlBackendTracker, JsonlSessionHandle, type StorageHandleState } from './storage.ts'
 import { SessionWriteLease } from './lease.ts'
+import { publishExclusive } from './publish.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { SESSION_FORMAT_VERSION, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId, SessionHeader, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
@@ -1357,7 +1358,7 @@ class JsonlSessionPersistence extends SessionPersistence {
     // concurrently cannot clobber each other. rename() would silently overwrite.
     let linked = false
     try {
-      await link(tmp, finalPath)
+      await publishExclusive(tmp, finalPath)
       linked = true
     } finally {
       // Remove an unpublished temp on failure. After publication, defer cleanup

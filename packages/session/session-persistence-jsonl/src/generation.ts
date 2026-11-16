@@ -9,8 +9,8 @@
 
 import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { createHash, randomBytes } from 'node:crypto'
+import { publishExclusive } from './publish.ts'
 import {
-  link as fsLink,
   lstat as fsLstat,
   open as fsOpen,
   readFile as fsReadFile,
@@ -219,7 +219,10 @@ const defaultFileSystem: GenerationFileSystem = {
   readdir: path => fsReaddir(path),
   stat: path => fsStat(path, { bigint: true }),
   lstat: path => fsLstat(path),
-  link: fsLink,
+  // Production links degrade to copyFile(COPYFILE_EXCL) on filesystems that
+  // reject hard links (e.g. Termux/Android). Tests may still inject `link` to
+  // simulate collisions directly.
+  link: (existingPath, newPath) => publishExclusive(existingPath, newPath),
   rm: path => fsRm(path, { force: true }),
 }
 
