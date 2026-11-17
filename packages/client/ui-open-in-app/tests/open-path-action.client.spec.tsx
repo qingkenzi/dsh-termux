@@ -27,13 +27,19 @@ const ABSOLUTE_PATH = '/host/project/work/clip.mp4'
 interface Bench {
   props: OpenPathActionProps & OpenPathEmptyActionProps
   desktop: ReturnType<typeof createSnapshotStore<boolean | null>>
+  associations: ReturnType<typeof createSnapshotStore<boolean>>
   loadDesktop: ReturnType<typeof vi.fn>
   openPath: ReturnType<typeof vi.fn<(path: string, action: OpenInAppPathAction) => Promise<OpenInAppOutcome>>>
   report: Mock<(outcome: OpenInAppOutcome) => void>
 }
 
-function bench(over: { desktop?: boolean | null; openPath?: Bench['openPath'] } = {}): Bench {
+function bench(over: {
+  desktop?: boolean | null
+  associations?: boolean
+  openPath?: Bench['openPath']
+} = {}): Bench {
   const desktop = createSnapshotStore<boolean | null>(over.desktop === undefined ? true : over.desktop)
+  const associations = createSnapshotStore<boolean>(over.associations === undefined ? true : over.associations)
   const loadDesktop = vi.fn(async () => {})
   const openPath = over.openPath ?? vi.fn(async (): Promise<OpenInAppOutcome> => ({ kind: 'opened' }))
   const report = vi.fn<(outcome: OpenInAppOutcome) => void>()
@@ -43,13 +49,14 @@ function bench(over: { desktop?: boolean | null; openPath?: Bench['openPath'] } 
   const props = {
     absolutePath: ABSOLUTE_PATH,
     useOpenInAppDesktop: useSelector(desktop),
+    useOpenInAppAssociations: useSelector(associations),
     loadDesktop,
     applications: vi.fn(async () => [{ id: '/Music.app', name: 'Music', default: true, icon: null }]),
     openPath,
     report,
     t,
   } as Bench['props']
-  return { props, desktop, loadDesktop, openPath, report }
+  return { props, desktop, associations, loadDesktop, openPath, report }
 }
 
 describe('OpenPathAction visibility', () => {
@@ -66,6 +73,16 @@ describe('OpenPathAction visibility', () => {
 })
 
 describe('OpenPathAction gestures', () => {
+  it('keeps reveal without an application menu when the Host cannot list associations', async () => {
+    const b = bench({ associations: false })
+    render(<OpenPathAction {...b.props} />)
+    const main = await screen.findByRole('button', { name: zh['path.reveal'] })
+    expect(screen.queryByRole('button', { name: zh['path.more'] })).toBeNull()
+    await act(async () => { fireEvent.click(main) })
+    expect(b.openPath).toHaveBeenLastCalledWith(ABSOLUTE_PATH, 'reveal', undefined)
+    expect(b.props.applications).not.toHaveBeenCalled()
+  })
+
   it('opens the file in its default application from the main button and reveals it from the menu', async () => {
     const b = bench()
     render(<OpenPathAction {...b.props} />)

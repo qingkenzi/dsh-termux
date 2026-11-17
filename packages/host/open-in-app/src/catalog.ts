@@ -6,8 +6,12 @@
  * an empty catalog.
  */
 
-/** Platforms the catalog declares entries for; any other host resolves as empty. */
-export type OpenInAppPlatform = 'darwin' | 'win32' | 'linux'
+/**
+ * Platforms the catalog can name entries for. Android is a known host whose
+ * folder opening travels through the native path opener instead; it declares
+ * no catalog entries and resolves as empty without probing.
+ */
+export type OpenInAppPlatform = 'darwin' | 'win32' | 'linux' | 'android'
 
 /** Launch-args token carrying the workspace directory (`--cd={path}`). */
 export const PATH_TOKEN = '{path}'

@@ -42,6 +42,7 @@ const CALL = { request: {} }
  */
 const GLOBAL_ACTIONS = [
   'commands/list', 'llm/listConfigurableProviders', 'llm/listProviders', 'session/canOpenWorkspacePath',
+  'session/workspaceDesktop',
   'session/control', 'session/list', 'session/modelCatalog', 'workspace/follow',
 ] as const
 /** Session reads the served page's startup and render paths need; see {@link GLOBAL_ACTIONS}. */

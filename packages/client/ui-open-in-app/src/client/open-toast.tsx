@@ -58,8 +58,9 @@ export function OpenInAppToast({ useToast, dismiss, t }: OpenInAppToastProps): R
   if (toast === null) return null
   const key = `open-in-app-${String(toast.seq)}`
   if (toast.kind === 'failed') {
-    return <Toast key={key} text={t(toast.failure === 'revealError' ? 'path.revealError' : 'path.openError')}
-      icon={<IconWarningOutlineRegular />} onDone={dismiss} />
+    const copy = toast.failure === 'revealError' ? 'path.revealError'
+      : toast.failure === 'managerUnavailable' ? 'path.managerUnavailable' : 'path.openError'
+    return <Toast key={key} text={t(copy)} icon={<IconWarningOutlineRegular />} onDone={dismiss} />
   }
   return <Toast key={key} text={t(toast.kind === 'opened' ? 'path.opened' : 'path.revealed')} tone="success" onDone={dismiss} />
 }

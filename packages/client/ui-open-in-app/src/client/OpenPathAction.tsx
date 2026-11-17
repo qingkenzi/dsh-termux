@@ -15,6 +15,7 @@ import type { NS } from './locales.ts'
 export interface OpenPathInjected extends OpenTargetReporter {
   hooks: {
     openInAppDesktop: ObservableSnapshot<boolean | null>
+    openInAppAssociations: ObservableSnapshot<boolean>
   }
   loadDesktop: () => Promise<void>
   openPath: (path: string, action: OpenInAppPathAction, application?: string) => Promise<OpenInAppOutcome>
@@ -28,7 +29,8 @@ export type OpenPathActionProps =
   & InjectFace<OpenPathInjected>
 
 /** File inputs shared by the document header and its unpreviewable state. */
-type FileOpenTargetProps = Pick<OpenPathActionProps, 'absolutePath' | 'useOpenInAppDesktop' | 'loadDesktop' | 'openPath' | 'applications' | 'report' | 't'> & {
+type FileOpenTargetProps = Pick<OpenPathActionProps, 'absolutePath' | 'useOpenInAppDesktop' | 'useOpenInAppAssociations'
+  | 'loadDesktop' | 'openPath' | 'applications' | 'report' | 't'> & {
   empty?: boolean
 }
 
@@ -39,16 +41,19 @@ type FileOpenTargetProps = Pick<OpenPathActionProps, 'absolutePath' | 'useOpenIn
  */
 export function FileOpenTarget(props: FileOpenTargetProps): ReactNode {
   const desktop = props.useOpenInAppDesktop(value => value)
-  const association = useFileApplications(props.absolutePath, props.applications, desktop === true)
+  const applicationsSupported = props.useOpenInAppAssociations(value => value)
+  const association = useFileApplications(
+    props.absolutePath, props.applications, desktop === true && applicationsSupported,
+  )
   useEffect(() => {
     if (desktop === null) void props.loadDesktop()
   }, [desktop, props.loadDesktop])
   if (desktop !== true) return null
-  const { apps } = association
+  const apps = applicationsSupported ? association.apps : []
   return (
     <OpenTargetButton
       key={props.absolutePath} kind="file" applications={apps} defaultId={apps.find(app => app.default)?.id}
-      loading={association.loading} failed={association.failed}
+      loading={applicationsSupported && association.loading} failed={applicationsSupported && association.failed}
       prominent={props.empty === true} t={props.t}
       refresh={association.refresh} report={props.report}
       execute={operation => props.openPath(props.absolutePath, operation.kind === 'reveal' ? 'reveal' : 'open',

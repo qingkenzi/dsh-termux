@@ -940,10 +940,10 @@ resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult>
 @Remote canOpenWorkspacePath(): boolean
 
 /**
- * Describe the serving desktop for authenticated file-action routes.
- * @returns Host name, configured availability, and platform-specific file-manager behavior.
+ * Describe the serving desktop for authenticated file-action routes and Client path controls.
+ * @returns Host name, opener availability, the file-manager action, and whether file associations can be queried.
  */
-workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 'explorer' | 'directory' | null }
+@Remote workspaceDesktop(): SessionWorkspaceDesktop
 
 /**
  * Verify one path through the composed filesystem and open it on the Host desktop.

@@ -3006,10 +3006,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'true when the matching open operation is available.',
       },
       {
-        signature: 'workspaceDesktop(): { name: string; available: boolean; fileManager: \'finder\' | \'explorer\' | \'directory\' | null }',
-        description: 'Describe the serving desktop for authenticated file-action routes.',
+        signature: '@Remote workspaceDesktop(): SessionWorkspaceDesktop',
+        description: 'Describe the serving desktop for authenticated file-action routes and Client path controls.',
         parameters: [],
-        returns: 'Host name, configured availability, and platform-specific file-manager behavior.',
+        returns: 'Host name, opener availability, the file-manager action, and whether file associations can be queried.',
       },
       {
         signature: '@Remote(\'openWorkspacePath\') async openWorkspacePath( request: SessionOpenWorkspacePathRequest, signal: AbortSignal, ): Promise<SessionOpenWorkspacePathValue>',
@@ -9260,7 +9260,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionOpenWorkspacePathRequest',
-    declaration: 'export interface SessionOpenWorkspacePathRequest {\n    readonly action?: \'reveal\';\n    readonly application?: string;\n    readonly path: string;\n}',
+    declaration: 'export interface SessionOpenWorkspacePathRequest {\n    readonly action?: \'open\' | \'reveal\';\n    readonly application?: string;\n    readonly path: string;\n}',
   },
   {
     name: 'SessionOpenWorkspacePathValue',
@@ -9585,6 +9585,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionWireHeader',
     declaration: 'export interface SessionWireHeader {\n    readonly version: number;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly isSeeded: boolean;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n}',
+  },
+  {
+    name: 'SessionWorkspaceDesktop',
+    declaration: 'export interface SessionWorkspaceDesktop {\n    readonly name: string;\n    readonly available: boolean;\n    readonly fileManager: \'finder\' | \'explorer\' | \'directory\' | null;\n    readonly associationsSupported: boolean;\n}',
   },
   {
     name: 'SessionWorkspacePathApplication',
@@ -10720,7 +10724,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WebEntryUrl',
-    declaration: 'export interface WebEntryUrl {\n    readonly label: string;\n    readonly url: string;\n    readonly open: boolean;\n}',
+    declaration: 'export interface WebEntryUrl {\n    readonly label: string;\n    readonly url: string;\n    readonly displayUrl: string;\n    readonly open: boolean;\n}',
   },
   {
     name: 'WebFallback',

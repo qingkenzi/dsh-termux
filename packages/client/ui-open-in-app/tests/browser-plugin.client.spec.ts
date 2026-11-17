@@ -50,7 +50,9 @@ afterEach(() => {
 const remote = {
   session: {
     workspacePathApplications: vi.fn(async (_request: { path: string }, _signal?: AbortSignal) => ({ ok: true as const, value: [] })),
-    canOpenWorkspacePath: vi.fn(async () => ({ ok: true as const, value: true })),
+    workspaceDesktop: vi.fn(async () => ({ ok: true as const, value: {
+      name: 'desktop', available: true, fileManager: 'directory' as const, associationsSupported: true,
+    } })),
     openWorkspacePath: vi.fn(async () => ({ ok: true as const, value: { opened: true as const } })),
   },
   workspaceFiles: {
@@ -322,14 +324,16 @@ describe('open-in-app browser half', () => {
     const face = (header?.inject as unknown as () => OpenPathInjected)()
     const emptyFace = (empty?.inject as unknown as () => OpenPathInjected)()
     expect(emptyFace.hooks.openInAppDesktop).toBe(face.hooks.openInAppDesktop)
+    expect(emptyFace.hooks.openInAppAssociations).toBe(face.hooks.openInAppAssociations)
     expect(emptyFace.applications).toBe(face.applications)
     expect(face.hooks.openInAppDesktop.getSnapshot()).toBeNull()
     await Promise.all([face.loadDesktop(), emptyFace.loadDesktop()])
-    expect(remote.session.canOpenWorkspacePath).toHaveBeenCalledOnce()
+    expect(remote.session.workspaceDesktop).toHaveBeenCalledOnce()
     const signal = new AbortController().signal
     await expect(face.applications('/w/clip.mp4', signal)).resolves.toEqual([])
     expect(remote.session.workspacePathApplications).toHaveBeenCalledWith({ path: '/w/clip.mp4' }, signal)
     expect(face.hooks.openInAppDesktop.getSnapshot()).toBe(true)
+    expect(face.hooks.openInAppAssociations.getSnapshot()).toBe(true)
     expect(await face.openPath('/w/clip.mp4', 'reveal')).toEqual({ kind: 'revealed' })
     expect(remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/w/clip.mp4', action: 'reveal' })
     await fiber.dispose()

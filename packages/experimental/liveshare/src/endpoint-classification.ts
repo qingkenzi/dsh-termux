@@ -41,6 +41,7 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'llm/listConfigurableProviders': 'reader-global-read', // the page reads the configurable provider catalog
   'llm/listProviders': 'reader-global-read', // the page lists providers
   'session/canOpenWorkspacePath': 'reader-global-read', // the page asks whether a path can be opened
+  'session/workspaceDesktop': 'reader-global-read', // the page reads Host desktop facts behind path controls
   'session/modelCatalog': 'reader-global-read', // the page reads the model catalog
 
   // ── reader-session-read ─────────────────────────────────────────────────────────────

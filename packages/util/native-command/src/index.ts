@@ -4,6 +4,8 @@
  */
 
 export { runNativeCommand } from './runner.ts'
+export { NativeCommandError } from './errors.ts'
+export type { NativeCommandErrorCode } from './errors.ts'
 export { isWsl } from './host-environment.ts'
 export type { HostEnvironmentFacts } from './host-environment.ts'
 export type { NativeCommandRunner } from './runner.ts'
@@ -21,7 +23,7 @@ export type {
   PathOpenerRunner,
 } from './path-opener.ts'
 
-export { nativeFileApplications, openNativeFileApplication } from './file-applications.ts'
+export { nativeFileApplications, nativeFileAssociationsSupported, openNativeFileApplication } from './file-applications.ts'
 export type { NativeFileApplication } from './types.ts'
 
 export { desktopEntryFields, desktopDataDirectories, desktopApplicationIcon } from './desktop-entry.ts'

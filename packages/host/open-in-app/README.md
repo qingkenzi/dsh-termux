@@ -113,6 +113,7 @@ None; the package never assembles or sends provider requests.
 - **macOS detection is known-paths only.** A bundle renamed beyond the catalog's spellings or moved outside `/Applications` and `~/Applications` is not detected; there is no Launch Services query (a native LaunchServices/NSWorkspace lookup needs an addon the repository does not carry) and deliberately no disk scan.
 - **Icon fidelity is platform-bound.** Windows icons come from `ExtractAssociatedIcon` at 32px — the most the stock .NET surface yields without a native addon — which can render slightly soft on high-DPI displays; Linux icons follow the hicolor theme and pixmaps only, not the user's active icon theme; several entries (CLI-only launchers without a desktop entry) have no icon source and keep the generic glyph.
 - **New installs appear after a restart.** Resolution runs once per host process; only the uninstall direction self-heals (a missing launcher re-resolves its one entry on the spot).
+- **Android opens folders through the native path opener.** The catalog declares no Android applications: `specFor` returns undefined there and resolution stays empty, so a Termux Host's workspace folder action travels through the Session Remote's `openWorkspacePath({ action: 'open' })` and the native opener rather than this catalog.
 
 <a id="dev-note"></a>
 ### Dev Note

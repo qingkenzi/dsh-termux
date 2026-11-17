@@ -68,7 +68,7 @@ export function apply(ctx: ClientContext): void {
     })) yield ctx.slots.register({ name: 'contextMenu.icon', key }, Icon)
     yield ctx.slots.register({ name: 'contextMenu.icon', key: 'open-in-app.application' }, ContextMenuApplicationIcon)
   })
-  registerContextMenus(ctx, paths, t, controller, announcement.report)
+  registerContextMenus(ctx, paths, t, announcement.report)
   registerSessionOpenWith(ctx, controller, t, announcement.report)
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'open-in-app.toast', locale: NS,
@@ -118,7 +118,7 @@ export function apply(ctx: ClientContext): void {
   }, OpenInAppAction))
   const applications: OpenPathInjected['applications'] = (path, signal) => paths.applications(path, signal)
   const pathInjected = (): OpenPathInjected => ({
-    hooks: { openInAppDesktop: paths.desktop },
+    hooks: { openInAppDesktop: paths.desktop, openInAppAssociations: paths.associationsSupported },
     loadDesktop: () => paths.load(),
     openPath: (path, action, application) => paths.openPath(path, action, application),
     applications,

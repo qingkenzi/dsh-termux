@@ -13,7 +13,7 @@ import type { NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
 import { OPEN_IN_APP_CATALOG, type OpenInAppApp } from '../src/catalog.ts'
 import {
   execCommand, launchDetachedApp, launchResolved, parseDesktopEntry, parseRegistryDump, resolveInternals,
-  resolveLaunch, resolveOpenInAppApps, xdgDataDirectories,
+  resolveLaunch, resolveOpenInAppApps, specFor, xdgDataDirectories,
   type OpenInAppInternals, type OpenInAppLauncher, type OpenInAppResolvedLaunch,
 } from '../src/resolver.ts'
 
@@ -88,14 +88,17 @@ describe('resolveOpenInAppApps', () => {
       .rejects.toThrow(/resolveExecutable is required/)
   })
 
-  it('resolves as empty on a platform without entries, touching no command or PATH lookup', async () => {
-    const run = vi.fn<NativeCommandRunner>()
-    const resolveExecutable = vi.fn(pathTable())
-    await expect(resolveOpenInAppApps(TIMEOUT_MS, { platform: 'aix', run, resolveExecutable }))
-      .resolves.toEqual(new Map())
-    expect(run).not.toHaveBeenCalled()
-    expect(resolveExecutable).not.toHaveBeenCalled()
-  })
+  it.each(['aix', 'android'] as const)(
+    'resolves as empty on %s without entries, touching no command or PATH lookup', async (platform) => {
+      const run = vi.fn<NativeCommandRunner>()
+      const resolveExecutable = vi.fn(pathTable())
+      await expect(resolveOpenInAppApps(TIMEOUT_MS, { platform, run, resolveExecutable }))
+        .resolves.toEqual(new Map())
+      expect(run).not.toHaveBeenCalled()
+      expect(resolveExecutable).not.toHaveBeenCalled()
+      for (const app of OPEN_IN_APP_CATALOG) expect(specFor(app, platform)).toBeUndefined()
+    },
+  )
 
   it('resolves macOS entries from the known application directories, in menu order', async () => {
     const home = await tempRoot()

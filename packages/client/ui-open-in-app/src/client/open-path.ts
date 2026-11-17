@@ -5,8 +5,10 @@
  */
 import { createSnapshotStore, type ObservableSnapshot, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SessionOpenWorkspacePathRequest, SessionWorkspacePathApplication } from '@deepseek-ai/dsh-api-session-controller/types'
-import type { OpenInAppOutcome, OpenInAppPathFailure } from './outcome.ts'
+import type {
+  SessionOpenWorkspacePathRequest, SessionWorkspaceDesktop, SessionWorkspacePathApplication,
+} from '@deepseek-ai/dsh-api-session-controller/types'
+import type { OpenInAppOutcome } from './outcome.ts'
 
 type Applications = readonly SessionWorkspacePathApplication[]
 
@@ -33,19 +35,22 @@ function sameApplications(left: Applications, right: Applications): boolean {
   })
 }
 
-/** What a path gesture asks of the Host desktop: the default application, or the file manager showing the file. */
+/** What a path gesture asks of the Host desktop: the folder viewer, the association, or the file manager. */
 export type OpenInAppPathAction = 'open' | 'reveal'
+
+/** File-manager action reported by the Host, or null before the answer or when unavailable. */
+export type OpenInAppFileManager = SessionWorkspaceDesktop['fileManager']
 
 /** The slice of the Client Remote the path actions call. */
 export interface OpenInAppPathRemote {
   readonly session: {
-    /** Whether the Host can hand a workspace path to a native desktop. */
-    canOpenWorkspacePath(): Promise<RemoteResult<boolean>>
+    /** Native desktop facts for the serving Host: opener availability, file manager, and association support. */
+    workspaceDesktop(): Promise<RemoteResult<SessionWorkspaceDesktop>>
     /** Current registered file handlers and their default selection. */
     workspacePathApplications(
       request: { path: string }, signal?: AbortSignal,
     ): Promise<RemoteResult<readonly SessionWorkspacePathApplication[]>>
-    /** Open one Host path in its default application, or reveal it in the file manager. */
+    /** Open one Host path in its default application or folder viewer, or reveal it in the file manager. */
     openWorkspacePath(request: SessionOpenWorkspacePathRequest, signal?: AbortSignal): Promise<RemoteResult<unknown>>
   }
 }
@@ -57,6 +62,10 @@ export interface OpenInAppPathRemote {
 export class OpenInAppPathController {
   /** Whether the Host desktop can open paths; null until the Host answered, false also after a failed read. */
   readonly desktop: SnapshotStore<boolean | null> = createSnapshotStore<boolean | null>(null)
+  /** Host file-manager action behind folder open and file reveal; null until answered or when unavailable. */
+  readonly fileManager: SnapshotStore<OpenInAppFileManager> = createSnapshotStore<OpenInAppFileManager>(null)
+  /** Whether the Host can enumerate per-file applications; false hides application rows. */
+  readonly associationsSupported: SnapshotStore<boolean> = createSnapshotStore<boolean>(false)
   private readonly answers = createSnapshotStore<ReadonlyMap<string, Applications>>(new Map())
   /** Latest successful answer per association class; the snapshot keeps its identity until an answer changes. */
   readonly associations: ObservableSnapshot<ReadonlyMap<string, Applications>> = this.answers
@@ -92,16 +101,39 @@ export class OpenInAppPathController {
    * @returns the acknowledged open or reveal, or the named failure to announce.
    */
   async openPath(path: string, action: OpenInAppPathAction, application?: string): Promise<OpenInAppOutcome> {
-    const request: SessionOpenWorkspacePathRequest = action === 'reveal' ? { path, action } : { path, ...(application === undefined ? {} : { application }) }
-    let ok = false
+    const request: SessionOpenWorkspacePathRequest = action === 'reveal'
+      ? { path, action }
+      : { path, ...(application === undefined ? {} : { application }) }
+    return await this.request(request, action === 'reveal' ? 'revealError' : 'openError')
+  }
+
+  /**
+   * Open one Host folder in its default folder viewer.
+   * @param path - absolute folder path on the Host.
+   * @returns the acknowledged open, or the named failure to announce.
+   */
+  async openFolder(path: string): Promise<OpenInAppOutcome> {
+    return await this.request({ path, action: 'open' }, 'openError')
+  }
+
+  /**
+   * Send one path request and name a failure for the calling control.
+   * @param request - verified Host path and requested action.
+   * @param failure - failure kind when the Host refuses or cannot be reached.
+   * @returns the settled outcome.
+   */
+  private async request(
+    request: SessionOpenWorkspacePathRequest, failure: 'openError' | 'revealError',
+  ): Promise<OpenInAppOutcome> {
     try {
-      ok = (await this.remote.session.openWorkspacePath(request)).ok
+      const result = await this.remote.session.openWorkspacePath(request)
+      if (result.ok) return { kind: request.action === 'reveal' ? 'revealed' : 'opened' }
+      // A missing Host opener is actionable: copying the path still works there.
+      if (result.error.code === 'session/native-file-manager-unavailable') return { kind: 'failed', failure: 'managerUnavailable' }
     } catch {
       // Swallows carrier rejections: a Host that cannot be reached failed the
       // gesture like a Host that refused it, and the control announces that.
     }
-    if (ok) return { kind: action === 'reveal' ? 'revealed' : 'opened' }
-    const failure: OpenInAppPathFailure = action === 'open' ? 'openError' : 'revealError'
     return { kind: 'failed', failure }
   }
 
@@ -173,14 +205,20 @@ export class OpenInAppPathController {
   }
 
   private async run(): Promise<void> {
-    let available = false
     try {
-      const result = await this.remote.session.canOpenWorkspacePath()
-      available = result.ok && result.value
+      const result = await this.remote.session.workspaceDesktop()
+      if (result.ok) {
+        this.desktop.set(result.value.available)
+        this.fileManager.set(result.value.fileManager)
+        this.associationsSupported.set(result.value.associationsSupported)
+        return
+      }
     } catch {
       // Swallows carrier rejections: an unreachable Host reads as no desktop,
       // so the preview shows no path control rather than a broken one.
     }
-    this.desktop.set(available)
+    this.desktop.set(false)
+    this.fileManager.set(null)
+    this.associationsSupported.set(false)
   }
 }

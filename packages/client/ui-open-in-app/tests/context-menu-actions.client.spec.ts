@@ -32,7 +32,9 @@ async function boot() {
   const registry = new MenuRegistry(failure)
   const remote = {
     session: {
-      canOpenWorkspacePath: vi.fn(async () => ({ ok: true as const, value: true })),
+      workspaceDesktop: vi.fn(async () => ({ ok: true as const, value: {
+        name: 'desktop', available: true, fileManager: 'directory' as 'directory' | null, associationsSupported: true,
+      } })),
       workspacePathApplications: vi.fn(async (_request: { path: string }, _signal?: AbortSignal): Promise<RemoteResult<Applications>> => ({
         ok: true, value: [{ id: 'preview', name: 'Preview', default: true, icon: 'data:image/png;base64,a' }],
       })),
@@ -60,7 +62,7 @@ async function boot() {
   ctx.provide('sidebarRight', sidebar as never)
   ctx.provide('sidebarRightTabs', { get: browserTab } as never)
   const fiber = ctx.plugin({ apply: (plugin: Context) => {
-    registerContextMenus(plugin, paths, key => key, directories, report)
+    registerContextMenus(plugin, paths, key => key, report)
     registerFileMenus(plugin, ctx.fileActions, key => key)
   } })
   await fiber.await()
@@ -420,15 +422,25 @@ it('offers only folder reveal and path copy, retaining the captured directory', 
   expect(h.writeText).toHaveBeenLastCalledWith('/absolute')
 })
 
-it('opens the captured Workspace through the directory app catalog and reports launch failure', async () => {
+it('opens the captured Workspace through the Session Remote folder action and reports its failure', async () => {
   const h = await boot()
   const target: ContextMenuTarget = { kind: 'workspace', value: { workspaceId: 'workspace' as never, path: '/workspace', displayTitle: 'Workspace' } }
-  await h.choose(target, 'open-in-app.workspace/reveal')
-  expect(h.directoryFetch).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ app: 'finder', path: '/workspace' }) }))
+  const menu = await h.resolve(target)
+  expect(menu.source.getSnapshot()).toMatchObject([{ id: 'open-in-app.workspace/openFolder' }])
+  await h.choose(target, 'open-in-app.workspace/openFolder')
+  expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace', action: 'open' })
   await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'opened' }) })
-  h.directoryFetch.mockResolvedValueOnce(new Response('', { status: 500 }))
-  await h.choose(target, 'open-in-app.workspace/reveal')
-  await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'failed', failure: 'revealError' }) })
-  h.directories.apps.set([])
-  expect((await h.resolve(target)).source.getSnapshot()[0]?.disabled).toBe(true)
+  h.remote.session.openWorkspacePath.mockResolvedValueOnce({ ok: false } as never)
+  await h.choose(target, 'open-in-app.workspace/openFolder')
+  await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'failed', failure: 'openError' }) })
+})
+
+it('hides the Workspace folder action when the Host reports no desktop', async () => {
+  const h = await boot()
+  h.remote.session.workspaceDesktop.mockResolvedValueOnce({ ok: true, value: {
+    name: 'desktop', available: false, fileManager: null, associationsSupported: false,
+  } })
+  h.paths.desktop.set(false)
+  const target: ContextMenuTarget = { kind: 'workspace', value: { workspaceId: 'workspace' as never, path: '/workspace', displayTitle: 'Workspace' } }
+  expect((await h.resolve(target)).source.getSnapshot()).toEqual([])
 })

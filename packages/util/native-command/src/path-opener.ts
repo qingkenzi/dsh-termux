@@ -15,6 +15,7 @@
  * @module @deepseek-ai/dsh-native-command/path-opener
  */
 
+import { NativeCommandError } from './errors.ts'
 import { isWsl } from './host-environment.ts'
 import { dirname, extname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -22,6 +23,30 @@ import { runNativeCommand, type NativeCommandRunner } from './runner.ts'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type PathOpenerRunner = NativeCommandRunner
+
+/** Whether a command rejection reports an executable absent from this host. */
+function isMissingExecutable(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+}
+
+/**
+ * Run one opener command and classify its failure. A missing executable is a
+ * capability fact (`NATIVE_FILE_MANAGER_UNAVAILABLE`) rather than a refused
+ * launch; cancellation keeps the caller's abort reason.
+ */
+async function runOpener(
+  command: string, args: readonly string[], signal: AbortSignal, run: PathOpenerRunner,
+): Promise<void> {
+  try {
+    await run(command, args, signal, 'hidden')
+  } catch (error: unknown) {
+    signal.throwIfAborted()
+    if (isMissingExecutable(error)) {
+      throw new NativeCommandError(`${command} is unavailable`, 'NATIVE_FILE_MANAGER_UNAVAILABLE', { cause: error })
+    }
+    throw new NativeCommandError(`${command} could not open the path`, 'NATIVE_FILE_OPEN_FAILED', { cause: error })
+  }
+}
 
 /** Injectable platform facts for deterministic adapter tests. */
 export interface PathOpenerInternals {
@@ -193,11 +218,14 @@ async function openNativePathWithIntent(
       await openWslPath(path, signal, run)
       return
     }
-    await run('xdg-open', [path], signal, 'hidden')
+    // Android hands the absolute path to Termux's xdg-open (termux-open),
+    // which passes it to Android's viewer as one argv element.
+    await runOpener('xdg-open', [path], signal, run)
     return
   }
 
-  throw new Error(`native path opener is unsupported on ${platform}`)
+  throw new NativeCommandError(
+    `native path opener is unsupported on ${platform}`, 'NATIVE_FILE_MANAGER_UNAVAILABLE')
 }
 
 /**
@@ -317,8 +345,9 @@ export async function revealNativePath(
     return
   }
   if (manager === 'directory') {
-    await run('xdg-open', [dirname(path)], signal, 'hidden')
+    await runOpener('xdg-open', [dirname(path)], signal, run)
     return
   }
-  throw new Error(`native file manager is unsupported on ${platform}`)
+  throw new NativeCommandError(
+    `native file manager is unsupported on ${platform}`, 'NATIVE_FILE_MANAGER_UNAVAILABLE')
 }

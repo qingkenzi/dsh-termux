@@ -70,7 +70,7 @@ async function fixture() {
   ctx.provide('workspaceChanges', { summary, diff })
   const opener = vi.fn(async (_request: { path: string; action?: 'reveal' }, _signal: AbortSignal) => ({ opened: true as const }))
   const applications = vi.fn(async () => [{ id: 'player', name: 'Player', default: true, icon: null }])
-  ctx.provide('sessionController', { workspacePathApplications: applications, openWorkspacePath: opener, workspaceDesktop: () => ({ name: 'desktop', available: true, fileManager: 'finder' }) } as never)
+  ctx.provide('sessionController', { workspacePathApplications: applications, openWorkspacePath: opener, workspaceDesktop: () => ({ name: 'desktop', available: true, fileManager: 'finder', associationsSupported: true }) } as never)
   new ConnectionAuthentication(ctx)
   const connection = new HostConnectionService(ctx, [])
   await ctx.plugin(deliverables)
@@ -171,7 +171,7 @@ describe('changed files native open route', () => {
 
   it('refuses opening without a desktop or a verified Host mapping and reports launcher failures', async () => {
     const { ctx, open, opener } = await fixture()
-    const desktop = vi.spyOn(ctx.sessionController, 'workspaceDesktop').mockReturnValue({ name: 'desktop', available: false, fileManager: null })
+    const desktop = vi.spyOn(ctx.sessionController, 'workspaceDesktop').mockReturnValue({ name: 'desktop', available: false, fileManager: null, associationsSupported: false })
     expect((await open()).status).toBe(409)
     desktop.mockRestore()
     const mapping = vi.spyOn(ctx.fs, 'processPathFromHostPath').mockReturnValue(undefined)

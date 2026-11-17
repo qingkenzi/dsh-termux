@@ -53,6 +53,8 @@ const { stdout, stderr } = await runNativeCommand('osascript', ['-e', script], s
 
 `nativeFileApplications(path, signal)` 返回关联应用、本地化名称、图标和当前默认项。macOS 12 及以上版本使用 LaunchServices，Windows 使用 Shell 关联处理器并在提取前解析打包应用的间接图标引用，Linux 使用 GIO，并共用 XDG 桌面文件和图标读取逻辑。macOS 上 bundle 标识符与显示名都相同的多份拷贝（自更新暂存副本、按版本安装的拷贝）合并为系统默认项，否则保留最高版本；显示名不同的并存安装两项都保留。`openNativeFileApplication(path, application, signal)` 按完整的当前注册列表重新验证关联应用，展示列表中被合并掉的拷贝仍可打开，且不修改系统默认值。Windows 交给 Shell 启动应用，Linux 交给 `gio launch` 展开参数。WSL 转换路径后使用 Windows 适配器。调用方负责验证本地文件路径。原生集成测试分别在相应平台使用独立的 Windows 文件关联和 Linux XDG 目录。
 
+Android 不向 Termux 暴露处理器注册表：`nativeFileApplications()` 返回空列表，`nativeFileAssociationsSupported()` 返回 false。因此 `openNativeFileApplication()` 不校验应用 id，而是把已验证的绝对路径交给 `xdg-open`（Termux 以 `termux-open` 包装脚本提供）。能力失败是带稳定 code 的 `NativeCommandError`：没有可用的打开命令时为 `NATIVE_FILE_MANAGER_UNAVAILABLE`，打开器拒绝该路径时为 `NATIVE_FILE_OPEN_FAILED`，在没有关联查询的平台上请求指定应用时为 `NATIVE_FILE_ASSOCIATIONS_UNSUPPORTED`。取消时保留调用方的 abort reason。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -68,6 +70,7 @@ const { stdout, stderr } = await runNativeCommand('osascript', ['-e', script], s
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 命令运行器与路径打开器的公共导出 |
+| [`src/errors.ts`](src/errors.ts) | 带 code 的原生打开失败（`NATIVE_FILE_*`） |
 | [`src/runner.ts`](src/runner.ts) | 无 shell 的 `execFile` 适配器 |
 | [`src/path-opener.ts`](src/path-opener.ts) | 桌面探测、打开意图、浏览器偏好与 WSL 转换 |
 
@@ -105,6 +108,8 @@ const { stdout, stderr } = await runNativeCommand('osascript', ['-e', script], s
 <a id="known-limitations-and-deferred-work"></a>
 
 Linux 的关联查询和指定应用启动需要 GIO。缺少原生命令时查询失败，缺失的图标返回 null；调用方可以保留文件定位作为备用动作。
+
+Android 没有关联注册表，因此该平台的文件菜单只能提供定位。`PATH` 中必须存在 `xdg-open`（Termux 以 `termux-open` 包装脚本提供）；否则打开或定位会报 `NATIVE_FILE_MANAGER_UNAVAILABLE`，界面可改为提供路径复制。
 
 
 这些限制说明本运行器何时不是合适的工具。它们是当前包约束，不是任务积压。

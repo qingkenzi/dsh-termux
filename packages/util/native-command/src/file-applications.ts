@@ -1,8 +1,9 @@
 /** Native file associations queried from the desktop that owns the path. */
 import { runNativeCommand } from './runner.ts'
+import { NativeCommandError } from './errors.ts'
 import { linuxFileApplications } from './file-applications-linux.ts'
 import { windowsFileApplications } from './file-applications-windows.ts'
-import { nativeFileManager } from './path-opener.ts'
+import { nativeFileManager, openNativePath } from './path-opener.ts'
 import type { PathOpenerInternals } from './path-opener.ts'
 import { parseNativeFileApplications, type NativeFileApplication } from './types.ts'
 
@@ -46,6 +47,18 @@ function run(argv) {
 }`
 
 /**
+ * Whether the Host can enumerate and revalidate per-file application handlers.
+ * Android's Intent system does not expose that registry to Termux, so callers
+ * hide explicit-application controls and use the path opener instead.
+ * @param internals - platform facts for deterministic tests.
+ * @returns true on the platforms with a native association query.
+ */
+export function nativeFileAssociationsSupported(internals: PathOpenerInternals = {}): boolean {
+  const platform = internals.platform ?? process.platform
+  return platform === 'darwin' || platform === 'win32' || platform === 'linux'
+}
+
+/**
  * List registered handlers in OS preference order, including the current default and application icons.
  * @param path - verified absolute local file path.
  * @param signal - caller lifetime, propagated to the OS query.
@@ -69,6 +82,7 @@ async function queryFileApplications(
   signal.throwIfAborted()
   const target = await desktopTarget(path, signal, internals)
   const run = internals.run ?? runNativeCommand
+  if (target.platform === 'android') return []
   if (target.platform === 'linux') return linuxFileApplications(path, signal, run, internals.env ?? process.env)
   if (target.platform === 'darwin') {
     const { stdout } = await run('osascript', ['-l', 'JavaScript', '-e', MAC_APPLICATIONS, target.path, display ? 'icons' : 'handlers'], signal, 'hidden')
@@ -173,9 +187,19 @@ export async function openNativeFileApplication(
 ): Promise<void> {
   const target = await desktopTarget(path, signal, internals)
   const run = internals.run ?? runNativeCommand
+  if (target.platform === 'android') {
+    // Android exposes no handler registry, so an explicit application id cannot
+    // be revalidated; hand the verified path to Termux's viewer instead.
+    await openNativePath(target.path, signal, internals)
+    return
+  }
   if (target.platform === 'win32') {
     await windowsFileApplications(target.path, application, signal, run)
     return
+  }
+  if (target.platform !== 'linux' && target.platform !== 'darwin') {
+    throw new NativeCommandError(
+      `file associations are unsupported on ${target.platform}`, 'NATIVE_FILE_ASSOCIATIONS_UNSUPPORTED')
   }
   const apps = await queryFileApplications(path, signal, internals, false)
   if (!apps.some(app => app.id === application)) throw new Error('Application is not registered for this file')
@@ -183,7 +207,7 @@ export async function openNativeFileApplication(
   else await run('open', ['-a', application, path], signal, 'hidden')
 }
 
-/** Resolve the desktop that owns the file, including Windows applications reached from WSL. */
+/** Resolve the desktop that owns the file, including Windows applications reached from WSL and Android. */
 async function desktopTarget(
   path: string, signal: AbortSignal, internals: PathOpenerInternals,
 ): Promise<{ platform: NodeJS.Platform; path: string }> {
