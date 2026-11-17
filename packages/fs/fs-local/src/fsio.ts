@@ -6,8 +6,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { createReadStream, realpath as realpathCallback } from 'node:fs'
-import { chmod, link, lstat, mkdir, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
+import { constants, createReadStream, realpath as realpathCallback } from 'node:fs'
+import { chmod, copyFile, link, lstat, mkdir, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import type { BigIntStats, Dirent, Stats } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { TextDecoder, promisify } from 'node:util'
@@ -27,6 +27,13 @@ function isENOENT(error: unknown): boolean {
 
 function isEEXIST(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST'
+}
+
+/** Filesystem errors that mean hard links are unsupported, not a name collision. */
+function isLinkUnsupported(error: unknown): boolean {
+  return error instanceof Error && 'code' in error &&
+    (error.code === 'EACCES' || error.code === 'EPERM' || error.code === 'ENOSYS' ||
+      error.code === 'EOPNOTSUPP' || error.code === 'ENOTSUP')
 }
 
 /**
@@ -94,6 +101,8 @@ export interface FsIoInternals {
   replaceFile?: (replaced: string, replacement: string) => Promise<void>
   /** Override the hard-link no-replace publication boundary. */
   linkFile?: (existingPath: string, newPath: string) => Promise<void>
+  /** Override the exclusive-copy publication used where hard links are unsupported. */
+  copyExclusiveFile?: (source: string, destination: string, flags: number) => Promise<void>
   /** Override target inspection after guarded publication fails. */
   inspectPublicationTarget?: (path: string) => Promise<BigIntStats>
   /** Observe the final cancellable checkpoint before delete or move commits. */
@@ -586,6 +595,42 @@ function writeIoError(path: string, error: unknown): unknown {
 }
 
 /**
+ * Publish a staged file where hard links are unsupported: an exclusive copy keeps the
+ * create-if-absent refusal, then the copy's mode is applied and its inode is flushed through a
+ * read-only descriptor. The staged sibling supplies the bytes, so the copy stays on the target's
+ * filesystem.
+ * @param tempPath - staged file whose bytes are already synced.
+ * @param absolutePath - destination that must not exist yet.
+ * @param displayPath - caller-facing path used in diagnostics.
+ * @param mode - POSIX mode for the published file, or undefined for owner-only.
+ * @param copyExclusiveFile - exclusive copy primitive; the caller supplies `copyFile` or a test override.
+ * @param inspectPublicationTarget - target probe that classifies a lost create race.
+ * @returns once the published entry's contents are durable.
+ */
+async function publishByExclusiveCopy(
+  tempPath: string,
+  absolutePath: string,
+  displayPath: string,
+  mode: number | undefined,
+  copyExclusiveFile: (source: string, destination: string, flags: number) => Promise<void>,
+  inspectPublicationTarget: (path: string) => Promise<BigIntStats>,
+): Promise<void> {
+  try {
+    await copyExclusiveFile(tempPath, absolutePath, constants.COPYFILE_EXCL)
+  } catch (error: unknown) {
+    if (isEEXIST(error)) await throwGuardedCreateFailure(error, absolutePath, displayPath, inspectPublicationTarget)
+    throw writeIoError(displayPath, error)
+  }
+  await chmod(absolutePath, mode ?? 0o600)
+  const handle = await open(absolutePath, 'r')
+  try {
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+}
+
+/**
  * Atomically replace a file through a private, synced staging file in the same directory.
  * POSIX protects the staging directory and file with `0o700` and `0o600`. A new Windows file
  * inherits the destination directory's DACL; a replacement copies the existing target's DACL
@@ -598,7 +643,10 @@ function writeIoError(path: string, error: unknown): unknown {
  * @param internals - Test hook for pinning temp names and observing the staged file.
  * @param options - `displayPath` names the target in diagnostics (defaults to `absolutePath`);
  * `createIfAbsent` publishes with a hard-link no-replace primitive, so a concurrent creator's
- * file is preserved and this write is rejected with `FS_NOT_OBSERVED`; `existingDestination`
+ * file is preserved and this write is rejected with `FS_NOT_OBSERVED`; a host that refuses hard
+ * links publishes by exclusive copy instead, which preserves a concurrent creator's file the same
+ * way — that copy needs the staged file on the target's filesystem, which the sibling staging
+ * directory provides; `existingDestination`
  * states whether Windows must preserve destination security and defaults to mode presence,
  * while moves pass destination presence separately from the source mode.
  */
@@ -625,6 +673,7 @@ export async function writeFileAtomic(
   const copyFileDacl = internals.copyFileDacl ?? copyFileDaclWin32
   const replaceFile = internals.replaceFile ?? replaceFileWin32
   const linkFile = internals.linkFile ?? link
+  const copyExclusiveFile = internals.copyExclusiveFile ?? copyFile
   const inspectPublicationTarget = internals.inspectPublicationTarget
     ?? (path => lstat(path, { bigint: true }))
   const removeStagingDir = internals.removeStagingDir
@@ -653,7 +702,11 @@ export async function writeFileAtomic(
       try {
         await linkFile(tempPath, absolutePath)
       } catch (error: unknown) {
-        await throwGuardedCreateFailure(error, absolutePath, displayPath, inspectPublicationTarget)
+        if (isLinkUnsupported(error)) {
+          await publishByExclusiveCopy(tempPath, absolutePath, displayPath, mode, copyExclusiveFile, inspectPublicationTarget)
+        } else {
+          await throwGuardedCreateFailure(error, absolutePath, displayPath, inspectPublicationTarget)
+        }
       }
     } else if (platform === 'win32' && existingDestination) {
       try {

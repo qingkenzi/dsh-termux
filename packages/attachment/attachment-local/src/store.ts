@@ -2,7 +2,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
-import { chmod, link, mkdir, open, readFile, unlink } from 'node:fs/promises'
+import { access, chmod, mkdir, open, readFile, unlink } from 'node:fs/promises'
 import { dirname, join, parse, resolve } from 'node:path'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentId } from '@deepseek-ai/dsh-attachment/types'
@@ -17,6 +17,7 @@ import { normalizeImage } from './normalization.ts'
 import type { NormalizationPolicy } from './normalization.ts'
 import { detectImage, probeImage } from './image.ts'
 import type { DetectedImage } from './image.ts'
+import { publishExclusive } from './publish.ts'
 
 const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
 const durableHomes = new Set<string>()
@@ -123,6 +124,18 @@ export async function prepareImageFile(
 }
 
 /**
+ * Report whether a directory fsync failure is an access refusal rather than a
+ * real I/O fault. The caller confirms the same directory is also unwritable
+ * before treating the refusal as a persistence boundary.
+ * @param error - failure raised while opening or syncing the directory.
+ * @returns whether the failure reports EACCES or EPERM.
+ */
+function isUnreachableDirectory(error: unknown): boolean {
+  if (!(error instanceof Error && 'code' in error)) return false
+  return error.code === 'EACCES' || error.code === 'EPERM'
+}
+
+/**
  * Make a directory's entries durable (fsync on a read-only directory handle).
  * A synced file alone does not survive a crash when its directory entry never
  * reached storage, so the publication directory is synced before a durable
@@ -160,7 +173,19 @@ async function ensureDurableDirectory(path: string, boundary: string): Promise<v
   let level = target
   while (level !== stop) {
     const parent = dirname(level)
-    await syncDirectory(parent)
+    try {
+      await syncDirectory(parent)
+    } catch (error) {
+      if (!isUnreachableDirectory(error)) throw error
+      // An ancestor this process cannot write is outside the entries it can
+      // create, so the directories already synced below it are the deepest
+      // persistence boundary it can prove — Android exposes `/data` and
+      // `/data/data` as mode 0771 to app sandboxes. A writable ancestor that
+      // still refuses the sync is a real fault and must reach the caller.
+      const writable = await access(parent, constants.W_OK).then(() => true, () => false)
+      if (writable) throw error
+      return
+    }
     /* v8 ignore next -- filesystem-root guard: callers pass a boundary that is an ancestor of path, so the walk reaches it first. */
     if (parent === level) return
     level = parent
@@ -202,7 +227,7 @@ export async function commitPreparedImageFile(
 
 /**
  * Publish one immutable content-addressed object below a versioned attachment
- * root: staged write, fsync, hard-link into place, digest-verified EEXIST
+ * root: staged write, fsync, publish-if-absent into place, digest-verified EEXIST
  * deduplication, read-only mode, and durable directory entries from the
  * target's parent up to (excluding) `root`.
  * @param root - absolute `DSH_HOME/attachments/v1` root.
@@ -279,9 +304,9 @@ export async function publishImmutableAlias(
     const boundary = await ensureDurableHome(dirname(dirname(resolve(root))))
     await ensureDurableDirectory(parent, boundary)
     try {
-      await link(source, target)
+      await publishExclusive(source, target)
     } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable publish race. */
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
       if (await digestFile(target) !== sha256) {
         throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
@@ -355,9 +380,9 @@ async function publishStagedObject(
   try {
     await ensureDurableDirectory(parent, staged.boundary)
     try {
-      await link(staged.path, target)
+      await publishExclusive(staged.path, target)
     } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable publish race. */
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
       if (await digestFile(target) !== staged.sha256) {
         throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
@@ -366,12 +391,12 @@ async function publishStagedObject(
     // Windows shares the read-only attribute across hard links and refuses to
     // unlink either name once it is set, so discard the staging name first.
     await unlink(staged.path)
-    // The target remains the sole link for a new object; this also restores
+    // The target remains the sole name for a new object; this also restores
     // read-only mode when the deduplication path observes an existing object.
     await chmod(target, 0o400)
     // Persist the target entry and close every concurrent parent-creation
     // window before the reference can reach a session checkpoint. The dedup
-    // path repeats these syncs because it may observe another writer's link
+    // path repeats these syncs because it may observe another writer's publication
     // before that writer reaches its own durability boundary.
     const stop = resolve(root)
     for (let level = parent; level !== stop; level = dirname(level)) {
