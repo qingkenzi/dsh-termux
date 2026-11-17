@@ -11,20 +11,29 @@ on:
     - cron: '43 18 * * *'
   pull_request:
     paths:
+      - '.github/workflows/android.yml'
       - 'apps/cli/**'
+      - 'docs/user/guide/android-termux.*'
       - 'native/**'
       - 'packages/**'
       - 'scripts/check-android.mjs'
-      - 'scripts/ci/android-device.sh'
+      - 'scripts/ci/**'
       - 'scripts/setup-android*'
+      - 'scripts/verify-android-addons.mjs'
+      - 'snapshots/**'
+      - 'vendor/android-prebuilds/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
 
 permissions:
   contents: read
 
+# Every ref syncs the same checkout into DSH_ANDROID_ROOT on one physical
+# device, so runs must never overlap: a per-ref group would let two rsyncs
+# write the same tree. Serialize on a fixed group and keep cancelling a
+# superseded run so the device starts the newest revision promptly.
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-device
   cancel-in-progress: true
 
 jobs:
@@ -40,6 +49,8 @@ jobs:
       DSH_SNAPSHOT_MAX_WORKERS: '2'
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - name: Sync checkout to the device
         run: scripts/ci/android-device.sh sync
       - name: Install dependencies

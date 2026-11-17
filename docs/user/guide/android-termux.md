@@ -67,6 +67,7 @@ Use an HTTPS provider endpoint, or reach a private HTTP endpoint through an SSH 
 ## Verification and CI
 
 `.github/workflows/android.yml` runs the Termux lane on a self-hosted runner that reaches a real device over SSH/rsync. It installs dependencies, runs `setup:android`, builds artifacts, runs `check:android`, and replays the portable snapshots. Scenarios that need a kernel sandbox or CUA declare `requires`/`skip.android` in `snapshot.yml`; their Linux/macOS lanes remain the authority for those paths. Hosted Linux CI does not substitute for this lane: it cannot provide `process.platform=android`, bionic N-API, or the Android app-data filesystem.
+
 ## Troubleshooting
 
 - `ERR_FLOCK_ADDON_MISSING` or `ANDROID_ADDONS_MISSING`: run `pnpm run setup:android`.

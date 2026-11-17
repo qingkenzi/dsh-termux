@@ -67,6 +67,7 @@ DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
 ## 验证与 CI
 
 `.github/workflows/android.yml` 通过 SSH/rsync 连接真实设备的 self-hosted runner 运行 Termux lane：安装依赖、执行 `setup:android`、构建产物、运行 `check:android`，并回放可移植的 snapshot。需要内核沙箱或 CUA 的场景在 `snapshot.yml` 中声明 `requires`/`skip.android`，这些路径仍以 Linux/macOS lane 为准。Hosted Linux CI 不能替代该 lane：它无法提供 `process.platform=android`、bionic N-API 或 Android 应用数据文件系统。
+
 ## 排障
 
 - `ERR_FLOCK_ADDON_MISSING` 或 `ANDROID_ADDONS_MISSING`：运行 `pnpm run setup:android`。
