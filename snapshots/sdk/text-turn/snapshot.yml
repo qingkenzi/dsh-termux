@@ -10,4 +10,4 @@ header:
   pin: true
   toolSchemasSource: session/text-turn
 skip:
-  android: SDK snapshots are recorded under the Linux workspace-write permission preset
+  android: Android defaults to danger-full-access because it has no file-sandbox backend, while the fixture records Linux workspace-write with the approval prompt; replay would change the session permission events and system prompt
