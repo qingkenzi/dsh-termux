@@ -80,7 +80,9 @@ afterEach(async () => {
 })
 
 describe('local attachment store', () => {
-  it.skipIf(process.platform === 'win32')('syncs every object ancestor up to the durable boundary before returning', async () => {
+  // Android exposes `/data` and `/data/data` as unwritable ancestors, so the
+  // walk stops at the app-sandbox boundary instead of the filesystem root.
+  it.skipIf(process.platform === 'win32' || process.platform === 'android')('syncs every object ancestor up to the durable boundary before returning', async () => {
     const storageRoot = await root()
     const base = join(storageRoot, '..', '..')
     const sha256 = createHash('sha256').update(PNG).digest('hex')
