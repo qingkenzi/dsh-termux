@@ -4,6 +4,7 @@
  * Node headers come from the Node installation running this script.
  */
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -22,6 +23,46 @@ interface Binary {
   path: string
   napi?: number
   libc?: string
+}
+
+/**
+ * Compile the Android flock addon into the entry package.
+ *
+ * Termux reports `android` on bionic libc, and no platform package carries a
+ * binary for it, so the addon lives beside the entry that loads it. Node-API is
+ * ABI-stable, so the same source and flags as the Linux build apply.
+ * @param headers - Node-API header directory from the running Node installation.
+ */
+function buildAndroidFlock(headers: string): void {
+  const output = join(root, 'packages/entry/bin/bionic/system.node')
+  if (!existsSync(join(headers, 'node_api.h'))) {
+    throw new Error(`build: Node-API headers missing at ${headers}; install the Node development headers for this Termux nodejs package`)
+  }
+  mkdirSync(join(root, '.release'), { recursive: true })
+  const temporary = mkdtempSync(join(root, '.release', 'native-build-'))
+  try {
+    const pending = join(temporary, 'system.node')
+    const result = spawnSync('cc', [
+      '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-fPIC', '-fvisibility=hidden',
+      '-DNAPI_VERSION=8', '-I', headers, '-shared', '-o', pending,
+      join(root, 'packages/entry/src/flock.c'),
+    ], { stdio: 'inherit' })
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error('build: cc failed for the Android flock addon')
+    mkdirSync(dirname(output), { recursive: true })
+    renameSync(pending, output)
+  } finally {
+    rmSync(temporary, { recursive: true, force: true })
+  }
+  // A binary that cannot register here would only fail the first session write.
+  createRequire(import.meta.url)(output)
+  console.log('build: built entry/bin/bionic/system.node')
+}
+
+if (process.platform === 'android') {
+  const headers = resolve(dirname(process.execPath), '../include/node')
+  buildAndroidFlock(headers)
+  process.exit(0)
 }
 
 if (process.platform !== 'linux' && process.platform !== 'darwin') {
