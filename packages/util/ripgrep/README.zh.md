@@ -37,7 +37,7 @@ kind: "package-library"
 <details>
 <summary>实现内幕——点击展开</summary>
 
-单文件运行时优先选用可执行文件旁已有的 `-rg` 附属程序，否则使用 `@vscode/ripgrep` 平台包。Electron 路径将 `app.asar` 替换为 `app.asar.unpacked`。每次启动前置 `--no-config`，防止环境中的 rg 配置启用预处理程序。子进程提供方负责环境清理与终止；调用方负责截止时间与结果预算。参见[实现](src/index.ts)。
+单文件运行时优先选用可执行文件旁已有的 `-rg` 附属程序；Android 上依次使用显式 `DSH_RG_PATH` 或内置 `vendor/android-prebuilds/rg`，否则使用 `@vscode/ripgrep` 平台包。Electron 路径将 `app.asar` 替换为 `app.asar.unpacked`；所有平台最后回退到 PATH 中的系统 `rg`。每次启动前置 `--no-config`，防止环境中的 rg 配置启用预处理程序。子进程提供方负责环境清理与终止；调用方负责截止时间与结果预算。参见[实现](src/index.ts)。
 
 </details>
 
@@ -65,7 +65,7 @@ kind: "package-library"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **要求同处一个执行环境的程序**——解析使用 Host 的打包二进制路径。远端子进程提供方没有该程序时调用失败；不查找系统 rg，也不回退到文件系统遍历。
+- **要求同处一个执行环境的程序**——解析使用 Host 的附属程序、内置预编译、`@vscode/ripgrep` 或 PATH 中的系统 `rg`。远端子进程提供方没有任何候选时调用失败；不回退到文件系统遍历。
 - **记录缓冲**——流式读取保留一条尚未完整的记录与当前流块；文件名可能含换行符的调用方使用 NUL 分隔符而不是换行符。记录按 UTF-8 解码，因此不是有效 UTF-8 的文件名会带着 U+FFFD 替换字符到达，无法用该字符串打开。
 
 <a id="dev-note"></a>
