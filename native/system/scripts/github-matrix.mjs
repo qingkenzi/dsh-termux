@@ -11,12 +11,18 @@
 import path from 'node:path';
 import { platformDirs, readJson, root } from './repo.mjs';
 
-/** GitHub runner per prebuilds.json `platform` value — native builders only, no cross toolchain. */
+/**
+ * GitHub runner per prebuilds.json `platform` value — native builders only, no
+ * cross toolchain. `android-arm64` has no GitHub-hosted runner; `self-hosted`
+ * is the placeholder label the later Android CI workflow targets, so matrix
+ * generation stays valid until an Android arm64 runner is registered.
+ */
 const RUNNERS = {
   'linux-x64': 'ubuntu-24.04',
   'linux-arm64': 'ubuntu-24.04-arm',
   'darwin-x64': 'macos-15-intel',
   'darwin-arm64': 'macos-latest',
+  'android-arm64': 'self-hosted',
 };
 
 function runnerFor(platform) {

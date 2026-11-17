@@ -1,0 +1,10 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write native/system/packages/android-arm64/README.md
+/:
+  en: 6a8024b1df2fee4b
+  zh: 256f267914dee185
+/deepseek-ai-node-addon-system-android-arm64:
+  en: c5a25943889b2509
+  zh: 187324885591a7fa

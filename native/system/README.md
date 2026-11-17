@@ -28,11 +28,11 @@ Importing either entry does not load an addon. A missing Landlock executable pro
 
 ## Support
 
-Linux x64/arm64 packages contain the static Landlock executable and separate glibc/musl `system.node` files. macOS x64/arm64 packages contain `system.node` only. Landlock additionally needs an enforcing Linux kernel; Windows uses the Harness's existing locking implementation. The [support matrix](docs/support-matrix.md) names builders and verification owners. Android arm64 has no platform package: the host build compiles the flock addon from source into the entry package's `bin/bionic/system.node`.
+Linux x64/arm64 packages contain the static Landlock executable and separate glibc/musl `system.node` files. macOS x64/arm64 packages contain `system.node` only. The Android arm64 package contains the bionic `system.node`; it has no Landlock executable, declares no libc variant, and aligns every `PT_LOAD` segment for 16 KB page devices. Landlock additionally needs an enforcing Linux kernel; Windows uses the Harness's existing locking implementation. The [support matrix](docs/support-matrix.md) names builders and verification owners.
 
 ## Development
 
-From this directory, `pnpm build:ts` builds the entry, `pnpm build:native` builds the host's declared native payload, and `pnpm build:test-oracle` builds an independent flock syscall fixture. Then `pnpm test` exercises entry, lock, packaging, and available kernel behavior. Linux requires musl-gcc for a complete build; macOS uses cc. The root `pnpm run build:native-system` builds only the current host addon for source tests.
+From this directory, `pnpm build:ts` builds the entry, `pnpm build:native` builds the host's declared native payload, and `pnpm build:test-oracle` builds an independent flock syscall fixture. Then `pnpm test` exercises entry, lock, packaging, and available kernel behavior. Linux requires musl-gcc for a complete build; macOS uses cc. The root `pnpm run build:native-system` builds only the current host addon for source tests. On Android, both build commands compile the bionic flock addon into `packages/android-arm64/bin/bionic/system.node` and keep `packages/entry/bin/bionic/system.node` as a source-compatible copy; the build fails when a `PT_LOAD` segment is aligned below 0x4000.
 
 The [architecture](docs/architecture.md), [packaging](docs/packaging.md), and [release procedure](docs/release.md) own implementation and publication details.
 

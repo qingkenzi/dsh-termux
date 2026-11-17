@@ -6,7 +6,7 @@ This workspace owns `@deepseek-ai/node-addon-system`: the Linux `landlock-run` c
 
 - Landlock's argv, exit codes, diagnostics, and fail-closed confinement are defined in [docs/cli-contract.md](docs/cli-contract.md). Do not change them when extending another system capability.
 - The launcher uses only libc, statically linked against musl. Its kernel UAPI definitions remain in the reviewed C source.
-- Node bindings use stable Node-API v8, never NAN, V8 C++ APIs, or experimental Node interfaces. Linux glibc and musl addons are distinct binaries; macOS has its own Mach-O bundle.
+- Node bindings use stable Node-API v8, never NAN, V8 C++ APIs, or experimental Node interfaces. Linux glibc and musl addons are distinct binaries; macOS has its own Mach-O bundle; Android arm64 has one bionic ELF aligned for 16 KB page devices.
 - The flock binding attempts only `LOCK_EX | LOCK_NB` in asynchronous work and captures errno on that worker. The caller owns the fd through completion and releases its lock by closing it.
 - `./landlock-run` and `./flock` are independent capability exports; the package has no root export. Neither import loads the addon. `./flock` loads it only when called; Windows retains the Harness's existing semaphore implementation.
 - Runtime binary selection has no environment-variable overrides. `NALR_REQUIRE_LANDLOCK` is a test-only enforcement requirement.
@@ -21,7 +21,7 @@ Run `pnpm build:ts`, `pnpm build:native`, `pnpm build:test-oracle`, `pnpm typech
 ## Packaging and verification
 
 - `os`/`cpu` and `prebuilds.json` are the checked-in package matrix. CI derives runners from that matrix, builds natively on each architecture, and tests identical addon bytes under several Node releases.
-- Linux packages contain `bin/landlock-run`, `bin/glibc/system.node`, and `bin/musl/system.node`. macOS packages contain `bin/system.node`. No Windows platform package is needed by these capabilities.
+- Linux packages contain `bin/landlock-run`, `bin/glibc/system.node`, and `bin/musl/system.node`. macOS packages contain `bin/system.node`. The Android arm64 package contains `bin/bionic/system.node`. No Windows platform package is needed by these capabilities.
 - Platform prepack rejects missing, undeclared, wrong-format, wrong-architecture, and non-Node-API addon payloads. Launcher executability is checked separately.
 - Platform tarballs use npm pack to preserve executable permissions. The entry uses pnpm pack for workspace version conversion.
 - Packed-install verification checks manifests, installs local tarballs without a registry, byte-pins payloads, and exercises both the installed flock binding and Landlock's functional probe.
