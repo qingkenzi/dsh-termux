@@ -19,6 +19,14 @@ set -euo pipefail
 device=${DSH_ANDROID_DEVICE:?set DSH_ANDROID_DEVICE to the Termux SSH destination}
 remote_root=${DSH_ANDROID_ROOT:-/data/data/com.termux/files/home/dsh-ci}
 
+# A destination beginning with '-' would be parsed as an ssh option; reject
+# whitespace/newlines because the destination is not shell-quoted by callers.
+newline='
+'
+case "$device" in
+  -*|*" "*|*"$newline"*) echo "android-device.sh: invalid DSH_ANDROID_DEVICE: $device" >&2; exit 2 ;;
+esac
+
 die() {
   echo "android-device.sh: $*" >&2
   exit 2
@@ -31,8 +39,6 @@ case "$remote_root" in
   /*) ;;
   *) die "DSH_ANDROID_ROOT must be an absolute path: $remote_root" ;;
 esac
-newline='
-'
 case "$remote_root" in
   *"'"*|*"$newline"*|*"$(printf '\r')"*) die "DSH_ANDROID_ROOT must not contain single quotes or newlines: $remote_root" ;;
 esac
