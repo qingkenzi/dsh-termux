@@ -30,7 +30,9 @@ export function isInside(root: string, path: string): boolean {
  * @param candidates - directories to canonicalize.
  * @returns absolute directory paths.
  */
-export async function temporaryRoots(candidates: readonly string[] = ['/tmp', tmpdir()]): Promise<string[]> {
+export async function temporaryRoots(
+  candidates: readonly string[] = process.platform === 'android' ? [tmpdir()] : ['/tmp', tmpdir()],
+): Promise<string[]> {
   const roots = new Set<string>()
   for (const root of candidates) {
     roots.add(root)

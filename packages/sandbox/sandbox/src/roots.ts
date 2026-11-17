@@ -102,5 +102,8 @@ export function workspaceWritableRoots(policy: SandboxExecutionPolicy): string[]
  */
 export function writableRoots(policy: SandboxExecutionPolicy): string[] {
   if (policy.mode !== 'workspace-write') return []
-  return [...new Set([...workspaceWritableRoots(policy), canonicalPath('/tmp'), canonicalPath(tmpdir())])]
+  const tempAreas = process.platform === 'android'
+    ? [canonicalPath(tmpdir())]
+    : [canonicalPath('/tmp'), canonicalPath(tmpdir())]
+  return [...new Set([...workspaceWritableRoots(policy), ...tempAreas])]
 }

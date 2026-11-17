@@ -1,5 +1,7 @@
 /** Session-owned user terminals with the execution environment's system-user permissions. */
 import { randomUUID } from 'node:crypto'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -451,9 +453,9 @@ export class TerminalController extends TypertRemoteService {
     const shell = await this.agentShell(agent, request.preferredShells, signal)
     const argv = await this.confine(agent, [shell.path, ...shell.args], request.policy, signal)
     const { platform } = await subprocess.terminalEnvironment(signal)
-    // Confined shells cannot write the person's history file and must not load it. Only workspace-write grants /tmp,
-    // so a read-only shell gets an empty HISTFILE and keeps no history file.
-    const historyFile = `/tmp/dsh-agent-history-${id}`
+    // Confined shells cannot write the person's history file and must not load it. Only workspace-write grants the
+    // platform temp area, so a read-only shell gets an empty HISTFILE and keeps no history file.
+    const historyFile = join(tmpdir(), `dsh-agent-history-${id}`)
     const keepsHistory = platform === 'posix' && request.policy.mode === 'workspace-write'
     const confined = platform === 'posix' && request.policy.mode !== 'danger-full-access'
     const history = confined ? { HISTFILE: keepsHistory ? historyFile : '' } : {}
