@@ -5,7 +5,9 @@
  * The default intent prefers the default browser for documents it renders when
  * the platform can name one, then falls back to the default application. WSL
  * translates every path for the Windows desktop instead of assuming a Linux
- * GUI. The text-editor intent never consults the browser. Windows hands every
+ * GUI. Termux reports `android`; it shares the Linux opener and its `$BROWSER`
+ * convention because its `xdg-open` hands paths to Android's viewer. The
+ * text-editor intent never consults the browser. Windows hands every
  * intent to Explorer: the shell's own default-application resolution, the one
  * a double-click uses, selects the application, while a process that resolves
  * the association itself reads a narrower record and reports none.
@@ -173,7 +175,7 @@ async function openNativePathWithIntent(
   const wsl = effectivePlatform === 'linux' && isWsl(internals)
 
   if (!wsl && intent === 'default' && BROWSER_DOCUMENTS.has(extname(path).toLowerCase())
-    && await openInBrowser(path, signal, platform, run, env)) return
+    && await openInBrowser(path, signal, effectivePlatform, run, env)) return
 
   if (platform === 'darwin') {
     await run('open', intent === 'text-editor' ? ['-t', path] : [path], signal, 'hidden')

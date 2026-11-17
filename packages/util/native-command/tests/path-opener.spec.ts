@@ -169,7 +169,7 @@ describe('native path opener', () => {
     })
     const expected = process.platform === 'win32'
       ? 'explorer.exe'
-      : process.platform === 'linux'
+      : process.platform === 'linux' || process.platform === 'android'
         ? 'xdg-open'
         : 'open'
     expect(run.mock.calls[0]?.[0]).toBe(expected)
@@ -286,6 +286,29 @@ describe('browser-renderable documents', () => {
     expect(bare[1]).toEqual(['open', '/w/page.html'])
   })
 
+  it('honors $BROWSER on android and falls back to xdg-open without it', async () => {
+    const android: string[][] = []
+    await openNativePath('/data/data/com.termux/files/home/page.html', new AbortController().signal, {
+      platform: 'android',
+      env: { BROWSER: 'firefox' },
+      run: async (command, args) => {
+        android.push([command, ...args])
+        return { stdout: '', stderr: '' }
+      },
+    })
+    // Termux reports `android` but reads the Linux browser convention, so a
+    // configured browser wins over the xdg-open association.
+    expect(android).toEqual([['firefox', '/data/data/com.termux/files/home/page.html']])
+
+    const bare: string[][] = []
+    await openNativePath('/data/data/com.termux/files/home/page.html', new AbortController().signal, {
+      platform: 'android',
+      env: {},
+      run: async (command, args) => { bare.push([command, ...args]); return { stdout: '', stderr: '' } },
+    })
+    expect(bare).toEqual([['xdg-open', '/data/data/com.termux/files/home/page.html']])
+  })
+
   it('honors $BROWSER on linux and leaves windows to its association', async () => {
     const linux: string[][] = []
     await openNativePath('/w/page.html', new AbortController().signal, {
@@ -340,6 +363,9 @@ describe('canOpenNativePath', () => {
   it('always answers yes where the desktop is part of the platform', () => {
     expect(canOpenNativePath({ platform: 'darwin', env: {} })).toBe(true)
     expect(canOpenNativePath({ platform: 'win32', env: {} })).toBe(true)
+    // Termux reaches Android's viewer through its xdg-open regardless of a
+    // display-server variable, which Android does not set.
+    expect(canOpenNativePath({ platform: 'android', env: {} })).toBe(true)
   })
 
   it('requires a display server or WSL interop on linux', () => {
@@ -421,7 +447,9 @@ describe('native file manager', () => {
 })
 
 
-it('uses the native runner for a file-manager handoff when none is injected', async () => {
+// Android reaches only the xdg-open open channel; it has no file-manager
+// reveal action (see the self-check report's known limitations).
+it.skipIf(process.platform === 'android')('uses the native runner for a file-manager handoff when none is injected', async () => {
   execFileMock.mockImplementation((command, _args, _options, callback) => { callback(null, command === 'wslpath' ? 'C:\\work\\report.txt' : '', '') })
   await revealNativePath('/tmp/report.txt', signal())
   expect(execFileMock).toHaveBeenCalled()

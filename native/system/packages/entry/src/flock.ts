@@ -1,6 +1,7 @@
 /** Lazy POSIX flock entry; importing it does not load a native addon. */
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { getSystemErrorName } from 'node:util'
 
 interface FlockBinding {
@@ -13,10 +14,21 @@ function loadBinding(): FlockBinding {
   if (binding) return binding
   const { platform, arch } = process
   // Termux/Android (bionic) implements flock(2); a locally built N-API addon
-  // lives beside this entry and is loaded directly for that platform.
+  // lives beside this entry and is loaded directly for that platform. There is
+  // no published Android package, so the addon is restored by
+  // scripts/setup-android.sh rather than resolved through a platform package.
   if (platform === 'android') {
     const require = createRequire(import.meta.url)
-    binding = require('../bin/glibc/system.node') as FlockBinding
+    const addon = fileURLToPath(new URL('../bin/bionic/system.node', import.meta.url))
+    try {
+      binding = require(addon) as FlockBinding
+    } catch (cause: unknown) {
+      throw Object.assign(
+        new Error(`flock addon for ${platform}-${arch} is missing or unloadable at ${addon}; `
+          + 'run scripts/setup-android.sh to restore it'),
+        { code: 'ERR_FLOCK_ADDON_MISSING', cause },
+      )
+    }
     return binding
   }
   if (platform !== 'linux' && platform !== 'darwin') {
