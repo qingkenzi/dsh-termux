@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSnapshotManifest, writesCurrentSessionFixtures } from '../src/manifest.ts'
+import { parseSnapshotManifest, snapshotSkipReason, writesCurrentSessionFixtures } from '../src/manifest.ts'
 
 describe('snapshot manifest', () => {
   it('parses an owning scenario', () => {
@@ -7,6 +7,20 @@ describe('snapshot manifest', () => {
       version: 1,
       profile: 'headless',
     })
+  })
+
+  it('parses required host capabilities and per-platform skip reasons', () => {
+    const manifest = parseSnapshotManifest([
+      'version: 1',
+      'profile: headless',
+      'requires: [sandbox, cua]',
+      'skip:',
+      '  android: no sandbox backend',
+      '',
+    ].join('\n'))
+    expect(manifest.requires).toEqual(['sandbox', 'cua'])
+    expect(snapshotSkipReason(manifest, 'android')).toBe('no sandbox backend')
+    expect(snapshotSkipReason(manifest, 'linux')).toBeUndefined()
   })
 
   it('accepts the standalone SDK-minimal profile', () => {
@@ -180,6 +194,10 @@ describe('snapshot manifest', () => {
     ['version: 1\nprofile: acp\nheader:\n  class: base\n  systemPromptSource: ../bad\n', 'manifest.header.systemPromptSource must be a lower-kebab-case name or corpus-relative path'],
     ['version: 1\nprofile: acp\nreplay:\n  override: false\n', 'manifest.replay.override must equal true'],
     ['version: 1\nprofile: acp\nplatform: windows\n', 'manifest.platform must be posix or pwsh'],
+    ['version: 1\nprofile: acp\nrequires: []\n', 'manifest.requires must be a non-empty array'],
+    ['version: 1\nprofile: acp\nrequires: [unknown]\n', 'manifest.requires must be a non-empty array'],
+    ['version: 1\nprofile: acp\nskip: {}\n', 'manifest.skip must name at least one platform'],
+    ['version: 1\nprofile: acp\nskip:\n  android: \n', 'manifest.skip.android must be a non-empty reason'],
     ['version: 1\nprofile: acp\npermission: root\n', 'manifest.permission must be read-only, workspace-write, or danger-full-access'],
     ['version: 1\nprofile: acp\nenvironment:\n  lower: value\n', 'manifest.environment must map uppercase environment names to strings'],
     ['version: 1\nprofile: acp\nworkspace: {}\n', 'manifest.workspace must not be empty'],

@@ -11,3 +11,5 @@ header:
 replay:
   override: true
 permission: workspace-write
+requires:
+  - sandbox

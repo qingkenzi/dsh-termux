@@ -12,3 +12,5 @@ replay:
 permission: workspace-write
 workspace:
   final: true
+requires:
+  - sandbox

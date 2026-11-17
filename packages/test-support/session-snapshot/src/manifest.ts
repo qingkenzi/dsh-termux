@@ -38,6 +38,17 @@ export interface SnapshotReplayManifest {
 /** Host requirements for a scenario's process-level controller. */
 export type SnapshotPlatform = 'posix' | 'pwsh'
 
+/** Capabilities a scenario needs from the host in addition to a process platform. */
+export type SnapshotRequirement = 'sandbox' | 'cua'
+
+/** Per-platform skip reasons for fixtures whose host capabilities are unavailable. */
+export interface SnapshotSkip {
+  readonly android?: string
+  readonly win32?: string
+  readonly darwin?: string
+  readonly linux?: string
+}
+
 /** Deployment permission preset selected before the scenario starts. */
 export type SnapshotPermission = 'read-only' | 'workspace-write' | 'danger-full-access'
 
@@ -110,6 +121,10 @@ export interface SnapshotManifest {
   replay?: SnapshotReplayManifest
   /** Optional host requirement; portable scenarios omit it. */
   platform?: SnapshotPlatform
+  /** Capabilities the scenario needs; a runner may skip when they are unavailable. */
+  requires?: readonly SnapshotRequirement[]
+  /** Explicit per-platform skip reason; absence means the scenario runs on that platform. */
+  skip?: SnapshotSkip
   /** Explicit process fallback permission preset. */
   permission?: SnapshotPermission
   /** Test-only string environment additions needed by the declared composition. */
@@ -146,6 +161,8 @@ export function writesCurrentSessionFixtures(
 const PROFILES = new Set<SnapshotProfile>(['headless', 'sdk', 'sdk-minimal', 'acp', 'web'])
 const RECORDINGS = new Set<SnapshotRecording>(['live', 'authored'])
 const PLATFORMS = new Set<SnapshotPlatform>(['posix', 'pwsh'])
+const REQUIREMENTS = new Set<SnapshotRequirement>(['sandbox', 'cua'])
+const SKIP_PLATFORMS = ['android', 'win32', 'darwin', 'linux'] as const
 const PERMISSIONS = new Set<SnapshotPermission>(['read-only', 'workspace-write', 'danger-full-access'])
 const SESSION_FORMAT_COVERAGE = new Set<SnapshotSessionFormatCoverage>([
   'multi-hop',
@@ -193,6 +210,16 @@ function positiveIndexes(value: unknown, label: string): number[] {
 }
 
 /**
+ * The explicit skip reason for one host platform, when the manifest declares one.
+ * @param manifest - parsed scenario manifest.
+ * @param platform - host `process.platform` value.
+ * @returns the reason, or undefined when the scenario may run.
+ */
+export function snapshotSkipReason(manifest: SnapshotManifest, platform: NodeJS.Platform): string | undefined {
+  return (manifest.skip as Record<string, string | undefined> | undefined)?.[platform]
+}
+
+/**
  * Parse one `snapshot.yml` without admitting JavaScript YAML tags or unknown fields.
  * @param source - complete manifest text.
  * @param path - diagnostic path.
@@ -217,6 +244,8 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
       'header',
       'replay',
       'platform',
+      'requires',
+      'skip',
       'permission',
       'environment',
       'workspace',
@@ -296,6 +325,29 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
         throw new Error('manifest.platform must be posix or pwsh')
       }
       platform = root.platform as SnapshotPlatform
+    }
+
+    let requires: readonly SnapshotRequirement[] | undefined
+    if (root.requires !== undefined) {
+      if (!Array.isArray(root.requires) || root.requires.length === 0
+        || root.requires.some(item => typeof item !== 'string' || !REQUIREMENTS.has(item as SnapshotRequirement))
+        || new Set(root.requires).size !== root.requires.length) {
+        throw new Error('manifest.requires must be a non-empty array of unique supported capabilities')
+      }
+      requires = [...root.requires as SnapshotRequirement[]]
+    }
+
+    let skip: SnapshotSkip | undefined
+    if (root.skip !== undefined) {
+      const value = record(root.skip, 'manifest.skip')
+      exactKeys(value, SKIP_PLATFORMS, 'manifest.skip')
+      const entries = SKIP_PLATFORMS.flatMap(platform => value[platform] === undefined
+        ? []
+        : typeof value[platform] === 'string' && value[platform].trim() !== ''
+          ? [[platform, value[platform]] as const]
+          : (() => { throw new Error(`manifest.skip.${platform} must be a non-empty reason`) })())
+      if (entries.length === 0) throw new Error('manifest.skip must name at least one platform')
+      skip = Object.fromEntries(entries)
     }
 
     let permission: SnapshotPermission | undefined
@@ -418,6 +470,8 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
       ...(header === undefined ? {} : { header }),
       ...(replay === undefined ? {} : { replay }),
       ...(platform === undefined ? {} : { platform }),
+      ...(requires === undefined ? {} : { requires }),
+      ...(skip === undefined ? {} : { skip }),
       ...(permission === undefined ? {} : { permission }),
       ...(environment === undefined ? {} : { environment }),
       ...(workspace === undefined ? {} : { workspace }),

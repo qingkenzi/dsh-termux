@@ -6,3 +6,5 @@ recording: live
 header:
   class: sdk-dsh-sdk-diagnostic
   pin: true
+skip:
+  android: SDK snapshots are recorded under the Linux workspace-write permission preset

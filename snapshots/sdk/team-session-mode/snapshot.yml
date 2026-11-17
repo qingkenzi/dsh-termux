@@ -9,3 +9,5 @@ header:
   toolSchemasSource: session/team-session-mode
   changes: 2
   promptChanges: 2
+skip:
+  android: SDK snapshots are recorded under the Linux workspace-write permission preset

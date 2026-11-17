@@ -8,3 +8,5 @@ header:
   pin: true
   childSystemPrompts: [1]
   childToolSchemas: [1]
+skip:
+  android: SDK snapshots are recorded under the Linux workspace-write permission preset

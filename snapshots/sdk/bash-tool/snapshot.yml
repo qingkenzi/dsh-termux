@@ -8,3 +8,5 @@ header:
   pin: true
   systemPromptSource: text-turn
   toolSchemasSource: session/text-turn
+skip:
+  android: SDK snapshots are recorded under the Linux workspace-write permission preset

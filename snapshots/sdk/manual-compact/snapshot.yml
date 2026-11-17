@@ -6,3 +6,5 @@ composition: sdk-desktop
 recording: authored
 header:
   class: sdk-desktop
+skip:
+  android: SDK snapshots are recorded under the Linux workspace-write permission preset

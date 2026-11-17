@@ -7,3 +7,5 @@ header:
   class: sdk-desktop-ptc
   pin: true
   toolSchemasSource: session/ptc-turn
+skip:
+  android: SDK snapshots are recorded under the Linux workspace-write permission preset
