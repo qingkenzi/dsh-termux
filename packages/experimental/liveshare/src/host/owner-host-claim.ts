@@ -26,7 +26,7 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { constants, copyFileSync, linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { base64Url } from './base64-url.ts'
 import { isRecord } from './wire-json.ts'
@@ -130,9 +130,21 @@ function publishClaim(path: string, record: string, hostId: string): boolean {
     linkSync(staged, path)
     return true
   } catch (error: unknown) {
-    /* v8 ignore next -- POSIX-only failure path: a directory at the claim path refuses the write too. */
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-    return false
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'EEXIST') return false
+    // Android's SELinux policy refuses hard links in app data. Publish an
+    // exclusive copy instead; COPYFILE_EXCL preserves the same ownership race.
+    if (code !== 'EACCES' && code !== 'EPERM' && code !== 'ENOSYS' && code !== 'EOPNOTSUPP' && code !== 'ENOTSUP') {
+      /* v8 ignore next -- POSIX-only failure path: a directory at the claim path refuses the write too. */
+      throw error
+    }
+    try {
+      copyFileSync(staged, path, constants.COPYFILE_EXCL)
+      return true
+    } catch (copyError: unknown) {
+      if ((copyError as NodeJS.ErrnoException).code === 'EEXIST') return false
+      throw copyError
+    }
   } finally {
     rmSync(staged, { force: true })
   }
