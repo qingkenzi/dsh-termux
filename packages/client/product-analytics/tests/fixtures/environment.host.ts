@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
-import { totalmem, cpus, platform } from 'node:os'
+import { availableParallelism, totalmem, platform } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
 import type {} from '@deepseek-ai/dsh-client-product-analytics'
@@ -18,7 +18,7 @@ const receiver = createServer((req, res) => {
   req.on('end', () => { captures.push(JSON.parse(Buffer.concat(chunks).toString())); res.end('{}') })
 })
 const run = promisify(execFile)
-const reference: Record<string, string | number> = { memory_total_bytes: totalmem(), cpu_logical_count: cpus().length }
+const reference: Record<string, string | number> = { memory_total_bytes: totalmem(), cpu_logical_count: availableParallelism() }
 try {
   receiver.listen(0, '127.0.0.1')
   await once(receiver, 'listening')

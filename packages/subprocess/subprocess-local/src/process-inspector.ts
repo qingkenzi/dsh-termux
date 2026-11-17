@@ -255,7 +255,17 @@ function numericEntries(internals: ProcessInspectorInternals, path: string): num
 
 interface SyscallInfo {
   number: number
-  args: number[]
+  args: readonly bigint[]
+}
+
+/** Parse one hexadecimal syscall argument without losing values above 2^53. */
+function parseSyscallArgument(field: string): bigint | undefined {
+  try {
+    const value = BigInt(field)
+    return value < 0n ? undefined : value
+  } catch {
+    return undefined
+  }
 }
 
 function readSyscall(internals: ProcessInspectorInternals, pid: number, tid: number): SyscallInfo | undefined {
@@ -264,8 +274,13 @@ function readSyscall(internals: ProcessInspectorInternals, pid: number, tid: num
     if (text === 'running' || text.startsWith('-1 ')) return undefined
     const fields = text.split(/\s+/)
     const number = Number(fields[0])
-    const args = fields.slice(1, 7).map(field => Number.parseInt(field, 16))
-    if (!Number.isSafeInteger(number) || args.some(value => !Number.isSafeInteger(value))) return undefined
+    if (!Number.isSafeInteger(number)) return undefined
+    const args: bigint[] = []
+    for (const field of fields.slice(1, 7)) {
+      const value = parseSyscallArgument(field)
+      if (value === undefined) return undefined
+      args.push(value)
+    }
     return { number, args }
   } catch (_unreadableSyscall) {
     return undefined
@@ -322,17 +337,27 @@ function epollHasStdin(internals: ProcessInspectorInternals, pid: number, tid: n
 
 interface SyscallTable {
   read: number
+  readv?: number
+  splice?: number
+  copyFileRange?: number
   select?: number
   pselect: number
   poll?: number
   ppoll: number
   epollWait?: number
   epollPwait: number
+  epollPwait2?: number
 }
 
 const SYSCALLS: Partial<Record<NodeJS.Architecture, SyscallTable>> = {
-  x64: { read: 0, select: 23, pselect: 270, poll: 7, ppoll: 271, epollWait: 232, epollPwait: 281 },
-  arm64: { read: 63, pselect: 72, ppoll: 73, epollPwait: 22 },
+  x64: {
+    read: 0, readv: 19, splice: 275, copyFileRange: 326,
+    select: 23, pselect: 270, poll: 7, ppoll: 271, epollWait: 232, epollPwait: 281, epollPwait2: 441,
+  },
+  arm64: {
+    read: 63, readv: 65, splice: 76, copyFileRange: 285,
+    pselect: 72, ppoll: 73, epollPwait: 22, epollPwait2: 441,
+  },
 }
 
 const SUPPORTED_SYSCALL_TABLES = Object.values(SYSCALLS)
@@ -345,6 +370,11 @@ function linuxSyscallTables(arch: NodeJS.Architecture): readonly SyscallTable[] 
   return [primary, ...SUPPORTED_SYSCALL_TABLES.filter(table => table !== primary)]
 }
 
+/** Convert one syscall count argument to a bounded number; 0 means unusable. */
+function smallCount(value: bigint): number {
+  return value >= 1n && value <= 1024n ? Number(value) : 0
+}
+
 function syscallWaitsOnStdin(
   internals: ProcessInspectorInternals,
   pid: number,
@@ -352,17 +382,26 @@ function syscallWaitsOnStdin(
   syscall: SyscallInfo,
   tables: readonly SyscallTable[],
 ): boolean {
-  const [a0 = 0, a1 = 0, a2 = 0] = syscall.args
+  const [a0 = 0n, a1 = 0n, a2 = 0n] = syscall.args
   for (const table of tables) {
-    if (syscall.number === table.read) return a0 === 0
+    if (syscall.number === table.read
+      || syscall.number === table.readv
+      || syscall.number === table.splice
+      || syscall.number === table.copyFileRange) {
+      return a0 === 0n
+    }
     if (syscall.number === table.select || syscall.number === table.pselect) {
-      return a0 >= 1 && fdSetHasStdin(internals, pid, a1)
+      const count = smallCount(a0)
+      return count > 0 && fdSetHasStdin(internals, pid, Number(a1))
     }
     if (syscall.number === table.poll || syscall.number === table.ppoll) {
-      return a1 >= 1 && pollHasStdin(internals, pid, a0, a1)
+      const count = smallCount(a1)
+      return count > 0 && pollHasStdin(internals, pid, Number(a0), count)
     }
-    if (syscall.number === table.epollWait || syscall.number === table.epollPwait) {
-      return a2 >= 1 && epollHasStdin(internals, pid, tid, a0)
+    if (syscall.number === table.epollWait
+      || syscall.number === table.epollPwait
+      || syscall.number === table.epollPwait2) {
+      return smallCount(a2) > 0 && epollHasStdin(internals, pid, tid, Number(a0))
     }
   }
   return false
