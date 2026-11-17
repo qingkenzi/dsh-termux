@@ -3,7 +3,7 @@
  * path (the real `@vscode/ripgrep` module) is exercised throughout
  * tools.spec.ts; here the module is mocked to throw at evaluation, proving a
  * missing or corrupt platform package (`--omit=optional`, partial install)
- * surfaces as a per-call `SEARCH_FAILED` — not a composition-load failure.
+ * surfaces as a per-call `SEARCH_RG_UNAVAILABLE` — not a composition-load failure.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -22,7 +22,8 @@ vi.mock('@vscode/ripgrep', () => new Proxy({}, {
 }))
 
 describe('lazy packaged-ripgrep resolution', () => {
-  it('fails the first search call with SEARCH_FAILED instead of failing module load', async () => {
+  it('fails the first search call with SEARCH_RG_UNAVAILABLE instead of failing module load', async () => {
+    Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: 'linux' })
     // The resolution rejects before any spawn, so no subprocess service is needed.
     const controller = new AbortController()
     const callId = brandString<ToolCallId>('missing-platform-package')
@@ -36,11 +37,11 @@ describe('lazy packaged-ripgrep resolution', () => {
     }
 
     await expect(runRipgrep(new Context(), exec, 'glob', ['--files'], 1_000_000, 3_000, 64 * 1024))
-      .rejects.toMatchObject({ name: 'SearchError', code: 'SEARCH_FAILED' })
+      .rejects.toMatchObject({ name: 'SearchError', code: 'SEARCH_RG_UNAVAILABLE' })
   })
 
   it('keeps failing every subsequent call (the resolution is memoized)', async () => {
-    await expect(resolveRgPath()).rejects.toThrow(/platform package/)
-    await expect(resolveRgPath()).rejects.toThrow(/platform package/)
+    await expect(resolveRgPath()).rejects.toThrow(/Could not resolve ripgrep/)
+    await expect(resolveRgPath()).rejects.toThrow(/Could not resolve ripgrep/)
   })
 })

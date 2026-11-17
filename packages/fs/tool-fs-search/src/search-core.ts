@@ -21,7 +21,7 @@
 
 import { isAbsolute, relative, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { spawnRipgrep } from '@deepseek-ai/dsh-util-ripgrep'
+import { RipgrepUnavailableError, spawnRipgrep } from '@deepseek-ai/dsh-util-ripgrep'
 export { resolveRgPath } from '@deepseek-ai/dsh-util-ripgrep'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { ItemRetainer, TextRetainer } from '@deepseek-ai/dsh-output-retention'
@@ -79,6 +79,7 @@ export const SEARCH_META_MAX_BYTES = 65_536
 export type SearchErrorCode =
   | 'SEARCH_INVALID_PATTERN'
   | 'SEARCH_FAILED'
+  | 'SEARCH_RG_UNAVAILABLE'
   | 'SEARCH_RAW_OUTPUT_OVERFLOW'
   | 'SEARCH_ABORTED'
 
@@ -228,6 +229,9 @@ export async function runRipgrep(
     // oxlint-disable-next-line typescript/no-unnecessary-condition
     if (exec.signal.aborted) {
       throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
+    }
+    if (error instanceof RipgrepUnavailableError) {
+      throw new SearchError(`${toolName} could not start its search command: ${error.message}`, 'SEARCH_RG_UNAVAILABLE', { cause: error })
     }
     throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
   }
