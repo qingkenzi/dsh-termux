@@ -7,6 +7,8 @@
 # This script compiles libvips with the codecs sharp relies on into an
 # app-private prefix, then rebuilds sharp's addon against it and records that
 # prefix in the addon's RUNPATH so the DSH process needs no LD_LIBRARY_PATH.
+# A successful build caches the addon under
+# ~/.cache/dsh-android-sharp/addon; --restore copies it back and verifies it.
 #
 # Prerequisites:
 #   pkg install nodejs-lts python clang make pkg-config \
@@ -14,8 +16,9 @@
 #   pip install meson ninja
 #
 # Usage:
-#   sh scripts/setup-android-sharp.sh          # build libvips (if absent), then sharp
-#   sh scripts/setup-android-sharp.sh --check  # verify the existing install
+#   sh scripts/setup-android-sharp.sh            # build libvips (if absent), then sharp
+#   sh scripts/setup-android-sharp.sh --check    # verify the existing install
+#   sh scripts/setup-android-sharp.sh --restore  # restore the cached addon, then verify
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,11 +26,22 @@ PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 VIPS_VERSION="${VIPS_VERSION:-8.18.7}"
 VIPS_PREFIX="${DSH_ANDROID_VIPS_PREFIX:-$HOME/dsh-vips}"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dsh-android-sharp"
+CACHE_ADDON_DIR="$CACHE_DIR/addon"
 ATTACHMENT_DIR="$REPO/packages/attachment/attachment-local"
 
 fail() {
   echo "setup-android-sharp: $*" >&2
   exit 1
+}
+
+usage() {
+  cat <<'EOF'
+Usage: sh scripts/setup-android-sharp.sh [--build|--check|--restore]
+
+  --build    Build libvips when absent, then build sharp against it and cache the addon.
+  --check    Verify the installed sharp addon loads and reports its versions.
+  --restore  Copy the cached addon back and verify it.
+EOF
 }
 
 [ "$(node -p 'process.platform')" = "android" ] \
@@ -38,10 +52,20 @@ sharp_dir() {
   (cd "$ATTACHMENT_DIR" && node -p "require('path').resolve(require('path').dirname(require.resolve('sharp')), '..')")
 }
 
+sharp_version() {
+  local dir
+  dir="$(sharp_dir)"
+  node -p "require('$dir/package.json').version"
+}
+
 sharp_addon() {
   local dir
   dir="$(sharp_dir)"
-  echo "$dir/src/build/Release/sharp-android-arm64-$(node -p "require('$dir/package.json').version").node"
+  echo "$dir/src/build/Release/sharp-android-arm64-$(sharp_version).node"
+}
+
+cached_addon() {
+  echo "$CACHE_ADDON_DIR/sharp-android-arm64-$(sharp_version).node"
 }
 
 check_install() {
@@ -50,7 +74,51 @@ check_install() {
     && node -e "const s = require('sharp'); console.log('sharp', s.versions.sharp, 'vips', s.versions.vips)")
 }
 
-if [ "${1:-}" = "--check" ]; then
+save_addon() {
+  local cached
+  cached="$(cached_addon)"
+  mkdir -p "$CACHE_ADDON_DIR"
+  cp "$(sharp_addon)" "$cached.tmp.$$"
+  mv -f "$cached.tmp.$$" "$cached"
+  chmod 644 "$cached"
+  echo "setup-android-sharp: cached $cached"
+}
+
+restore_addon() {
+  local cached target temporary
+  cached="$(cached_addon)"
+  target="$(sharp_addon)"
+  [ -f "$cached" ] \
+    || fail "no cached sharp addon at $cached; run without --restore to build it"
+  [ -d "$VIPS_PREFIX/lib" ] \
+    || fail "the cached sharp addon needs libvips at $VIPS_PREFIX/lib; run without --restore to rebuild"
+  mkdir -p "$(dirname "$target")"
+  temporary="$target.tmp.$$"
+  cp "$cached" "$temporary"
+  chmod 755 "$temporary"
+  mv -f "$temporary" "$target"
+  echo "setup-android-sharp: restored $target from cache"
+}
+
+MODE=build
+if [ $# -gt 1 ]; then
+  usage >&2
+  fail "choose one mode"
+fi
+case "${1:-}" in
+  ''|--build) MODE=build ;;
+  --check) MODE=check ;;
+  --restore) MODE=restore ;;
+  -h|--help) usage; exit 0 ;;
+  *) usage >&2; fail "unknown option: $1" ;;
+esac
+
+if [ "$MODE" = "check" ]; then
+  check_install
+  exit 0
+fi
+if [ "$MODE" = "restore" ]; then
+  restore_addon
   check_install
   exit 0
 fi
@@ -105,3 +173,4 @@ echo "setup-android-sharp: building sharp against $VIPS_PREFIX"
 )
 
 check_install
+save_addon

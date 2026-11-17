@@ -59,6 +59,12 @@ The published tarball carries the bundled runtime under `lib/`, the TypeScript u
 
 `docs/` holds the documentation website's pages plus every upgrade guide, with the assets those pages reference. `docs/upgrade-guide/README.md` is generated during staging: it groups the guides by the release each `v<T>` directory upgrades from and lists each guide's title, English and Chinese descriptions, and relative paths. The Desktop application carries the same `docs/` and `src/` inside its `app.asar`. The generated `persistence-changes/` records, the `i18n/` guidelines, and the `*.i18n.yaml` consistency records are not published. Its pages keep the repository's relative links, so a link into `../packages/**` or into the omitted `persistence-changes/` records resolves only in a checkout.
 
+## Android/Termux
+
+Android/arm64 has no published platform packages for DSH's native addons. The published tarball carries `vendor/android-prebuilds/require_builtin.node` and the bundled `rg`; on Android the package `postinstall` restores the require-builtin addon, and the launcher sets `DSH_RG_PATH` to the bundled ripgrep before profile boot. `pnpm install --ignore-scripts` skips that lifecycle script, so the launcher prints the restore command when the addon is missing; rerun `npm rebuild @deepseek-ai/dsh` without `--ignore-scripts`, or use the source-checkout workflow.
+
+From a source checkout, run `pnpm run install:android` to install dependencies, restore the pinned addons, build, and verify; the individual steps are `pnpm run setup:android`, `pnpm run build`, and `pnpm run verify:android`. `pnpm run setup:android` restores the pinned flock and require-builtin addons, verifies the vendored ripgrep, and builds sharp against the Termux libvips packages. For a read-only check run `sh scripts/setup-android.sh --check` (add `--sharp=skip` to skip sharp); [`scripts/setup-android.sh`](../../scripts/setup-android.sh) documents the required Termux packages and options.
+
 ## Development
 
 Production runs require built package and frontend artifacts. From the repository root, run `pnpm run build` separately, then use `pnpm dsh <args...>` to run the TypeScript entry and forward every argument; the [source-execution reference](reference/README.md#source-execution) owns the module-resolution contract.

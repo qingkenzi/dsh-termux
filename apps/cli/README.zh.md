@@ -59,6 +59,12 @@ profile 目录包含一个 `package.json`，其中记录树外插件依赖，以
 
 `docs/` 包含文档网站的页面与全部升级指南，以及这些页面引用的资产。`docs/upgrade-guide/README.md` 在暂存时生成：它按每个 `v<T>` 目录升级前的版本对指南分组，列出每份指南的标题、中英文描述与相对路径。桌面应用在其 `app.asar` 内携带同样的 `docs/` 与 `src/`。生成的 `persistence-changes/` 记录、`i18n/` 规范与 `*.i18n.yaml` 一致性记录不发布。其中的页面保留仓库的相对链接，因此指向 `../packages/**` 或指向被排除的 `persistence-changes/` 记录的链接只在检出中可解析。
 
+## Android/Termux
+
+Android/arm64 没有 DSH 原生 addon 的已发布平台包。发布的 tarball 携带 `vendor/android-prebuilds/require_builtin.node` 和内置 `rg`；在 Android 上，包 `postinstall` 会恢复 require-builtin addon，启动器会在加载 profile 前把 `DSH_RG_PATH` 设为内置 ripgrep。`pnpm install --ignore-scripts` 会跳过该生命周期脚本，因此启动器在 addon 缺失时会打印恢复命令；请在去掉 `--ignore-scripts` 后运行 `npm rebuild @deepseek-ai/dsh`，或改用源码检出流程。
+
+在源码检出中，运行 `pnpm run install:android` 可依次安装依赖、恢复固定版本的 addon、构建并验证；单独步骤为 `pnpm run setup:android`、`pnpm run build` 和 `pnpm run verify:android`。`pnpm run setup:android` 恢复固定版本的 flock 与 require-builtin addon，验证内置 ripgrep，并基于 Termux libvips 包构建 sharp。只读检查可运行 `sh scripts/setup-android.sh --check`（加 `--sharp=skip` 可跳过 sharp）；[`scripts/setup-android.sh`](../../scripts/setup-android.sh) 说明所需的 Termux 包与选项。
+
 ## 开发
 
 生产运行需要已构建的包与前端产物。请在仓库根目录单独运行 `pnpm run build`，然后使用 `pnpm dsh <args...>` 运行 TypeScript 入口并转发所有参数；模块解析约定以[源码执行参考](reference/README.zh.md#source-execution)为准。

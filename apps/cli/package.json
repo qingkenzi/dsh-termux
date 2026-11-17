@@ -20,11 +20,15 @@
     "lib/types/*.d.ts",
     "lib/types/*.d.ts.map",
     "docs",
-    "src"
+    "scripts/install-android-addons.mjs",
+    "src",
+    "vendor/android-prebuilds",
+    "README.md"
   ],
   "scripts": {
-    "prepack": "tsx ../../scripts/stage-dsh-docs.ts",
-    "postpack": "tsx ../../scripts/stage-dsh-docs.ts --clean"
+    "prepack": "tsx ../../scripts/stage-dsh-docs.ts && tsx ../../scripts/stage-android-addons.ts",
+    "postpack": "tsx ../../scripts/stage-dsh-docs.ts --clean && tsx ../../scripts/stage-android-addons.ts --clean",
+    "postinstall": "node scripts/install-android-addons.mjs"
   },
   "license": "MIT",
   "dependencies": {
