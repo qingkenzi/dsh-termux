@@ -40,6 +40,8 @@ pnpm dsh web
 
 `pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
 
+On Android/Termux, install the prerequisites and run `pnpm run setup:android` before `pnpm run build`; see the [Android/Termux guide](docs/user/guide/android-termux.md).
+
 ## Community and support
 
 - Submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).

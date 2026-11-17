@@ -44,6 +44,8 @@ pnpm dsh web
 
 `pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
 
+在 Android/Termux 上，请先安装前置依赖并运行 `pnpm run setup:android`，再运行 `pnpm run build`；参见 [Android/Termux 指南](docs/user/guide/android-termux.zh.md)。
+
 ## 社区与支持
 
 - 通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
