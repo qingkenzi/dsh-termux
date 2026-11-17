@@ -61,7 +61,7 @@ command -v ninja >/dev/null || fail "ninja is missing: pip install ninja"
 command -v pkg-config >/dev/null || fail "pkg-config is missing: pkg install pkg-config"
 
 if [ ! -f "$VIPS_PREFIX/lib/pkgconfig/vips-cpp.pc" ]; then
-  for dep in libwebp.pc libtiff-4.pc cgif.pc libimagequant.pc librsvg-2.0.pc libexif.pc; do
+  for dep in libwebp.pc libtiff-4.pc cgif.pc imagequant.pc librsvg-2.0.pc libexif.pc; do
     [ -f "$PREFIX/lib/pkgconfig/$dep" ] \
       || fail "missing build dependency $dep; install the matching Termux package"
   done
