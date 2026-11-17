@@ -2,12 +2,14 @@
 
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { Context, Service } from '@deepseek-ai/cordis'
 import schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+import { isPosixPlatform } from './platform.ts'
 import { SshRpcPeer, SSH_PROTOCOL_VERSION } from './protocol.ts'
 import { helloSchema, type SshStreamEndpoint } from './schemas.ts'
 import { authenticateStream } from './stream-security.ts'
@@ -87,7 +89,7 @@ export class SshConnection extends Service {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'ssh')
-    if (process.platform !== 'linux' && process.platform !== 'darwin') throw new Error('SSH runtime requires a POSIX client')
+    if (!isPosixPlatform(process.platform)) throw new Error('SSH runtime requires a POSIX client')
     this.config = z.object({
       host: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$/),
       launch: z.discriminatedUnion('kind', [
@@ -277,7 +279,7 @@ export class SshConnection extends Service {
   }
 
   private async start(): Promise<Hello> {
-    this.directory = await mkdtemp('/tmp/dsh-ssh-')
+    this.directory = await mkdtemp(join(tmpdir(), 'dsh-ssh-'))
     if (this.closed) throw new Error('SSH connection closed before startup')
     const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
     const launch = this.config.launch

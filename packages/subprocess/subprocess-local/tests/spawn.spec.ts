@@ -404,6 +404,24 @@ describe('spawnSubprocess', () => {
     }
   })
 
+  it.skipIf(process.platform === 'win32')('consults the Linux process-group probe on android', async () => {
+    const pidFile = join(spillDir, `android-group-${Date.now()}.pid`)
+    const probe = vi.fn((_group: number, _known: number | undefined): number | false | undefined => false)
+    const running = spawnSubprocess(spec(`sleep 60 & echo $! > ${pidFile}; echo leader-done`, { graceMs: 100 }), {
+      platform: 'android',
+      linuxProcessGroupLiveMember: probe,
+    })
+    const descendant = await waitForPidFile(pidFile)
+    try {
+      await running.done
+      await expect(running.waitForExit(AbortSignal.timeout(2_000))).resolves.toBe(true)
+      expect(probe).toHaveBeenCalled()
+    } finally {
+      process.kill(descendant, 'SIGKILL')
+      await waitGone(descendant)
+    }
+  })
+
   it.skipIf(process.platform === 'win32')('passes the last found Linux group member back to the next probe', async () => {
     const pidFile = join(spillDir, `known-member-${Date.now()}.pid`)
     const known: Array<number | undefined> = []

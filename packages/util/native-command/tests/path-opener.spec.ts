@@ -406,6 +406,8 @@ describe('native file manager', () => {
     ['darwin', 'finder', '/tmp/my report.txt', 'open', ['-R', '/tmp/my report.txt']],
     ['win32', 'explorer', 'C:\\work\\my report.txt', 'explorer.exe', ['/select,', 'file:///C:/work/my%20report.txt']],
     ['linux', 'directory', '/tmp/a $b; report.txt', 'xdg-open', ['/tmp']],
+    ['android', 'directory', '/data/data/com.termux/files/home/a $b; report.txt', 'xdg-open',
+      ['/data/data/com.termux/files/home']],
   ] as const)('reveals through %s without opening the file association', async (platform, manager, path, command, args) => {
     const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
     const internals = { platform, env: {}, osRelease: 'generic', run }
@@ -435,6 +437,23 @@ describe('native file manager', () => {
     expect(run.mock.calls.every(([cmd]) => cmd === 'wslpath')).toBe(true)
   })
 
+  it('opens the containing directory on android and rejects cancellation or a launcher failure', async () => {
+    const path = '/data/data/com.termux/files/home/work/report.txt'
+    const abort = new AbortController()
+    const reason = new Error('cancelled')
+    abort.abort(reason)
+    const cancelled = vi.fn<PathOpenerRunner>()
+    await expect(revealNativePath(path, abort.signal, { platform: 'android', env: {}, run: cancelled }))
+      .rejects.toBe(reason)
+    expect(cancelled).not.toHaveBeenCalled()
+
+    const failure = new Error('termux-open failed')
+    const failed = vi.fn<PathOpenerRunner>().mockRejectedValue(failure)
+    await expect(revealNativePath(path, signal(), { platform: 'android', env: {}, run: failed })).rejects.toBe(failure)
+    expect(failed).toHaveBeenCalledExactlyOnceWith('xdg-open', ['/data/data/com.termux/files/home/work'],
+      expect.any(AbortSignal), 'hidden')
+  })
+
   it('rejects unsupported platforms, cancellation, and launcher errors', async () => {
     const run = vi.fn<PathOpenerRunner>().mockRejectedValue(new Error('desktop failed'))
     expect(nativeFileManager({ platform: 'aix' })).toBeNull()
@@ -447,9 +466,7 @@ describe('native file manager', () => {
 })
 
 
-// Android reaches only the xdg-open open channel; it has no file-manager
-// reveal action (see the self-check report's known limitations).
-it.skipIf(process.platform === 'android')('uses the native runner for a file-manager handoff when none is injected', async () => {
+it('uses the native runner for a file-manager handoff when none is injected', async () => {
   execFileMock.mockImplementation((command, _args, _options, callback) => { callback(null, command === 'wslpath' ? 'C:\\work\\report.txt' : '', '') })
   await revealNativePath('/tmp/report.txt', signal())
   expect(execFileMock).toHaveBeenCalled()

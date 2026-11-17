@@ -11,6 +11,17 @@ export interface ProcessIdentity {
   started: string
 }
 
+/**
+ * Whether the platform runs the Linux kernel whose `/proc` process table and
+ * POSIX process groups this package inspects. Termux reports `android` for a
+ * Linux kernel and exposes the same `/proc` entries to its own child processes.
+ * @param platform - target Node platform.
+ * @returns whether Linux kernel process inspection applies.
+ */
+export function runsLinuxKernel(platform: NodeJS.Platform): boolean {
+  return platform === 'linux' || platform === 'android'
+}
+
 interface FileStatus {
   readonly rdev: number
   isCharacterDevice(): boolean
@@ -553,7 +564,7 @@ export function createProcessInspector(
   arch: NodeJS.Architecture = process.arch,
   internals: ProcessInspectorInternals = DEFAULT_INTERNALS,
 ): ProcessInspector {
-  if (platform === 'linux') return new LinuxProcessInspector(arch, internals)
+  if (runsLinuxKernel(platform)) return new LinuxProcessInspector(arch, internals)
   if (platform === 'darwin') return new MacProcessInspector(internals)
   if (platform === 'win32') return createWindowsProcessInspector()
   throw new Error(`subprocess-local: terminal inspection is unsupported on platform ${platform}`)

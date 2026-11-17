@@ -24,7 +24,7 @@ import type { BoundProcessOwner, ManagedProcessLaunch } from './managed-owner.ts
 import { waitWithAbort } from './managed-owner.ts'
 import { controlEnvironment, controlPipe } from './control-spawn.ts'
 import { SUBPROCESS_CONTROL_FD } from '@deepseek-ai/dsh-subprocess/control'
-import { linuxProcessGroupLiveMember } from './process-inspector.ts'
+import { linuxProcessGroupLiveMember, runsLinuxKernel } from './process-inspector.ts'
 import { OutputCollector, prepareManagedProcessBinding, type SpillFailureReporter } from './output.ts'
 
 type SpawnProcess = (
@@ -224,7 +224,7 @@ function fallbackOwner(
     if (platform === 'win32') return child.exitCode === null && child.signalCode === null
     try {
       process.kill(-pid, 0)
-      if (directSettled && platform === 'linux') {
+      if (directSettled && runsLinuxKernel(platform)) {
         const member = linuxGroupLiveMember(pid, liveMember)
         if (member === false) return false
         if (member !== undefined) liveMember = member

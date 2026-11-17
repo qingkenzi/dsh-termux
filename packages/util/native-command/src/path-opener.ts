@@ -6,7 +6,8 @@
  * the platform can name one, then falls back to the default application. WSL
  * translates every path for the Windows desktop instead of assuming a Linux
  * GUI. Termux reports `android`; it shares the Linux opener and its `$BROWSER`
- * convention because its `xdg-open` hands paths to Android's viewer. The
+ * convention because its `xdg-open` hands paths to Android's viewer, and its
+ * file-manager action opens the containing directory the same way. The
  * text-editor intent never consults the browser. Windows hands every
  * intent to Explorer: the shell's own default-application resolution, the one
  * a double-click uses, selects the application, while a process that resolves
@@ -263,7 +264,11 @@ export function openNativeTextFile(
   return openNativePathWithIntent(path, signal, 'text-editor', internals)
 }
 
-/** File-manager behavior available on the serving Host, including WSL's Windows desktop. */
+/**
+ * File-manager behavior available on the serving Host, including WSL's Windows
+ * desktop. `directory` selects nothing: the action opens the containing folder
+ * in the Host's default file manager.
+ */
 export type NativeFileManager = 'finder' | 'explorer' | 'directory'
 
 /**
@@ -275,11 +280,15 @@ export function nativeFileManager(internals: PathOpenerInternals = {}): NativeFi
   const platform = internals.platform ?? process.platform
   if (platform === 'darwin') return 'finder'
   if (platform === 'win32' || (platform === 'linux' && isWsl(internals))) return 'explorer'
-  return platform === 'linux' ? 'directory' : null
+  // Android has no file-manager reveal; Termux's xdg-open opens the containing
+  // directory through termux-open, which is the nearest available action.
+  return platform === 'linux' || platform === 'android' ? 'directory' : null
 }
 
 /**
- * Reveal a file in Finder or Explorer, or open its parent in the Linux default file manager.
+ * Reveal a file in Finder or Explorer, or open its parent in the default file
+ * manager on Linux and Android. Android cannot select a file, so its action
+ * opens the containing directory only.
  * @param path - absolute file path already authorized by the caller.
  * @param signal - caller lifetime; abort terminates the native command.
  * @param internals - platform, environment, and command runner for adapter tests.
