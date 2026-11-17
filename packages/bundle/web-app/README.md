@@ -13,7 +13,7 @@ Desktop analytics schedules partial batches every 30 seconds, with a 15-second e
 
 ## Summary
 
-Run `dsh --profile web` for browser chat, model and settings management, and session history, with the same model access, tools, and safety defaults as other dsh surfaces. Startup prints a tokenized URL and normally opens the default browser; SSH sessions and `--no-open` require manual opening. You can change the port, allow extra authorities, bind one concrete local IP, and serve HTTPS from a certificate you supply; wildcard addresses are rejected. Remote access uses an advertised HTTP(S) URL behind a prefix-stripping proxy, listener TLS, or plain HTTP on a non-loopback bind. Use the headless profile for one-shot command-line tasks.
+Run `dsh --profile web` for browser chat, model and settings management, and session history, with the same model access, tools, and safety defaults as other dsh surfaces. Startup keeps the one-time token out of captured output and opens the default browser unless SSH or `--no-open` suppresses it. You can change the port, allow extra authorities, bind one concrete local IP, and serve HTTPS from a certificate you supply; wildcard addresses are rejected. Use the headless profile for one-shot command-line tasks.
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ dsh --profile web
 dsh --profile web --no-open --port 8080
 ```
 
-After startup you see a `dsh web:` line whose root URL carries a fresh process token. Unless `--no-open` or an SSH session suppresses it, the default browser opens that URL, receives a signed cookie, and redirects to the same directory without the token. You know it worked when the page loads and you can chat with the agent. Two failures to expect: if the frontend is not built, startup stops with a build hint (`pnpm run build` in a checkout); if the browser cannot be opened, a credential-free diagnostic prints to stderr while the server keeps running — open the printed startup URL yourself.
+After startup, an interactive terminal that is not opening a browser shows a `dsh web:` line whose root URL carries a fresh process token; every other invocation prints `dsh web: login URL written to $DSH_HOME/run/web-<pid>.url` and nothing else about the URL. Read that file (mode `0600`, directory `0700`, removed on exit) to get the URL. Unless `--no-open` or an SSH session suppresses it, the default browser opens the URL, receives a signed cookie, and redirects to the same directory without the token. The token expires ten minutes after startup and each exchange path accepts it once, so restart `dsh web` if the URL was already opened or has expired. You know it worked when the page loads and you can chat with the agent. Two failures to expect: if the frontend is not built, startup stops with a build hint (`pnpm run build` in a checkout); if the browser cannot be opened, a credential-free diagnostic prints to stderr while the server keeps running — open the URL or the run file yourself.
 
 **Settings → Models** displays **DeepSeek**, using `DEEPSEEK_API_KEY`. The default is `deepseek-official` / `deepseek-flash` (DeepSeek-V4.1-Flash). The [DeepSeek plugin](../../llm/llm-deepseek/README.md#endpoint-and-wire-format) uses the Messages API.
 
@@ -54,12 +54,12 @@ The `minimal` agent preset uses a persistent shell, the `read_image` tool, and a
 
 | Field | Default | Meaning |
 |---|---|---|
-| `printUrl` | `true` | Print contributed entry URLs after startup settles |
+| `printUrl` | `'auto'` | Where the login URL goes: `auto` prints it only on an interactive terminal without a browser handoff and otherwise writes `$DSH_HOME/run/web-<pid>.url`; `always` prints it with a secret warning; `never` prints no URL |
 | `openBrowser` | `true` | Open the first eligible entry after startup, except under SSH |
 | `surfaceContext` | `true` | Expose `DSH_WEB_URL` to the agent's shell commands |
 | `publicUrl` | Unset | Advertised HTTP(S) application root; otherwise announce the bind-address URL |
 
-WebApp owns `printUrl` and `openBrowser`. This bundle enables URL printing and maps the parsed `--no-open` setting to the runtime. After readiness, synchronous `webserver/entry-url` listeners contribute complete entries. WebApp prints every entry as `label: url` when printing is enabled and opens only the first entry marked `open: true` when browser opening is enabled outside SSH. No entries means no output or opening.
+WebApp owns `printUrl` and `openBrowser`. This bundle selects `auto` and maps the parsed `--no-open` setting to the runtime. After readiness, synchronous `webserver/entry-url` listeners contribute complete entries carrying both the credential-bearing `url` and a credential-free `displayUrl`. In `auto`, a terminal that is not opening a browser prints every entry as `label: url`; non-terminal output writes the entries to the private run file and prints only its path; a terminal that is opening a browser prints the `displayUrl` notice instead of the secret. `always` prints every `label: url` and warns that the URL is a credential. `never` prints no entry. Browser opening always uses the first entry marked `open: true` and never depends on `printUrl`. No entries means no output or opening.
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-app) lists this runtime plugin's accepted fields and their JSDoc. The shipped composition inserts the `schedule` service row and the `ui-schedule` task page row, while the clock reading and the four reminder tools belong to the `standard`, `cordis`, and `ptc` presets. The `tool-subagent` and `tool-subagent-fork` rows in those presets deny the four tools, so a delegated child's scope never lists them.
 
@@ -86,11 +86,11 @@ Without `--public-url`, mapped IPv6 loopback binds such as `::ffff:127.0.0.1` ad
 
 Neither the advertised URL nor the browser-trust fence protects the port itself, so restrict the port to the trusted proxy or network.
 
-The printed URL contains a process credential; share it only with intended users. `printUrl: false` on the WebApp runtime suppresses the line with or without `--public-url`, and the credential never appears in the model context or in `DSH_WEB_URL`.
+The printed URL and the run file contain a process credential; share them only with intended users. `printUrl: 'never'` suppresses both with or without `--public-url`, and the credential never appears in the model context, the startup diagnostics, or `DSH_WEB_URL`: opener failures replace the URL with `[login URL]`, and auto mode reports only the run-file path.
 
 ### Running over SSH
 
-When you launch `dsh --profile web` over SSH, the URL line still prints but the browser is not opened for you: the SSH client or editor owns the local forwarding address. Without an advertised root the printed URL names the remote host's bind-address endpoint — loopback for a loopback bind — which you reach through your forwarding address. With `--public-url` the printed URL is the authenticated advertised root; the browser handoff stays suppressed, because opening a browser on the remote host cannot reach your screen.
+When you launch `dsh --profile web` over SSH, the browser is not opened for you: an interactive terminal prints the URL line, other invocations print the run-file path. The SSH client or editor owns the local forwarding address. Without an advertised root the printed URL names the remote host's bind-address endpoint — loopback for a loopback bind — which you reach through your forwarding address. With `--public-url` the printed URL is the authenticated advertised root; the browser handoff stays suppressed, because opening a browser on the remote host cannot reach your screen.
 
 ### Per-session agent setup
 

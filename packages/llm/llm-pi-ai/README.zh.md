@@ -79,7 +79,8 @@ kind: "package-reference"
 | `apiKeyEnv` | 无 | 按请求解析的凭据引用；省略时交由 pi-ai 环境发现 |
 | `displayName` | 提供方名 | 选择器界面显示的标签 |
 | `api` | 目录协议 | 协议格式；仅目录不提供的路由需要 |
-| `baseURL` | 目录端点 | 路由上所有模型的端点 |
+| `baseURL` | 目录端点 | 路由上所有模型的端点；使用 `https://`，或仅对 loopback 主机使用明文 HTTP |
+| `allowInsecureHttp` | `false` | 允许对非 loopback `baseURL` 使用明文 HTTP |
 | `models` | 已安装目录 | 整体替换路由目录；每个条目从已安装模型取默认值 |
 | `modelOverrides` | 无 | 重塑个别已安装目录模型，而不替换其余模型 |
 | `compat` | 目录检测 | 无法识别端点的协议兼容开关 |
@@ -91,6 +92,8 @@ kind: "package-reference"
 | `maxRequestImages` | `50` | 保留请求图片数量上限，保留图片超过时请求以 `IMAGE_OFFLOAD_REQUIRED` 失败。默认值取 Azure OpenAI 的 50 张上限；提供方接受更多图片的路由应调高 |
 | `imageOffloadCountQuantum` | `10`，不超过 `maxRequestImages` | 每次数量超限时省略的最老图片数 |
 | `retryPolicy` | normal，5 次重试 | 由 `dsh-llm-retry` 执行的提供方自有重试策略 |
+
+除非端点指向本机，否则必须使用 TLS。`resolveProfiles` 允许任意 `https://`，明文 HTTP 只允许 `localhost`、`127.0.0.0/8` 或 `::1`；其他明文 `baseURL` 以 `LlmError` 码 `INSECURE_BASE_URL` 失败，消息给出 HTTPS、SSH 隧道与 `allowInsecureHttp: true` 三种修法。模型发现与请求分发都会重新校验即将使用的端点，手工构造的 profile 或存储路由无法绕过解析。该开关接受明文发送 API key、prompt 与工具输出到该端点的全部风险；优先使用 HTTPS，或 `ssh -N -L 8080:gateway.example:8000 user@server` 配合 `http://127.0.0.1:8080/v1`。
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-llm-pi-ai)是每个受支持字段及其 JSDoc 的穷尽式真源。
 

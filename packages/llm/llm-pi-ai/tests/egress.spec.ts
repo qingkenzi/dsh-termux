@@ -44,7 +44,11 @@ async function streamOnce(): Promise<void> {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(LlmPiAi, {
-      providers: { deepseek: { apiKeyEnv: 'PI_TEST_KEY', baseURL: 'http://pi-stream-probe.invalid' } },
+      // The proxy assertions need an endpoint off this machine; the route
+      // explicitly accepts cleartext for this probe.
+      providers: {
+        deepseek: { apiKeyEnv: 'PI_TEST_KEY', baseURL: 'http://pi-stream-probe.invalid', allowInsecureHttp: true },
+      },
     })
     for await (const _chunk of ctx.llm.stream({ provider: 'deepseek', model: 'deepseek-flash', messages: [] })) {
       // The endpoint never answers; the proxy record is the assertion.
@@ -55,7 +59,10 @@ async function streamOnce(): Promise<void> {
 }
 describe('pi-ai discovery egress', () => {
   it('goes through the proxy', async () => {
-    const observed = await observe(() => discoverModels({ baseURL: 'http://pi-probe.invalid/v1', api: 'openai-completions', apiKey: 'probe' }))
+    const observed = await observe(() => discoverModels(
+      { baseURL: 'http://pi-probe.invalid/v1', api: 'openai-completions', apiKey: 'probe' },
+      () => ({ headers: undefined, allowInsecureHttp: true, resolveApiKey: () => Promise.resolve(undefined) }),
+    ))
     expect(observed.join('|')).toContain('pi-probe.invalid')
   })
 })

@@ -58,7 +58,7 @@ handler 通过末尾参数取得准入 Peer，resource 使用已有 `resource(re
 
 upgrade 准入成功后，`webserver/upgrade(req, socket, head, peer, next)` 在已注册协议 handler 前执行。它携带准入 Peer，匿名访问可为 `undefined`；被拒绝的请求不会进入。监听器自行处理 Socket 或等待 `next()`；waterfall 的末端等待路由 handler，包括其异步完成。中间件或 handler 失败时记录日志并销毁 Socket。在 `/api/remote.mux` 上，Token 仅对自己映射表内的 API Peer 执行单 Socket 所有权与凭据撤销；其他 Provider 委派后续处理，不应用 Token 策略。
 
-`webserver/entry-url(baseUrl, entries)` 根据传入的服务器基地址同步收集完整入口 URL，以 `WebEntryUrl` 记录表示，字段为 `label`、完整 `url` 与布尔值 `open`。WebApp 在 Loader 装配结束并完成启动检查后触发，按配置逐行打印，并仅在非 SSH 下打开首个允许自动打开的入口。空列表不产生输出或打开动作。Token 无需读取 WebApp 服务即可贡献签名 URL；公开地址配置仍归 WebApp。
+`webserver/entry-url(baseUrl, entries)` 根据传入的服务器基地址同步收集完整入口 URL，以 `WebEntryUrl` 记录表示，字段为 `label`、携带凭据的 `url`、不含凭据的 `displayUrl` 与布尔值 `open`。WebApp 在 Loader 装配结束并完成启动检查后触发，按 `printUrl` 模式打印或写入文件，并仅在非 SSH 下打开首个允许自动打开的入口。空列表不产生输出或打开动作。Token 无需读取 WebApp 服务即可贡献签名 URL 与干净地址；公开地址配置仍归 WebApp。
 
 <a id="config"></a>
 

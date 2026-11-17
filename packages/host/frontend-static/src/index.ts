@@ -4,11 +4,14 @@
  * with explicit index entry points. A readable index renders at the dist root
  * and configured index path; missing paths return 404, traversal outside the
  * dist root is 403, unknown extensions ship as octet-stream, and non-GET/HEAD
- * is 405. An HTTP index request first passes Connection's browser
- * authentication and renders for its admitted Peer; an in-process read renders
- * for the Peer its caller admitted. Both renders go through the webserver's
- * index render (structured injection rows, then raw taps). Non-index assets
- * stay public; every file other than the index carries a weak ETag with
+ * is 405. Every request requires an authenticated Peer except the explicit
+ * install-asset allowlist (the PWA manifest and its icons); an HTTP index
+ * request first passes Connection's browser authentication and renders for its
+ * admitted Peer; an in-process read renders for the Peer its caller admitted.
+ * Both renders go through the webserver's index render (structured injection
+ * rows, then raw taps). Every response carries the package's browser-hardening
+ * headers, with HSTS added on a TLS listener and a Report-Only CSP on HTML.
+ * Every file other than the index carries a weak ETag with
  * `cache-control: no-cache` and answers a matching `If-None-Match` with 304,
  * while the index carries no cache headers. The dist location is workspace
  * knowledge of the composing application, so `distIndex` is typically
@@ -41,6 +44,53 @@ export const Config: z<Config> = z.object({
 })
 
 const HTML_MIME = 'text/html; charset=utf-8'
+
+/**
+ * Install assets a launcher fetches before any login exists: the PWA manifest
+ * and the icons it names. These dist-root files stay anonymous; every other
+ * file, including the shell bundle and the index, requires an authenticated
+ * Peer.
+ */
+const PUBLIC_ASSETS: ReadonlySet<string> = new Set([
+  '/apple-touch-icon.png',
+  '/favicon-dark.svg',
+  '/favicon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/manifest.webmanifest',
+])
+
+/** Browser-hardening headers every dist response carries. */
+const SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'x-frame-options': 'DENY',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-origin',
+  'permissions-policy': 'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+}
+
+/**
+ * Report-Only until the shell's inline boot script and plugin rows are known to
+ * satisfy it: only the directives that cannot break a legitimate page are
+ * enforced here, never `default-src`.
+ */
+const CSP_REPORT_ONLY = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+
+/**
+ * The response headers shared by every dist answer.
+ * @param secure - whether the receiving listener terminates TLS.
+ * @param html - whether the body is an HTML document, which alone carries the CSP report.
+ * @returns the security headers for this response.
+ */
+function securityHeaders(secure: boolean, html: boolean): Record<string, string> {
+  return {
+    ...SECURITY_HEADERS,
+    ...html ? { 'content-security-policy-report-only': CSP_REPORT_ONLY } : {},
+    ...secure ? { 'strict-transport-security': 'max-age=31536000' } : {},
+  }
+}
 
 const MIME: Record<string, string> = {
   '.html': HTML_MIME,
@@ -81,6 +131,7 @@ function bytesBody(bytes: Uint8Array): ReadableStream<Uint8Array> {
  * @param request - the request; only its method and URL path are read.
  * @param distRoot - absolute dist root directory (resolved by the caller).
  * @param distIndex - absolute path of index.html inside distRoot.
+ * @param secure - whether the receiving listener terminates TLS.
  * @param renderIndex - present for index requests to turn the raw index.html
  * into the served document; omitted for ordinary static files.
  * @returns the dist response; a HEAD response carries the GET status and
@@ -89,14 +140,16 @@ function bytesBody(bytes: Uint8Array): ReadableStream<Uint8Array> {
  * request whose `If-None-Match` equals that ETag receives an empty 304.
  */
 async function serveStatic(
-  request: Request, distRoot: string, distIndex: string,
+  request: Request, distRoot: string, distIndex: string, secure: boolean,
   renderIndex?: (html: string) => string,
 ): Promise<Response> {
   const target = resolve(normalize(join(distRoot, decodeURIComponent(new URL(request.url).pathname))))
   // Traversal rejection: the target must be distRoot itself (`/`) or stay under
   // it. `sep`, not '/': resolve() emits backslash paths on Windows, where a '/'
   // suffix would reject every legitimate subpath as traversal.
-  if (target !== distRoot && !target.startsWith(distRoot + sep)) return new Response(null, { status: 403 })
+  if (target !== distRoot && !target.startsWith(distRoot + sep)) {
+    return new Response(null, { status: 403, headers: securityHeaders(secure, false) })
+  }
   let body: string | Uint8Array<ArrayBuffer>
   let headers: Record<string, string>
   try {
@@ -104,11 +157,15 @@ async function serveStatic(
       const html = await readFile(distIndex, 'utf8')
       request.signal.throwIfAborted()
       body = renderIndex(html)
-      headers = { 'content-type': HTML_MIME }
+      headers = { 'content-type': HTML_MIME, ...securityHeaders(secure, true) }
     } else {
       body = await readFile(target)
       // Weak: gzip changes the transferred bytes.
-      const cache = { 'cache-control': 'no-cache', etag: `W/"${createHash('sha1').update(body).digest('base64url')}"` }
+      const cache = {
+        'cache-control': 'no-cache',
+        etag: `W/"${createHash('sha1').update(body).digest('base64url')}"`,
+        ...securityHeaders(secure, extname(target) === '.html'),
+      }
       if (request.headers.get('if-none-match') === cache.etag) return new Response(null, { status: 304, headers: cache })
       headers = { 'content-type': MIME[extname(target)] ?? 'application/octet-stream', ...cache }
     }
@@ -116,7 +173,7 @@ async function serveStatic(
     // Only absent or non-file targets are 404; other filesystem failures reach
     // the caller, which the webserver answers with 400 over HTTP.
     if (!STATIC_MISS_CODES.has((error as NodeJS.ErrnoException).code)) throw error
-    return new Response(null, { status: 404 })
+    return new Response(null, { status: 404, headers: securityHeaders(secure, false) })
   }
   if (request.method === 'HEAD') return new Response(null, { status: 200, headers })
   return new Response(typeof body === 'string' ? body : bytesBody(body), { status: 200, headers })
@@ -131,14 +188,14 @@ export function apply(ctx: Context, config: Config): void {
   const distIndex = config.distIndex
   const distRoot = dirname(distIndex)
   ctx.effect(() => ctx.webServer.registerFallback({
-    auth: (request) => {
-      const target = resolve(normalize(join(distRoot, decodeURIComponent(request.url.pathname))))
-      return target === distRoot || target === distIndex ? 'required' : 'anonymous'
-    },
+    // Only the install assets skip credential verification; every other dist
+    // file, the index included, renders for an authenticated Peer.
+    auth: (request) => PUBLIC_ASSETS.has(request.url.pathname) ? 'anonymous' : 'required',
     resource: (request, peer) => {
       request.signal.throwIfAborted()
+      const secure = ctx.webServer.protocol === 'https:'
       const target = resolve(normalize(join(distRoot, decodeURIComponent(new URL(request.url).pathname))))
-      if (target !== distRoot && target !== distIndex) return serveStatic(request, distRoot, distIndex)
+      if (target !== distRoot && target !== distIndex) return serveStatic(request, distRoot, distIndex, secure)
       // WebServer admits every index request before invoking this resource.
       const pagePeer = peer as PeerScope
       const render = (html: string): string => {
@@ -147,7 +204,7 @@ export function apply(ctx: Context, config: Config): void {
         return ctx.webServer.renderIndex(html, pagePeer)
           .replace(/<head(?:\s[^>]*)?>/i, open => `${open}<base href="./">`)
       }
-      return serveStatic(request, distRoot, distIndex, render)
+      return serveStatic(request, distRoot, distIndex, secure, render)
     },
   }), 'frontend-static: fallback seat')
 }

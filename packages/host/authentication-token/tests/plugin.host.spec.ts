@@ -1,6 +1,7 @@
 /** Token plugin owns its HTTP exchange and returns existing Connection Peers. */
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it, vi } from 'vitest'
+import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import { ConnectionAuthentication, type AuthenticationProvider, type HostConnectionHandle, type PeerScope } from '@deepseek-ai/dsh-client-connection'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { once } from 'node:events'
@@ -8,12 +9,16 @@ import { PassThrough } from 'node:stream'
 import type { WebEntryUrl, WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
 import * as Token from '../src/index.ts'
 import { RecordCredentials } from './browser-credentials.ts'
-import { BrowserAuth } from '../src/browser-auth.ts'
+import { BrowserAuth, LEGACY_BROWSER_SESSION_KEY } from '../src/browser-auth.ts'
 
 const roots: Context[] = []
 afterEach(async () => { for (const ctx of roots.splice(0)) await ctx.fiber.dispose() })
 
-async function mounted(secure = false, before?: (ctx: Context) => void) {
+async function mounted(
+  secure = false,
+  before?: (ctx: Context) => void,
+  store = new RecordCredentials(),
+) {
   const ctx = new Context(); roots.push(ctx)
   const providers: AuthenticationProvider[] = []
   const routes: WebRoute[] = []
@@ -41,7 +46,7 @@ async function mounted(secure = false, before?: (ctx: Context) => void) {
     admit() { throw new Error('Combined admission is outside this fixture') },
     createPeer,
   }
-  ctx.provide('credentials', new RecordCredentials())
+  ctx.provide('credentials', store)
   ctx.provide('connection', connection)
   ctx.provide('webServer', {
     protocol: secure ? 'https:' : 'http:',
@@ -55,12 +60,12 @@ async function mounted(secure = false, before?: (ctx: Context) => void) {
         providers.push(provider)
         return () => { providers.splice(providers.indexOf(provider), 1) }
       })
-      await Token.apply(scope, { cookieMaxAgeDays: 30 })
+      await Token.apply(scope)
     },
   })
   await fiber.await()
-  const auth = await BrowserAuth.create(ctx[Context.root], ctx.credentials, 30)
-  return { ctx, fiber, providers, routes, createPeer, auth }
+  const auth = BrowserAuth.create(ctx[Context.root])
+  return { ctx, fiber, providers, routes, createPeer, auth, store }
 }
 function response() {
   const state: { status?: number; headers?: Readonly<Record<string, string>> | undefined; body?: string | undefined } = {}
@@ -217,11 +222,38 @@ it('removes all entry registrations on unload', async () => {
 })
 
 
+it('removes the retired browser-session secret, preserves other records, and writes no durable secret', async () => {
+  const store = new RecordCredentials()
+  const legacy = { kind: 'grant' as const, payload: { version: 1, secret: 'retired' } }
+  const kept = { kind: 'grant' as const, payload: { token: 'kept' } }
+  store.records.set(LEGACY_BROWSER_SESSION_KEY, legacy)
+  store.records.set(credentialKey('demo', 'keep'), kept)
+  const warnings: unknown[] = []
+  const { store: provided } = await mounted(false, (ctx) => {
+    ctx.logger.warn = ((message: unknown) => { warnings.push(message) }) as typeof ctx.logger.warn
+  }, store)
+
+  expect(provided.records.has(LEGACY_BROWSER_SESSION_KEY)).toBe(false)
+  expect(provided.records.get(credentialKey('demo', 'keep'))).toEqual(kept)
+  // The fresh host writes no browser-session record either.
+  const fresh = await mounted()
+  expect(fresh.store.records.size).toBe(0)
+  expect(fresh.store.modifies).toBe(0)
+  expect(provided.modifies).toBe(0)
+  expect(warnings).toHaveLength(1)
+  expect(String(warnings[0])).toContain('removed the retired browser-session signing secret')
+})
+
 it('contributes its complete login URL only while the provider is mounted', async () => {
   const { ctx, fiber, auth } = await mounted()
   const entries: WebEntryUrl[] = []
   ctx.emit('webserver/entry-url', 'https://public.test/ui/', entries)
-  expect(entries).toEqual([{ label: 'dsh web', url: auth.authenticatedUrl('https://public.test/ui/'), open: true }])
+  expect(entries).toEqual([{
+    label: 'dsh web',
+    url: auth.authenticatedUrl('https://public.test/ui/'),
+    displayUrl: 'https://public.test/ui/',
+    open: true,
+  }])
   await fiber.dispose()
   const after: WebEntryUrl[] = []
   ctx.emit('webserver/entry-url', 'https://public.test/ui/', after)

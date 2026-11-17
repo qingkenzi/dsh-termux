@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { INSECURE_BASE_URL_CODE } from '@deepseek-ai/dsh-llm'
 import { assertServiceable, Config, resolveProfiles, type Options } from '../src/config.ts'
 
 /** Validate one hand-declared route, with the caller's fields layered onto it. */
@@ -17,6 +18,40 @@ const routeWith = (profile: Record<string, unknown>): (() => unknown) =>
 /** Validate that route with the caller's fields on its single model entry. */
 const configWith = (model: Record<string, unknown>): (() => unknown) =>
   routeWith({ models: [{ id: 'm', ...model }] })
+
+/** Resolve one hand-declared route through the same path a settings write uses. */
+function resolvedWith(profile: Record<string, unknown>): ReturnType<typeof resolveProfiles> {
+  return resolveProfiles({ 'acme-gateway': {
+    api: 'openai-completions',
+    baseURL: 'https://acme.test',
+    models: [{ id: 'm' }],
+    ...profile,
+  } })
+}
+
+describe('provider endpoint transport', () => {
+  it('accepts HTTPS and loopback HTTP, and materializes the insecure opt-in', () => {
+    expect(() => resolvedWith({})).not.toThrow()
+    for (const baseURL of ['http://127.0.0.1:8000/v1', 'http://localhost:8000', 'http://[::1]:9000']) {
+      expect(() => resolvedWith({ baseURL })).not.toThrow()
+    }
+    expect(resolvedWith({})?.get('acme-gateway')?.allowInsecureHttp).toBe(false)
+    expect(resolvedWith({ allowInsecureHttp: true })?.get('acme-gateway')?.allowInsecureHttp).toBe(true)
+  })
+
+  it('refuses plain HTTP to a public host with an actionable code', () => {
+    let failure: unknown
+    try {
+      resolvedWith({ baseURL: 'http://gateway.acme.test/v1' })
+    } catch (error) {
+      failure = error
+    }
+    expect(failure).toMatchObject({ code: INSECURE_BASE_URL_CODE })
+    expect((failure as Error).message).toContain('allowInsecureHttp: true')
+    expect(() => resolvedWith({ baseURL: 'http://gateway.acme.test/v1', allowInsecureHttp: true })).not.toThrow()
+    expect(() => resolvedWith({ baseURL: 'http://gateway.acme.test/v1', allowInsecureHttp: false })).toThrow()
+  })
+})
 
 describe('reasoning schema boundary', () => {
   it('accepts an empty provider section and propagates unexpected catalog failures', () => {

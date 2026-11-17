@@ -1,5 +1,5 @@
 /** Mutable credential records used by the token implementation tests. */
-import { CredentialProvider, type CredentialRecord } from '@deepseek-ai/dsh-credentials'
+import { CredentialProvider, type CredentialKey, type CredentialRecord } from '@deepseek-ai/dsh-credentials'
 import { Context } from '@deepseek-ai/cordis'
 import { onTestFinished } from 'vitest'
 
@@ -16,29 +16,29 @@ export class RecordCredentials extends CredentialProvider {
   override unset(): never { throw new Error('Reference removal is outside this fixture') }
   override describeRecord(): never { throw new Error('Record description is outside this fixture') }
   override listRecords(): never { throw new Error('Record enumeration is outside this fixture') }
-  record: CredentialRecord | undefined
+  records = new Map<string, CredentialRecord>()
   discardWrites = false
   reads = 0
   modifies = 0
 
-  override readRecord(): Promise<CredentialRecord | undefined> {
+  override readRecord(key: CredentialKey): Promise<CredentialRecord | undefined> {
     this.reads += 1
-    return Promise.resolve(this.record)
+    return Promise.resolve(this.records.get(key))
   }
 
   override async modifyRecord(
-    _key: unknown,
+    key: CredentialKey,
     mutate: (current: CredentialRecord | undefined) => Promise<CredentialRecord | undefined>,
   ): Promise<CredentialRecord | undefined> {
     this.modifies += 1
-    const next = await mutate(this.record)
+    const next = await mutate(this.records.get(key))
     if (this.discardWrites) return undefined
-    if (next !== undefined) this.record = next
-    return this.record
+    if (next !== undefined) this.records.set(key, next)
+    return this.records.get(key)
   }
 
-  override deleteRecord(): Promise<void> {
-    this.record = undefined
+  override deleteRecord(key: CredentialKey): Promise<void> {
+    this.records.delete(key)
     return Promise.resolve()
   }
 }

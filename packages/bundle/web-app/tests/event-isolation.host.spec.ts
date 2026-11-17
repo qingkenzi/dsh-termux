@@ -10,6 +10,7 @@ it.each(['main', 'isolated'] as const)('publishes only %s entry URLs and explici
   const ctx = new Context()
   const isolated = ctx.isolate('webServer')
   const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
   onTestFinished(async () => {
     try { await ctx.fiber.dispose() } finally { log.mockRestore() }
   })
@@ -17,17 +18,17 @@ it.each(['main', 'isolated'] as const)('publishes only %s entry URLs and explici
   await isolated.plugin(WebServer, { host: '127.0.0.1', port: 0 }).await()
   ctx.on('webserver/entry-url', function (this: unknown, baseUrl, entries) {
     expect(this).toBeInstanceOf(WebServer)
-    entries.push({ label: 'global', url: `${baseUrl}/global`, open: false })
+    entries.push({ label: 'global', url: `${baseUrl}/global`, displayUrl: `${baseUrl}/global`, open: false })
   }, { global: true })
   ctx.on('webserver/entry-url', (baseUrl, entries) => {
-    entries.push({ label: 'main', url: `${baseUrl}/main`, open: false })
+    entries.push({ label: 'main', url: `${baseUrl}/main`, displayUrl: `${baseUrl}/main`, open: false })
   })
   isolated.on('webserver/entry-url', (baseUrl, entries) => {
-    entries.push({ label: 'isolated', url: `${baseUrl}/isolated`, open: false })
+    entries.push({ label: 'isolated', url: `${baseUrl}/isolated`, displayUrl: `${baseUrl}/isolated`, open: false })
   })
   const target = selected === 'main' ? ctx : isolated
   const origin = target.webServer.getOrigin()
-  await target.plugin(WebApp, { printUrl: true, openBrowser: false, surfaceContext: false }).await()
+  await target.plugin(WebApp, { printUrl: 'always', openBrowser: false, surfaceContext: false }).await()
   expect(log.mock.calls).toEqual([[`global: ${origin}/global`], [`${selected}: ${origin}/${selected}`]])
 })
 

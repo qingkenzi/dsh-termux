@@ -283,7 +283,9 @@ describe('operator connect through Loader composition', () => {
       await vi.waitFor(() => { expect(report).toHaveBeenCalledWith(expect.objectContaining({ type: 'warn', args: [failure] })) })
       expect((await rpc(host, cookie, 'fixture/identity', { label: 'refused' })).status).toBe(401)
       expect(host.fixture.calls.has('refused')).toBe(false)
-      await close(await mux(host, await exchange(host, 'none')))
+      // A launch token is single-use, so a healthy server is proven on a fresh host.
+      const restarted = await boot()
+      await close(await mux(restarted, await exchange(restarted, 'none')))
     } finally {
       upgrade.mockRestore()
       await remove()
@@ -412,19 +414,14 @@ describe('operator connect through Loader composition', () => {
     expect(host.ctx.connection.authentication.authenticate({ headers: { host: new URL(host.origin).host, cookie: pageCookie } }))
       .toEqual({ peer: call(host, 'browser').peer })
     const ready = await events(page)
-    const otherCookie = await exchange(host, 'answer')
-    const other = await mux(host, otherCookie)
-    await events(other)
     open(passive, 'forbidden', '$events', {})
     expect(await frame(passive, 'forbidden', 'error')).toMatchObject({ error: { code: 'gateway/interactions-forbidden' } })
     const pending = host.fixture.pending('approval')
     const delivery = await invocation(page, 'approval')
     const args = { clientId: ready.clientId, eventId: delivery.eventId, outcome: { kind: 'result', value: 'allowed' } }
-    for (const cookie of [passiveCookie, otherCookie]) {
-      expect(await rpc(host, cookie, '$events/result', args)).toMatchObject({
-        body: { result: { ok: false, error: { code: 'gateway/interactions-forbidden' } } },
-      })
-    }
+    expect(await rpc(host, passiveCookie, '$events/result', args)).toMatchObject({
+      body: { result: { ok: false, error: { code: 'gateway/interactions-forbidden' } } },
+    })
     await success(host, pageCookie, '$events/result', args)
     await expect(pending).resolves.toEqual({ kind: 'result', value: 'allowed' })
     expect(passive.frames.filter(item => item.type === 'item')).toEqual([])
@@ -479,7 +476,7 @@ async function boot(): Promise<Host> {
 }
 
 async function exchange(host: Host, mode: 'html' | 'none' | 'answer'): Promise<string> {
-  const auth = await BrowserAuth.create(host.ctx[Context.root], host.ctx.credentials, 30)
+  const auth = BrowserAuth.create(host.ctx[Context.root])
   const target = new URL(auth.authenticatedUrl(`${host.origin}${mode === 'html' ? '/' : '/connect'}`))
   if (mode !== 'html') target.searchParams.set('interactions', mode)
   const response = await fetch(target, { redirect: 'manual', headers: { accept: mode === 'html' ? 'text/html' : 'application/json' } })

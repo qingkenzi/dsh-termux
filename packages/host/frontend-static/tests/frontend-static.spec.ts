@@ -135,7 +135,7 @@ describe('real Loader composition', () => {
     expect(unloaded).toEqual([])
     const server = loaded.webServer
     const port = server.port
-    const auth = await BrowserAuth.create(loaded[Context.root], loaded.credentials, 30)
+    const auth = BrowserAuth.create(loaded[Context.root])
     const launchUrl = new URL(auth.authenticatedUrl(`http://127.0.0.1:${String(port)}`))
     const exchange = await fetch(launchUrl, { redirect: 'manual' })
     expect(exchange.status).toBe(303)
@@ -155,25 +155,49 @@ describe('real Loader composition', () => {
       body: 'unauthorized',
     })
 
-    // Real assets with their MIME types; a live rebuild is served on the next read.
-    expect(await request(port, '/app.js')).toMatchObject({ status: 200, type: 'text/javascript; charset=utf-8', body: 'export {}' })
+    // Every dist asset except the install allowlist needs the browser cookie.
+    expect(await request(port, '/app.js')).toMatchObject({ status: 401, type: null, body: 'unauthorized' })
+    expect(await request(port, '/preview.html')).toMatchObject({ status: 401, type: null, body: 'unauthorized' })
+    // The PWA manifest and its icons stay anonymous for installers.
     expect(await request(port, '/manifest.webmanifest')).toMatchObject({
       status: 200,
       type: 'application/manifest+json',
       body: '{}',
     })
-    // The install icons are images; a launcher must not receive them as octet-stream.
     expect(await request(port, '/icon-192.png')).toMatchObject({ status: 200, type: 'image/png', body: 'PNG' })
-    expect(await request(port, '/app.js', { method: 'HEAD' })).toEqual({
+    expect(await request(port, '/favicon.svg')).toMatchObject({ status: 404, type: null, body: '' })
+
+    // Real assets with their MIME types; a live rebuild is served on the next read.
+    expect(await request(port, '/app.js', authenticated())).toMatchObject({
+      status: 200, type: 'text/javascript; charset=utf-8', body: 'export {}',
+    })
+    expect(await request(port, '/app.js', authenticated({ method: 'HEAD' }))).toEqual({
       status: 200,
       type: 'text/javascript; charset=utf-8',
       body: '',
     })
     await writeFile(join(root!, 'dist', 'app.js'), 'export const rebuilt = true')
-    expect(await request(port, '/app.js')).toMatchObject({ status: 200, body: 'export const rebuilt = true' })
+    expect(await request(port, '/app.js', authenticated())).toMatchObject({ status: 200, body: 'export const rebuilt = true' })
 
     // Unknown extension ships as octet-stream.
-    expect(await request(port, '/blob.bin')).toMatchObject({ status: 200, type: 'application/octet-stream', body: 'BLOB' })
+    expect(await request(port, '/blob.bin', authenticated())).toMatchObject({
+      status: 200, type: 'application/octet-stream', body: 'BLOB',
+    })
+
+    // Browser hardening headers cover anonymous install assets and the shell.
+    const hardened = await fetch(`http://127.0.0.1:${String(port)}/manifest.webmanifest`)
+    expect(hardened.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(hardened.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(hardened.headers.get('x-frame-options')).toBe('DENY')
+    expect(hardened.headers.get('cross-origin-opener-policy')).toBe('same-origin')
+    expect(hardened.headers.get('cross-origin-resource-policy')).toBe('same-origin')
+    expect(hardened.headers.get('permissions-policy')).toBe('camera=(), geolocation=(), microphone=(), payment=(), usb=()')
+    expect(hardened.headers.get('strict-transport-security')).toBeNull()
+    const shell = await fetch(`http://127.0.0.1:${String(port)}/`, authenticated())
+    expect(shell.headers.get('content-security-policy-report-only'))
+      .toBe("frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
+    // The index answer carries the same headers as files.
+    expect(shell.headers.get('x-frame-options')).toBe('DENY')
 
     // Only the root and index path render index.html through registered taps.
     const untap = server.tapIndex(html => html.replace('<head>', '<head><script>window.__T__=1</script>'))
@@ -235,8 +259,8 @@ describe('real Loader composition', () => {
       '/missing.manifest',
     ]
     for (const path of [...ordinaryMisses, ...assetMisses]) {
-      const get = await request(port, path)
-      const head = await request(port, path, { method: 'HEAD' })
+      const get = await request(port, path, authenticated())
+      const head = await request(port, path, authenticated({ method: 'HEAD' }))
       expect(get).toEqual({ status: 404, type: null, body: '' })
       expect(head).toEqual(get)
     }
@@ -248,9 +272,9 @@ describe('real Loader composition', () => {
 
     // Traversal outside the dist root is 403, non-GET/HEAD is 405, and a
     // malformed filesystem target still reaches the webserver's 400 guard.
-    expect((await request(port, '/..%2f..%2fetc%2fpasswd')).status).toBe(403)
-    expect((await request(port, '/app.js', { method: 'POST' })).status).toBe(405)
-    expect((await request(port, '/bad%00path')).status).toBe(400)
+    expect((await request(port, '/..%2f..%2fetc%2fpasswd', authenticated())).status).toBe(403)
+    expect((await request(port, '/app.js', authenticated({ method: 'POST' }))).status).toBe(405)
+    expect((await request(port, '/bad%00path', authenticated())).status).toBe(400)
 
     // HMR safety: disposing the frontend row releases the fallback seat (the
     // unclaimed webserver answers 404) and the seat is claimable again.
@@ -269,15 +293,22 @@ describe('real Loader composition', () => {
       attempts++
       return undefined
     } })
-    for (const path of ['/app.js', '/preview.html', '/missing.js', '/..%2f..%2foutside']) await request(loaded.webServer.port, path)
+    for (const path of ['/manifest.webmanifest', '/icon-192.png']) {
+      expect((await request(loaded.webServer.port, path)).status).toBe(200)
+    }
     expect(attempts).toBe(0)
+    for (const path of ['/app.js', '/preview.html', '/missing.js', '/..%2f..%2foutside']) {
+      expect((await request(loaded.webServer.port, path)).status).toBe(401)
+    }
+    expect(attempts).toBe(4)
     const inProcess = await loaded.webServer.readResource(new Request('http://reader.invalid/'), reader)
     await inProcess.text()
-    expect(attempts).toBe(0)
+    // The trusted in-process read carries its own Peer and checks no cookie.
+    expect(attempts).toBe(4)
     expect((await request(loaded.webServer.port, '/')).status).toBe(401)
-    expect(attempts).toBe(1)
+    expect(attempts).toBe(5)
     expect((await request(loaded.webServer.port, '/index.html', { method: 'HEAD' })).status).toBe(401)
-    expect(attempts).toBe(2)
+    expect(attempts).toBe(6)
   })
 
   it('renders each HTTP index for the Peer returned by page admission', { timeout: 60_000 }, async () => {
@@ -388,14 +419,22 @@ describe('real Loader composition', () => {
   it('lets browsers revalidate every file except the index', { timeout: 60_000 }, async () => {
     const loaded = await loadComposition()
     const base = `http://127.0.0.1:${String(loaded.webServer.port)}`
-    const first = await fetch(`${base}/app.js`)
+    const login = await fetch(new URL(BrowserAuth.create(loaded[Context.root]).authenticatedUrl(base)), { redirect: 'manual' })
+    const cookie = login.headers.get('set-cookie')?.split(';', 1)[0]
+    if (cookie === undefined) throw new Error('revalidation fixture did not log in')
+    const authenticatedFetch = (path: string, init?: RequestInit): Promise<Response> => {
+      const headers = new Headers(init?.headers)
+      headers.set('cookie', cookie)
+      return fetch(`${base}${path}`, { ...init, headers })
+    }
+    const first = await authenticatedFetch('/app.js')
     const etag = first.headers.get('etag')
     if (etag === null) throw new Error('a dist file carried no ETag')
     expect(etag).toMatch(/^W\/"[A-Za-z0-9_-]+"$/)
     expect(first.headers.get('cache-control')).toBe('no-cache')
     expect(await first.text()).toBe('export {}')
 
-    const revalidated = await fetch(`${base}/app.js`, { headers: { 'if-none-match': etag } })
+    const revalidated = await authenticatedFetch('/app.js', { headers: { 'if-none-match': etag } })
     expect([revalidated.status, revalidated.headers.get('etag'), revalidated.headers.get('cache-control')]).toEqual([304, etag, 'no-cache'])
     expect(await revalidated.text()).toBe('')
     // An in-process read revalidates the same way.
@@ -405,13 +444,13 @@ describe('real Loader composition', () => {
 
     // New content under the same name changes the ETag, so the stale copy is replaced.
     await writeFile(join(root!, 'dist', 'app.js'), 'export const rebuilt = true')
-    const rebuilt = await fetch(`${base}/app.js`, { headers: { 'if-none-match': etag } })
+    const rebuilt = await authenticatedFetch('/app.js', { headers: { 'if-none-match': etag } })
     expect(rebuilt.status).toBe(200)
     expect(rebuilt.headers.get('etag')).not.toBe(etag)
     expect(await rebuilt.text()).toBe('export const rebuilt = true')
 
     // Only the rendered index carries no cache headers; another HTML file revalidates.
-    const html = await fetch(`${base}/preview.html`)
+    const html = await authenticatedFetch('/preview.html')
     expect([html.status, html.headers.get('cache-control')]).toEqual([200, 'no-cache'])
     expect(html.headers.get('etag')).toMatch(/^W\//)
     expect(await html.text()).toBe('<body>preview</body>')

@@ -32,6 +32,7 @@ export const LLM_FAILURE_CODES = {
   IMAGE_OFFLOAD_REQUIRED: {},
   INVALID_ADAPTER: {},
   INVALID_CATALOG: {},
+  INSECURE_BASE_URL: {},
   INVALID_CONFIG: {},
   INVALID_CREDENTIAL: {},
   INVALID_DIRECTORY: {},
@@ -106,6 +107,9 @@ export const EMPTY_RESPONSE_CODE = 'EMPTY_RESPONSE' satisfies BuiltinLlmFailureC
  * a malformed credential fails identically on every attempt.
  */
 export const INVALID_CREDENTIAL_CODE = 'INVALID_CREDENTIAL' satisfies BuiltinLlmFailureCode
+
+/** A provider endpoint that would carry credentials and prompts over untrusted transport. */
+export const INSECURE_BASE_URL_CODE = 'INSECURE_BASE_URL' satisfies BuiltinLlmFailureCode
 
 /** Structured codes and plain phrases that explicitly name a context bound being exceeded. */
 const STRUCTURED_CONTEXT_OVERFLOW = new RegExp(
