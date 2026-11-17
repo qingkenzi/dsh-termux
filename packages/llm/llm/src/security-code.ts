@@ -1,4 +1,3 @@
-/** Stable failure code for a provider endpoint that would carry credentials over untrusted transport. */
 import type { BuiltinLlmFailureCode } from './error.ts'
 
 /** Stable failure code for a provider endpoint that would carry credentials over untrusted transport. */
