@@ -14,11 +14,11 @@ Web Host 以当前操作系统用户的权限运行具有工具能力的 Session
 
 `dsh-client-connection` 在分发前认证完整 Host API。每个 API Proxy 方法、Remote 一元调用、通用 Connection channel 和 Remote WebSocket stream 都要求已认证 Peer；endpoint 所有权与方法名称不改变 authority。既有 Host/Origin 校验先执行，继续负责 DNS rebinding 和跨站请求防御，失败时返回 403。Host 可信但没有有效凭据时返回 401。浏览器信任规则仍由[载体级浏览器信任决策](2026-07-28-api-browser-trust-boundary.zh.md)持有。
 
-Token 插件为每个 Host 根生成一个随机启动令牌，并跨插件重载保留。它通过 `webserver/entry-url` 贡献带签名的入口 URL；WebApp 提供普通基地址，并按自身启动配置负责在每个根应用中打印和打开入口一次。插件通过 `webserver/request` 处理根路径交换：`GET /?token=...` 把进程令牌交换为 cookie，再重定向到干净的 `./`。过时令牌同时带有有效默认 cookie 时，也重定向到干净的 `./`。插件向 `connection.authentication` 注册 Cookie 验证器，`frontend-static` 使用准入 Peer 渲染 index。默认 Token 请求缺失或携带无效凭据时得到最小 401 响应；非 index 静态资产保持公开。API Token 处理仍归独立的 `/connect` 握手。
+Token 插件为每个 Host 根生成一个随机启动令牌，并跨插件重载保留。它通过 `webserver/entry-url` 贡献带签名的入口 URL；WebApp 提供普通基地址，并按自身启动配置负责在每个根应用中打印和打开入口一次。插件通过 `webserver/request` 处理根路径交换：`GET /?token=...` 把进程令牌交换为 cookie，再重定向到干净的 `./`。过时令牌同时带有有效默认 cookie 时，也重定向到干净的 `./`。插件向 `connection.authentication` 注册 Cookie 验证器，`frontend-static` 使用准入 Peer 渲染 index。默认 Token 请求缺失或携带无效凭据时得到最小 401 响应；只有 PWA 安装资源保持公开，其他 dist 文件都要求已准入 Peer。API Token 处理仍归独立的 `/connect` 握手。
 
-cookie 是签名且绑定 authority 的 bearer。确定性名称与签名 payload 都包含规范化 hostname 和 port，因此同一 Harness home 可以在不同 Web port 运行而不发生 cookie 冲突。payload 在绝对有效期内携带安全整数形式的签发与过期时间；`cookieMaxAgeDays` 默认为 30。cookie 是 host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`。HTTP 监听器不设置 `Secure`。这里没有 logout 操作。
+cookie 是签名且绑定 authority 的 bearer。确定性名称与签名 payload 都包含规范化 hostname 和 port，因此同一 Harness home 可以在不同 Web port 运行而不发生 cookie 冲突。v3 payload 在一天绝对有效期内携带安全整数形式的签发与过期时间，API 变体额外携带 operator id。cookie 是 host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`。HTTP 监听器不设置 `Secure`。这里没有 logout 操作，但重启会撤销全部 cookie。
 
-HMAC 密钥是 `ctx.credentials` 中位于 `client-connection/browser-session` 的版本化 `grant` 记录；本地提供方将其存入 `$DSH_HOME/.credentials.yaml`。Token 插件在激活期间加载或创建该记录，并保留密钥以同步校验请求。持久记录发生变化后，当前 Token 插件继续使用已加载的密钥；下一次激活会加载替换记录或创建缺失记录，因此删除记录并重启进程会撤销全部既有 cookie。无效 owner payload 会明确失败，而不是被覆盖。启动令牌本身绝不持久化并在每次进程启动时变化；未过期 cookie 则能在相同 authority 上跨重启继续有效。
+HMAC 密钥是每个根 Context 的进程内存 32 随机字节；没有任何凭据记录保存它。启动令牌同样只存在于进程内存，有效十分钟，index 与 `/connect` 各消耗一次，重放返回401。重启会同时替换两个密钥并拒绝全部既有 cookie。激活时若存在已停用的 `client-connection/browser-session` grant 记录，插件会删除它并输出 warning，其他凭据记录保持不变。同源 `POST /_dsh/auth/refresh` 可在首次登录后一天内续签浏览器 cookie。
 
 页内 Web Worker preview 不暴露网络 socket。其由页面持有的 `postMessage` tunnel 先进入真实 route，收到 401 或 403 后再经 worker 本地 fetch handler 重试。这样既保留 Connection interceptor，又把认证绕过限制在创建 Host worker 的页面内。
 
