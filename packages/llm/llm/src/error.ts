@@ -108,9 +108,6 @@ export const EMPTY_RESPONSE_CODE = 'EMPTY_RESPONSE' satisfies BuiltinLlmFailureC
  */
 export const INVALID_CREDENTIAL_CODE = 'INVALID_CREDENTIAL' satisfies BuiltinLlmFailureCode
 
-/** A provider endpoint that would carry credentials and prompts over untrusted transport. */
-export const INSECURE_BASE_URL_CODE = 'INSECURE_BASE_URL' satisfies BuiltinLlmFailureCode
-
 /** Structured codes and plain phrases that explicitly name a context bound being exceeded. */
 const STRUCTURED_CONTEXT_OVERFLOW = new RegExp(
   String.raw`(?:^|[^a-z0-9])context[\s_-](?:length|window)[\s_-]`

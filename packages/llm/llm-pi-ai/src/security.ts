@@ -9,7 +9,8 @@
  * @module dsh-llm-pi-ai/security
  */
 
-import { INSECURE_BASE_URL_CODE, LlmError } from '@deepseek-ai/dsh-llm'
+import { LlmError } from '@deepseek-ai/dsh-llm'
+import { INSECURE_BASE_URL_CODE } from '@deepseek-ai/dsh-llm/src/security-code.ts'
 
 /** Hosts that name this machine without leaving it: `localhost`, 127/8, and `::1`. */
 const LOOPBACK_HOST = /^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])$/i

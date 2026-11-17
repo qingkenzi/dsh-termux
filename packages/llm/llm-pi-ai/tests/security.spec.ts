@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { INSECURE_BASE_URL_CODE, LlmError } from '@deepseek-ai/dsh-llm'
+import { LlmError } from '@deepseek-ai/dsh-llm'
+import { INSECURE_BASE_URL_CODE } from '@deepseek-ai/dsh-llm/src/security-code.ts'
 import { assertSecureBaseURL } from '../src/security.ts'
 
 describe('provider endpoint transport', () => {

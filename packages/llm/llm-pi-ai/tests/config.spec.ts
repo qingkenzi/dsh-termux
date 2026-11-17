@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { INSECURE_BASE_URL_CODE } from '@deepseek-ai/dsh-llm'
+import { INSECURE_BASE_URL_CODE } from '@deepseek-ai/dsh-llm/src/security-code.ts'
 import { assertServiceable, Config, resolveProfiles, type Options } from '../src/config.ts'
 
 /** Validate one hand-declared route, with the caller's fields layered onto it. */

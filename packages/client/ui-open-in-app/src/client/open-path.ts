@@ -205,17 +205,19 @@ export class OpenInAppPathController {
   }
 
   private async run(): Promise<void> {
+    let result: RemoteResult<SessionWorkspaceDesktop> | undefined
     try {
-      const result = await this.remote.session.workspaceDesktop()
-      if (result.ok) {
-        this.desktop.set(result.value.available)
-        this.fileManager.set(result.value.fileManager)
-        this.associationsSupported.set(result.value.associationsSupported)
-        return
-      }
-    } catch {
-      // Swallows carrier rejections: an unreachable Host reads as no desktop,
-      // so the preview shows no path control rather than a broken one.
+      result = await this.remote.session.workspaceDesktop()
+    } catch (error: unknown) {
+      // Carrier rejections mean an unreachable Host, which reads as no desktop;
+      // the preview shows no path control rather than a broken one.
+      void error
+    }
+    if (result?.ok === true) {
+      this.desktop.set(result.value.available)
+      this.fileManager.set(result.value.fileManager)
+      this.associationsSupported.set(result.value.associationsSupported)
+      return
     }
     this.desktop.set(false)
     this.fileManager.set(null)

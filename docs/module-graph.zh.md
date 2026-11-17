@@ -498,6 +498,7 @@ flowchart TD
     pkg_workspace["workspace"]
   end
   pkg_atomic_write --> pkg_error
+  pkg_native_command --> pkg_error
   pkg_llm --> pkg_error
   pkg_session --> pkg_scope
   pkg_api_remotes --> pkg_scope
@@ -1586,7 +1587,6 @@ flowchart TD
 | [`http-proxy`](../packages/util/http-proxy) | `util` | — |
 | [`launch-environment`](../packages/util/launch-environment) | `util` | — |
 | [`lazy-require`](../packages/util/lazy-require) | `util` | — |
-| [`native-command`](../packages/util/native-command) | `util` | — |
 | [`official-bundles`](../packages/util/official-bundles) | `util` | — |
 | [`output-retention`](../packages/util/output-retention) | `util` | — |
 | [`package-manifest`](../packages/util/package-manifest) | `util` | — |
@@ -1731,6 +1731,7 @@ flowchart TD
 | [`typert-generator`](../packages/typert/generator) | `typert` | — |
 | [`typert-registry`](../packages/typert/registry) | `typert` | — |
 | [`atomic-write`](../packages/util/atomic-write) | `util` | [`error`](../packages/util/error) |
+| [`native-command`](../packages/util/native-command) | `util` | [`error`](../packages/util/error) |
 | [`llm`](../packages/llm/llm) | `llm` | [`error`](../packages/util/error) |
 | [`session`](../packages/core/session) | `core` | [`scope`](../packages/core/scope) |
 | [`api-remotes`](../packages/api/remotes) | `api` | [`scope`](../packages/core/scope) |
