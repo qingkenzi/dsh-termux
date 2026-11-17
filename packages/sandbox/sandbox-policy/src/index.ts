@@ -160,6 +160,12 @@ export class SandboxPolicyService extends Service {
     // runtime fact. `workspaceRoot` has NO schema default, so its fallback to
     // the process cwd is real branching, resolved absolute either way.
     this.defaultMode = config.mode as SandboxMode
+    if (process.platform === 'android' && this.defaultMode === 'danger-full-access') {
+      this.ctx.logger.warn(
+        'sandbox-policy: Android has no file-sandbox backend; this session runs with danger-full-access. '
+        + 'Set DSH_PERMISSION_MODE explicitly and review the Android/Termux limitations before running untrusted code.',
+      )
+    }
     // Execution-world spelling is preserved; enforcing providers resolve filesystem identity on their host.
     const workspaceRoot = config.workspaceRoot ?? process.cwd()
     if (!isExecutionWorldPath(workspaceRoot)) {

@@ -28,7 +28,8 @@
 - id: sandbox-policy
   inject: [headlessStartup]
   config:
-    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    # Android has no sandbox backend; see the base bundle comment.
+    mode: !!js "process.env.DSH_PERMISSION_MODE ?? (process.platform === 'android' ? 'danger-full-access' : 'workspace-write')"
     workspaceRoot: !!js process.cwd()
     additionalWritableRoots: !!js ctx.headlessStartup.additionalWritableRoots
 
