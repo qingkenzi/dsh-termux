@@ -25,8 +25,8 @@
         json: !!js ctx.headlessStartup.json
 
 # A one-shot run has no user to ask, so this deployment explicitly accepts the
-# same danger-full-access fallback as the GUI when no backend exists. A startup
-# warning and the permission state keep that acceptance visible.
+# same danger-full-access fallback as the GUI when the Android seccomp probe
+# fails. A startup warning and the permission state keep that acceptance visible.
 - id: sandbox-startup
   config:
     mode: !!js process.env.DSH_PERMISSION_MODE

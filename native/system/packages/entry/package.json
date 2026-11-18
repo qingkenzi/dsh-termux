@@ -2,7 +2,7 @@
   "name": "@deepseek-ai/node-addon-system",
   "version": "0.1.2",
   "type": "module",
-  "description": "Prebuilt system primitives: a Linux Landlock launcher and asynchronous POSIX flock through stable Node-API",
+  "description": "Prebuilt system primitives: a Linux Landlock launcher, an Android seccomp supervisor, and asynchronous POSIX flock through stable Node-API",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
@@ -12,6 +12,10 @@
     "./landlock-run": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./android-sandbox": {
+      "types": "./lib/android-sandbox.d.ts",
+      "default": "./lib/android-sandbox.js"
     },
     "./flock": {
       "types": "./lib/flock.d.ts",
@@ -24,6 +28,7 @@
     "lib/",
     "!lib/*.tsbuildinfo",
     "src/main.c",
+    "src/android-sandbox.c",
     "src/flock.c"
   ],
   "scripts": {

@@ -7,4 +7,4 @@ header:
   class: sdk-dsh-sdk-diagnostic
   pin: true
 skip:
-  android: Android defaults to danger-full-access because it has no file-sandbox backend, while the fixture records Linux workspace-write with the approval prompt; replay would change the session permission events and system prompt
+  android: Android uses partial seccomp write mediation; the fixture records Linux full workspace-write permission events and approval prompts, so replay would not reproduce them

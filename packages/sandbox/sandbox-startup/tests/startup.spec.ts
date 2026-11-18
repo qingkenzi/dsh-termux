@@ -32,7 +32,7 @@ const UNAVAILABLE: SandboxAvailability = {
   available: false,
   backend: 'none',
   enforcement: 'none',
-  reason: 'No file-sandbox backend is usable on android: Android exposes no runner chain, and bubblewrap and Landlock are unavailable on Termux.',
+  reason: 'No file-sandbox backend is usable on android: the android-sandbox candidate failed the functional probe.',
   remediation: 'Run with danger-full-access only when unconfined file effects are acceptable on this host, or move the workspace to a Linux host.',
 }
 
@@ -45,6 +45,17 @@ describe('resolveDefaultMode', () => {
 
   it('accepts a partial backend as available', () => {
     expect(resolveDefaultMode({ availability: PARTIAL, onUnavailable: 'fail' }).mode).toBe('workspace-write')
+  })
+
+  it('starts in workspace-write on an available partial Android backend', () => {
+    const android = {
+      ...PARTIAL,
+      backend: 'android-sandbox',
+      reason: 'Confined processes run under the Android seccomp user-notification supervisor; part of the promised file-effect surface is not enforced, so the boundary is not absolute.',
+    } satisfies SandboxAvailability
+    expect(resolveDefaultMode({ availability: android, onUnavailable: 'fail' })).toEqual({
+      mode: 'workspace-write', explicit: false, awaitingChoice: false, approvalPolicy: 'ask',
+    })
   })
 
   it.each(['read-only', 'workspace-write'] as const)(
@@ -74,7 +85,7 @@ describe('resolveDefaultMode', () => {
         expect((error as Error).message).toContain(`"${mode}"`)
         expect((error as Error).message).toContain('DSH_PERMISSION_MODE=danger-full-access')
         expect((error as Error).message).toContain('danger-full-access')
-        expect((error as Error).message).toContain('Android exposes no runner chain')
+        expect((error as Error).message).toContain('No file-sandbox backend is usable')
         expect((error as Error).message).toContain(UNAVAILABLE.remediation)
       }
     },

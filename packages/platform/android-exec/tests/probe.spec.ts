@@ -241,6 +241,15 @@ describe('Android exec failure reporting', () => {
     expect(androidExecGuidance()).toContain('targetSdk ≥ 29')
   })
 
+  it('does not claim PLATFORM_EXEC_BLOCKED for a missing interpreter or timeout', () => {
+    for (const reason of ['INTERPRETER_MISSING', 'PROBE_TIMEOUT', 'PROBE_FAILED'] as const) {
+      const warning = androidExecDiagnostic('dsh', failure(reason, 'detail'))
+      expect(warning).toContain(reason)
+      expect(warning).not.toContain(`will fail with ${PLATFORM_EXEC_BLOCKED}`)
+      expect(warning).toContain('may fail until')
+    }
+  })
+
   it('maps EACCES/EPERM to PlatformExecBlockedError and leaves other failures unchanged', () => {
     const blocked = androidSpawnFailure(errnoError('EACCES'), '/shell')
     expect(blocked).toBeInstanceOf(PlatformExecBlockedError)

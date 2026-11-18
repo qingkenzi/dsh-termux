@@ -47,7 +47,9 @@ for (const artifactName of fs.readdirSync(artifactRoot)) {
 for (const dir of platformDirs()) {
   const metadata = JSON.parse(fs.readFileSync(path.join(root, dir, 'prebuilds.json'), 'utf8'));
   for (const binary of metadata.binaries) {
-    if (binary.kind === 'static-musl') fs.chmodSync(path.join(root, dir, binary.path), 0o755);
+    if (binary.kind === 'static-musl' || binary.kind === 'bionic-executable') {
+      fs.chmodSync(path.join(root, dir, binary.path), 0o755);
+    }
   }
   const { name, count } = verifyPlatformBinaries(path.join(root, dir));
   console.log(`Verified ${name}: ${count} binaries`);

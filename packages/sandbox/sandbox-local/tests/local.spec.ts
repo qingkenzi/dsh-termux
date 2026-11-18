@@ -551,3 +551,71 @@ describe('the windows-acl probe (runner invocation contract)', () => {
     expect(confined.argv.slice(0, 2)).toEqual([process.execPath, builtEntry])
   })
 })
+
+describe('the android-sandbox rung (seccomp supervisor)', () => {
+  it('probes its sole candidate and wraps with the supervisor argv contract', async () => {
+    const probeAndroidSandbox = vi.fn(() => 'partial' as const)
+    const { sandbox } = await setup({}, {
+      platform: 'android',
+      probeAndroidSandbox,
+      androidSandboxRunner: '/fake/android-sandbox-run',
+    })
+    const confined = await sandbox.confine(['bash', '-c', 'echo hi'], WW)
+    expect(confined).toEqual({
+      argv: [
+        '/fake/android-sandbox-run',
+        '--workspace', '/ws',
+        '--tmp', tmpdir(),
+        '--mode', 'workspace-write',
+        '--', 'bash', '-c', 'echo hi',
+      ],
+      enforcement: 'partial',
+      denialSignatures: ['permission denied'],
+      runnerFailureRules: [{ allowedExitCodes: [125], fatalSignatures: ['android-sandbox-run: '] }],
+    })
+    expect(probeAndroidSandbox).toHaveBeenCalledTimes(1)
+  })
+
+  it('read-only passes the mode instead of granting the workspace', async () => {
+    const { sandbox } = await setup({}, {
+      platform: 'android',
+      probeAndroidSandbox: () => 'partial',
+      androidSandboxRunner: '/fake/android-sandbox-run',
+    })
+    const confined = await sandbox.confine(['true'], RO)
+    expect(confined.argv.slice(0, 7)).toEqual([
+      '/fake/android-sandbox-run', '--workspace', '/ws', '--tmp', tmpdir(), '--mode', 'read-only',
+    ])
+  })
+
+  it('fails closed when the probe reports unusable', async () => {
+    const probeAndroidSandbox = vi.fn(() => 'unusable' as const)
+    const { sandbox } = await setup({}, {
+      platform: 'android',
+      probeAndroidSandbox,
+      androidSandboxRunner: '/fake/android-sandbox-run',
+    })
+    await expect(sandbox.confine(['true'], RO)).rejects.toThrow(expect.objectContaining({ code: SANDBOX_UNAVAILABLE }))
+    expect(probeAndroidSandbox).toHaveBeenCalledTimes(1)
+  })
+
+  it('caches the probed verdict across wraps', async () => {
+    const probeAndroidSandbox = vi.fn(() => 'partial' as const)
+    const { sandbox } = await setup({}, {
+      platform: 'android',
+      probeAndroidSandbox,
+      androidSandboxRunner: '/fake/android-sandbox-run',
+    })
+    await sandbox.confine(['true'], RO)
+    await sandbox.confine(['true'], WW)
+    expect(probeAndroidSandbox).toHaveBeenCalledTimes(1)
+  })
+
+  it.skipIf(process.platform === 'android')('resolves the packaged supervisor path when no hook is injected', async () => {
+    // On a non-Android host the resolved platform package has no supervisor
+    // binary, so the default probe reports unusable — exercising the
+    // resolution arm rather than a test hook.
+    const { sandbox } = await setup({}, { platform: 'android', chain: ['android-sandbox'] })
+    expect(sandbox.availability()).toMatchObject({ available: false, enforcement: 'none' })
+  })
+})

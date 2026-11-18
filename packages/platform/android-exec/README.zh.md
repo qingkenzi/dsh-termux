@@ -39,7 +39,7 @@ await cached.probe()                                     // later calls return t
 await installAndroidExec(ctx, 'dsh')                     // publish ctx.androidExec and warn once
 ```
 
-`probeAndroidExec({ platform, execPath, shellPath, spawn, timeoutMs })` 在同一个时限内以忽略 stdio 的方式启动两条命令。`available: false` 会带上 `reason` 与命令级 `detail`；reason 取值为 `PLATFORM_EXEC_BLOCKED`、`INTERPRETER_MISSING`、`PROBE_TIMEOUT` 或 `PROBE_FAILED`。`installAndroidExec` 发布 `ctx.androidExec`；被阻止的结果会记录一条结构化启动告警，文案指出 Termux 的 `targetSdk ≥ 29` 限制与 app lib 目录的规避方式。
+`probeAndroidExec({ platform, execPath, shellPath, spawn, timeoutMs })` 在同一个时限内以忽略 stdio 的方式启动两条命令。`available: false` 会带上 `reason` 与命令级 `detail`；reason 取值为 `PLATFORM_EXEC_BLOCKED`、`INTERPRETER_MISSING`、`PROBE_TIMEOUT` 或 `PROBE_FAILED`。`installAndroidExec` 发布 `ctx.androidExec`；不可用的结果会记录一条结构化启动告警；被阻止时文案指出 Termux 的 `targetSdk ≥ 29` 限制与 app lib 目录的规避方式。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现

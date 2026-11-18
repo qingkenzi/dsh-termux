@@ -239,12 +239,12 @@
       name: '@deepseek-ai/dsh-sandbox-local'
 
     # Startup authority: it asks the mounted provider what this host can enforce
-    # and resolves the one starting mode every row below reads. Android has no
-    # kernel backend, so this deployment explicitly accepts danger-full-access
-    # for the GUI (the availability reason and warning are logged; the permission
-    # chip keeps the state visible), while an explicit confined mode still fails
-    # closed. A headless deployment states the same acceptance because nothing
-    # can ask.
+    # and resolves the one starting mode every row below reads. Android's
+    # seccomp supervisor supplies partial confinement when its probe succeeds;
+    # if the probe fails, this deployment explicitly accepts danger-full-access
+    # (the availability reason and warning are logged; the permission chip keeps
+    # the state visible), while an explicit confined mode still fails closed.
+    # A headless deployment states the same acceptance because nothing can ask.
     - id: sandbox-startup
       name: '@deepseek-ai/dsh-sandbox-startup'
       config:

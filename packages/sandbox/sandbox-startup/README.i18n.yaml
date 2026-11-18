@@ -10,7 +10,7 @@
   zh: 99e483acb1ac88ec
 /deepseek-ai-dsh-sandbox-startup/summary:
   en: 581243a7cd5c6c67
-  zh: ae911abe1ca6d7cd
+  zh: 0b38db60cc2a3dd8
 /deepseek-ai-dsh-sandbox-startup/table-of-contents:
   en: b563e4ec4727d0de
   zh: 3b7eeff254624ee6
@@ -24,20 +24,23 @@
   en: 3683df3ecb57f38f
   zh: b24bbc627cac011f
 /deepseek-ai-dsh-sandbox-startup/use-this-package/decisions:
-  en: cbddd464d96f64d2
-  zh: 86f07afcb1fe4453
+  en: efc66bd2b898a79d
+  zh: 17b303816499bc8a
 /deepseek-ai-dsh-sandbox-startup/understand-the-implementation:
   en: 17b3b875ecf3d4d0
-  zh: c4d0b058f637b6da
+  zh: 11aff89e651a6459
 /deepseek-ai-dsh-sandbox-startup/further-exploration:
   en: 2169e13159b494ae
-  zh: d3e99128c63e7ddf
+  zh: 2537bd7280991ab6
+/deepseek-ai-dsh-sandbox-startup/dev-note:
+  en: 388c263eaa4e6b26
+  zh: dedb020b10720633
 /deepseek-ai-dsh-sandbox-startup/model-experience:
   en: 7b3170b39f2533ad
   zh: 2aa5eda7c824e019
 /deepseek-ai-dsh-sandbox-startup/model-experience/kv-cache-effect:
   en: 6f878904859e53bc
-  zh: e47b258f7cb5d462
+  zh: e5537982c1a987ad
 /deepseek-ai-dsh-sandbox-startup/known-limitations-and-deferred-work:
   en: 41c3ce7c24eccaed
   zh: d1625def52965ae6

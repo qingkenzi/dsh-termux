@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write native/system/packages/entry/README.md
 /:
-  en: 944c02a61291ff07
-  zh: 7fd2384098ea4c7f
+  en: 1244f394c509b5de
+  zh: 32e6f152a0d5de59
 /deepseek-ai-node-addon-system:
-  en: 4e7dcda09d401c4c
-  zh: f4d0b2b1690584b7
+  en: 82252b56d06e3981
+  zh: 6879fa92c9066d74

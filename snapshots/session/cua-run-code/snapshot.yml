@@ -7,3 +7,5 @@ header:
   class: cua-run-code
   pin: true
 permission: danger-full-access
+requires:
+  - cua

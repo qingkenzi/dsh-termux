@@ -1,6 +1,7 @@
 {
   "platform": "android-arm64",
   "binaries": [
-    { "tool": "flock", "kind": "node-api", "napi": 8, "path": "bin/bionic/system.node" }
+    { "tool": "flock", "kind": "node-api", "napi": 8, "path": "bin/bionic/system.node" },
+    { "tool": "android-sandbox", "kind": "bionic-executable", "path": "bin/android-sandbox-run" }
   ]
 }

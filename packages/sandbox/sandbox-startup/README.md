@@ -36,7 +36,7 @@ Choose it for every deployment whose default sandbox mode must follow host capab
 - name: '@deepseek-ai/dsh-sandbox-startup'
   config:
     mode: !!js process.env.DSH_PERMISSION_MODE
-    onUnavailable: ask
+    onUnavailable: danger-full-access
 ```
 
 `mode` is the deployment's explicit mode (`DSH_PERMISSION_MODE` in the shipped bundles; a headless `--permission-mode` selects a permission preset per session and outranks it). Leaving it unset hands the choice to host capability.
@@ -51,7 +51,7 @@ Choose it for every deployment whose default sandbox mode must follow host capab
 4. No explicit mode on a host with a backend — `workspace-write`.
 5. No explicit mode without a backend — `onUnavailable: 'danger-full-access'` accepts unconfined effects, `'ask'` keeps the confined mode and reports `awaitingChoice`, and `'fail'` throws.
 
-`ask` is the GUI default and `fail` is the headless default. Neither reaches `danger-full-access` on its own: confined operations fail closed through the provider's `SANDBOX_UNAVAILABLE` denial, and only the user's explicit, risk-confirmed preset switch runs unconfined work.
+The shipped base and headless bundles explicitly choose `onUnavailable: danger-full-access`, so an Android device whose seccomp probe fails still starts and logs the availability warning. `ask` keeps confined mode and fails closed until the user selects a wider preset; `fail` refuses startup. The package default is `fail`, for deployments that state no fallback.
 
 ## Understand the implementation
 
@@ -65,6 +65,10 @@ Availability itself is the provider's report: `available`, `backend`, `enforceme
 - [`dsh-sandbox`](../sandbox/README.md) — the confinement seam and the availability report contract.
 - [`dsh-sandbox-policy`](../sandbox-policy/README.md) — the per-call policy home this service feeds.
 - [`dsh-permission-presets`](../../interaction/permission-presets/README.md) — the preset table whose rows are the mode/approval pairs startup resolves.
+
+## Dev Note
+
+The startup service constructs before `sandbox-policy` and `approval`; its `mode` and `approvalPolicy` are process-lifetime facts and must not be rewritten at runtime.
 
 ## Model Experience
 

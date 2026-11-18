@@ -1,10 +1,32 @@
+# Host capabilities the owner-local expected-output tier cannot emulate.
+#
+# Each entry names one `*.expected.e2e.ts` driver, the capabilities its committed
+# output records, and the reviewed reason printed when a host cannot provide one.
+# The runner skips only such a declaration, prints the reason, and still requires
+# the declared driver's `expected/` tree, so a declaration can never hide a
+# missing fixture. The Linux and macOS lanes remain the authority for these paths.
 version: 1
 scenarios:
-  - file: profiles/headless/tests/workspace-context-resume.expected.e2e.ts
-    requires: [sandbox]
-  - file: profiles/headless/tests/subagent-inheritance.expected.e2e.ts
-    requires: [sandbox]
-  - file: profiles/headless/tests/subagent-diagnostic.expected.e2e.ts
-    requires: [sandbox]
   - file: profiles/headless/tests/semantic-checkpoint.expected.e2e.ts
     requires: [sandbox]
+    reason: >-
+      Android exposes no file-sandbox backend, so the recorded Linux workspace-write
+      permission events and approval prompt cannot be reproduced.
+
+  - file: profiles/headless/tests/subagent-diagnostic.expected.e2e.ts
+    requires: [sandbox]
+    reason: >-
+      Android exposes no file-sandbox backend, so the recorded Linux workspace-write
+      permission events and approval prompt cannot be reproduced.
+
+  - file: profiles/headless/tests/subagent-inheritance.expected.e2e.ts
+    requires: [sandbox]
+    reason: >-
+      Android exposes no file-sandbox backend, so the recorded read-only permission events,
+      the delegation's sandbox event, and the write the real fence denies cannot be reproduced.
+
+  - file: profiles/headless/tests/workspace-context-resume.expected.e2e.ts
+    requires: [sandbox]
+    reason: >-
+      Android exposes no file-sandbox backend, so the recorded Linux workspace-write
+      permission events and approval prompt cannot be reproduced.

@@ -38,13 +38,21 @@ When stdout is not a terminal, the login URL is written to `$DSH_HOME/run/web-<p
 
 ## Permission mode
 
-Android has no usable bionic file-sandbox backend: bubblewrap and Landlock are unavailable, and user namespaces are disabled. The default deployment therefore uses `danger-full-access` and logs a warning. Set `DSH_PERMISSION_MODE` explicitly when you need another mode:
+Android uses a bundled seccomp user-notification supervisor for partial file-write confinement. When its startup probe succeeds, the default deployment runs `workspace-write` and enforces the documented write syscalls; the permission chip reports the partial enforcement. `read-only` and `workspace-write` therefore work without bubblewrap or Landlock. The boundary is partial: reads, inherited writable descriptors, some metadata syscalls, and an allowed path re-resolved after the check remain outside it.
+
+If the seccomp probe fails, the deployment falls back to `danger-full-access` with a visible startup warning. Set an explicit mode when you need a different choice:
 
 ```sh
-DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
+DSH_PERMISSION_MODE=workspace-write pnpm dsh web --no-open
 ```
 
-`read-only` and `workspace-write` fail closed with `SANDBOX_UNAVAILABLE` until a sandbox provider is installed. Do not run untrusted prompts or tools without understanding this boundary.
+An explicit confined mode without a working backend fails closed with `SANDBOX_UNAVAILABLE`. Do not run untrusted prompts or tools without understanding this partial boundary.
+
+## Exec capability (W^X)
+
+Android permits executing binaries from an app's data directory only while the app targets API 28 or lower. Termux currently reports `targetSdk 28`, so `node`, `bash`, `ssh`, and the bundled `ripgrep` start normally. A future Termux build with `targetSdk ≥ 29` would block every one of those child processes while the CLI, Web UI, model requests, and file tools keep working.
+
+DSH probes this once during startup with `node -e 0` and `$PREFIX/bin/sh -c true`. If the probe is blocked, startup logs one warning naming the `targetSdk` rule and the workaround, and each exec-based call fails with `PLATFORM_EXEC_BLOCKED` instead of a random `EACCES`. Keep Termux on a `targetSdk 28` build, or move the node and shell interpreters into the app's native library (lib) directory, which Android still permits executing, and point DSH at them there.
 
 ## What works
 
@@ -57,7 +65,7 @@ DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
 | SSH execution | Yes, when a local `ssh` client and remote host are available |
 | File-manager reveal and Open folder | Yes, through `termux-open`/`xdg-open` |
 | CUA, Playwright automation | No |
-| Kernel file sandbox | No |
+| File sandbox | Partial: seccomp write mediation with documented gaps |
 | `pnpm run lint`, `pnpm run duplication`, coverage gate | Linux CI; Android native bindings are unavailable |
 
 ## Provider transport
@@ -74,6 +82,7 @@ Use an HTTPS provider endpoint, or reach a private HTTP endpoint through an SSH 
 - `No usable native binding found for node-addon-require-builtin-android-arm64`: run `pnpm install` with lifecycle scripts enabled, then `pnpm run setup:android`.
 - sharp load failure: run `pnpm run setup:android`; it rebuilds libvips when absent and restores the cached addon after a reinstall.
 - `SEARCH_RG_UNAVAILABLE`: run `sh scripts/setup-android.sh` or install the Termux `ripgrep` package.
+- `PLATFORM_EXEC_BLOCKED`: startup proved Android cannot execute binaries from app data. Keep Termux at `targetSdk 28`, or place the node and shell interpreters in the app lib directory and restart DSH; exec-based tools stay unavailable until then.
 - `SANDBOX_UNAVAILABLE`: switch to `DSH_PERMISSION_MODE=danger-full-access` or install a sandbox provider; do not expect Android's kernel sandbox to exist.
 
 ## Upgrading

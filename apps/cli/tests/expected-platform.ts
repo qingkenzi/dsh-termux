@@ -11,6 +11,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as yaml from 'js-yaml'
@@ -28,6 +29,8 @@ export interface ExpectedHostRequirement {
   readonly file: string
   /** Capabilities the committed output records; a host without one cannot run the file. */
   readonly requires?: readonly ExpectedCapability[]
+  /** Reviewed reason printed when a declared capability is unavailable; names each capability. */
+  readonly reason?: string
   /** Explicit per-platform skip reasons for output that cannot apply there at all. */
   readonly skip?: Partial<Record<ExpectedSkipPlatform, string>>
 }
@@ -59,23 +62,38 @@ export interface ExpectedScenario {
 const CAPABILITIES: readonly ExpectedCapability[] = ['sandbox', 'cua']
 const SKIP_PLATFORMS: readonly ExpectedSkipPlatform[] = ['android', 'win32', 'darwin', 'linux']
 const ROOT_KEYS = ['version', 'scenarios']
-const ENTRY_KEYS = ['file', 'requires', 'skip']
+const ENTRY_KEYS = ['file', 'requires', 'reason', 'skip']
+
+/** The directory holding every expected-output driver. */
+const TESTS_ROOT = dirname(fileURLToPath(import.meta.url))
 
 /**
- * Capabilities each known host cannot exercise, with the reason the runner
- * prints. Only a host whose missing backend is a documented platform fact is
- * listed: the expected tier answers for the shipped default deployment, so an
- * operator-supplied sandbox runner command is outside its scope.
+ * Capabilities each known host cannot exercise for a reason other than the
+ * sandbox backend, with the reason the runner prints. The Android sandbox
+ * entry is resolved separately because the shipped Android supervisor can
+ * provide one.
  */
 const HOST_UNAVAILABLE: Partial<Record<NodeJS.Platform, Readonly<Partial<Record<ExpectedCapability, string>>>>> = {
   android: {
-    sandbox: 'Android exposes no file-sandbox backend (bubblewrap and Landlock are unavailable on Termux), so confined operations fail closed',
     cua: 'Android exposes no computer-use helper',
   },
 }
 
-/** The directory holding every expected-output driver. */
-const TESTS_ROOT = dirname(fileURLToPath(import.meta.url))
+/**
+ * Ask the committed Android supervisor whether this device actually has a
+ * file-effect backend. A deployment without one cannot reproduce the recorded
+ * sandbox events, so the expected tier must skip rather than fail its compare.
+ * @returns true when the seccomp listener and its probe both work.
+ */
+export function androidSandboxAvailable(): boolean {
+  const runner = join(TESTS_ROOT, '../../../native/system/packages/android-arm64/bin/android-sandbox-run')
+  if (!existsSync(runner)) return false
+  const probe = spawnSync(runner, ['--probe'], { timeout: 10_000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  // A probe that never settled is not evidence of a missing backend: run the
+  // scenario so its own assertion fails loudly instead of a silent skip.
+  if (probe.status === null) return true
+  return probe.status === 0 && /Seccomp: 2/u.test(probe.stdout)
+}
 
 function mapping(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -151,27 +169,36 @@ export function parseExpectedHostManifest(source: string, path = 'host-requireme
     if (files.has(file)) throw new Error(`${label}.file repeats ${file}`)
     files.add(file)
     const requires = entry.requires === undefined ? undefined : capabilities(entry.requires, `${label}.requires`)
+    let reason: string | undefined
+    if (entry.reason !== undefined) {
+      const value = singleLine(entry.reason, `${label}.reason`)
+      if (requires === undefined) throw new Error(`${label}.reason requires a capability list`)
+      const unnamed = requires.filter(capability => !value.toLowerCase().includes(capability))
+      if (unnamed.length > 0) {
+        throw new Error(`${label}.reason must name the unavailable capability ${unnamed.join(', ')}`)
+      }
+      reason = value
+    }
     let skip: Partial<Record<ExpectedSkipPlatform, string>> | undefined
     if (entry.skip !== undefined) {
       const rawSkip = mapping(entry.skip, `${label}.skip`)
       exactKeys(rawSkip, SKIP_PLATFORMS, `${label}.skip`)
-      const reasons = Object.entries(rawSkip).map(([platform, reason]) => {
-        const value = singleLine(reason, `${label}.skip.${platform}`)
-        if (requires !== undefined) {
-          const missing = requires.filter(capability => !value.toLowerCase().includes(capability))
-          if (missing.length > 0) {
-            throw new Error(`${label}.skip.${platform} must name the unavailable capability ${missing.join(', ')}`)
-          }
-        }
-        return [platform as ExpectedSkipPlatform, value] as const
-      })
+      const reasons = Object.entries(rawSkip).map(([platform, value]) => [
+        platform as ExpectedSkipPlatform,
+        singleLine(value, `${label}.skip.${platform}`),
+      ] as const)
       if (reasons.length === 0) throw new Error(`${label}.skip must name at least one platform`)
       skip = Object.fromEntries(reasons) as Partial<Record<ExpectedSkipPlatform, string>>
     }
     if (requires === undefined && skip === undefined) {
       throw new Error(`${label} must declare requires or skip`)
     }
-    return { file, ...(requires === undefined ? {} : { requires }), ...(skip === undefined ? {} : { skip }) }
+    return {
+      file,
+      ...(requires === undefined ? {} : { requires }),
+      ...(reason === undefined ? {} : { reason }),
+      ...(skip === undefined ? {} : { skip }),
+    }
   })
   return { version: 1, scenarios }
 }
@@ -217,6 +244,14 @@ export function readExpectedHostManifest(root = TESTS_ROOT): ExpectedHostManifes
 export function expectedHostUnavailable(
   platform: NodeJS.Platform = process.platform,
 ): Readonly<Partial<Record<ExpectedCapability, string>>> {
+  if (platform === 'android') {
+    return {
+      ...HOST_UNAVAILABLE.android,
+      ...(androidSandboxAvailable()
+        ? {}
+        : { sandbox: 'Android exposes no working file-sandbox backend (the seccomp supervisor probe failed), so confined operations fail closed' }),
+    }
+  }
   return HOST_UNAVAILABLE[platform] ?? {}
 }
 
@@ -224,18 +259,18 @@ export function expectedHostUnavailable(
  * Resolve whether one declared requirement runs on this host.
  * @param requirement - one validated manifest entry.
  * @param platform - host `process.platform` value.
+ * @param unavailable - this host's capability verdict; defaults to {@link expectedHostUnavailable}.
  * @returns the declared reason, a generated reason naming the missing
  *   capability, or undefined when the host satisfies the declaration.
  */
 export function expectedSkipReason(
   requirement: ExpectedHostRequirement,
   platform: NodeJS.Platform = process.platform,
+  unavailable: Readonly<Partial<Record<ExpectedCapability, string>>> = expectedHostUnavailable(platform),
 ): string | undefined {
-  const unavailable = expectedHostUnavailable(platform)
   const missing = (requirement.requires ?? []).filter(capability => unavailable[capability] !== undefined)
   if (missing.length > 0) {
-    const declared = requirement.skip?.[platform as ExpectedSkipPlatform]
-    if (declared !== undefined) return declared
+    if (requirement.reason !== undefined) return requirement.reason
     const detail = missing.map(capability => `${capability} (${unavailable[capability] ?? ''})`).join('; ')
     return `requires ${detail}`
   }

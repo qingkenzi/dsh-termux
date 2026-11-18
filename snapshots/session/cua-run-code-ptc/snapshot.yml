@@ -8,3 +8,5 @@ header:
   pin: true
   toolSchemasSource: ptc-turn
 permission: danger-full-access
+requires:
+  - cua

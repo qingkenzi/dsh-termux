@@ -4,7 +4,7 @@
  * mode and the GUI can show what this host actually enforces.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SANDBOX_UNAVAILABLE, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
@@ -76,19 +76,48 @@ describe('LocalSandboxProvider.availability()', () => {
     expect(availability.reason).toContain('not enforced')
   })
 
-  it('reports Android as unavailable with a Termux reason and an actionable remediation', async () => {
-    const { sandbox } = await setup({}, { platform: 'android' })
+  it('reports the probed Android seccomp supervisor as available with partial enforcement', async () => {
+    const probeAndroidSandbox = vi.fn(() => 'partial' as const)
+    const { sandbox } = await setup({}, { platform: 'android', probeAndroidSandbox })
     const availability = sandbox.availability()
-    expect(availability).toMatchObject({ available: false, backend: 'none', enforcement: 'none' })
-    expect(availability.reason).toContain('Android exposes no runner chain')
-    expect(availability.remediation).toContain('danger-full-access')
-    expect(availability.remediation).toContain('Landlock')
+    expect(availability).toMatchObject({ available: true, backend: 'android-sandbox', enforcement: 'partial' })
+    expect(availability.reason).toContain('seccomp user-notification supervisor')
+    expect(availability.reason).toContain('not enforced')
+    expect(availability.remediation).toContain('partial')
+    expect(availability.remediation).toContain('bubblewrap or Landlock')
+    expect(probeAndroidSandbox).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps confine() fail-closed on the same Android host', async () => {
-    const { sandbox } = await setup({}, { platform: 'android' })
+  it('reports Android unavailable when the supervisor probe fails, and confine() stays fail-closed', async () => {
+    const probeAndroidSandbox = vi.fn(() => 'unusable' as const)
+    const { sandbox } = await setup({}, { platform: 'android', probeAndroidSandbox })
+    const availability = sandbox.availability()
+    expect(availability).toMatchObject({ available: false, backend: 'none', enforcement: 'none' })
+    expect(availability.reason).toContain('android-sandbox candidate failed the functional probe')
+    expect(availability.remediation).toContain('seccomp user notification')
+    expect(availability.remediation).toContain('danger-full-access')
     await expect(sandbox.confine(['true'], WW)).rejects.toBeInstanceOf(SandboxUnavailableError)
     await expect(sandbox.confine(['true'], WW)).rejects.toMatchObject({ code: SANDBOX_UNAVAILABLE })
+    expect(probeAndroidSandbox).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads the resolved supervisor path as unusable when the injected binary is absent', async () => {
+    // The default probe checks existence before spawning; an injected absent
+    // path pins that arm on every host.
+    const { sandbox } = await setup({}, {
+      platform: 'android',
+      androidSandboxRunner: '/nonexistent/android-sandbox-run',
+    })
+    expect(sandbox.availability()).toMatchObject({ available: false, enforcement: 'none' })
+  })
+
+  it('reports a platform with an injected empty chain as having none', async () => {
+    const { sandbox } = await setup({}, { platform: 'android', chain: [], probeAndroidSandbox: () => 'partial' })
+    const availability = sandbox.availability()
+    expect(availability).toMatchObject({ available: false, enforcement: 'none' })
+    expect(availability.reason).toContain('this platform has no runner chain')
+    expect(availability.remediation).toContain('danger-full-access')
+    expect(availability.remediation).toContain('Landlock')
   })
 
   it('reports an operator-supplied runner command as full enforcement', async () => {

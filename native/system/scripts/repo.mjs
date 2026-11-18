@@ -49,7 +49,8 @@ export function packageDirs() {
  * Verify platform metadata, complete bin/ payloads, executable permissions,
  * and native file formats before packing. Linux and Android addons are ELF;
  * Linux addons name their libc variant, while the Android addon runs on bionic
- * alone and declares none. Node addons must export Node-API.
+ * alone and declares none. Node addons must export Node-API. Android also
+ * carries the android-sandbox-run seccomp supervisor as an executable PIE.
  */
 export function verifyPlatformBinaries(packageDir) {
   const manifest = readJson(path.join(packageDir, 'package.json'));
@@ -60,7 +61,7 @@ export function verifyPlatformBinaries(packageDir) {
     throw new Error(`${manifest.name}: unsupported or missing os/cpu metadata`);
   }
   if (os === 'android' && cpu !== 'arm64') {
-    throw new Error(`${manifest.name}: Android platform packages carry AArch64 addons only, not ${cpu}`);
+    throw new Error(`${manifest.name}: Android platform packages carry AArch64 binaries only, not ${cpu}`);
   }
   if (prebuilds.platform !== `${os}-${cpu}`) {
     throw new Error(`${manifest.name}: prebuild platform disagrees with package os/cpu`);
@@ -73,7 +74,8 @@ export function verifyPlatformBinaries(packageDir) {
     }
     if (declared.has(binary.path)) throw new Error(`${manifest.name}: duplicate binary path ${binary.path}`);
     declared.add(binary.path);
-    const executable = binary.kind === 'static-musl' && binary.tool === 'landlock-run' && os === 'linux';
+    const executable = (binary.kind === 'static-musl' && binary.tool === 'landlock-run' && os === 'linux')
+      || (binary.kind === 'bionic-executable' && binary.tool === 'android-sandbox' && os === 'android');
     const addon = binary.kind === 'node-api' && binary.tool === 'flock' && binary.napi === 8;
     if (!executable && !addon) throw new Error(`${manifest.name}: unsupported binary kind/tool/NAPI for ${binary.path}`);
     if (addon && os === 'linux' && !['glibc', 'musl'].includes(binary.libc)) {
@@ -98,7 +100,10 @@ export function verifyPlatformBinaries(packageDir) {
       if (data.readUInt16LE(18) !== E_MACHINE[cpu]) {
         throw new Error(`${manifest.name}: ${binary.path} has the wrong ELF architecture`);
       }
-      if (data.readUInt16LE(16) !== (executable ? 2 : 3)) {
+      // The Linux launcher is a static ET_EXEC; Android executables are PIE
+      // (ET_DYN), the only executable file type Android loads.
+      const expectedType = binary.kind === 'static-musl' ? 2 : 3;
+      if (data.readUInt16LE(16) !== expectedType) {
         throw new Error(`${manifest.name}: ${binary.path} has the wrong ELF file type`);
       }
     } else {

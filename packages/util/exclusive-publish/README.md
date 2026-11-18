@@ -1,6 +1,6 @@
 ---
 description: "Exclusive file publication for a staged file: hard link, then renameat2(RENAME_NOREPLACE), then a flushed exclusive copy that preserves create-if-absent semantics."
-kind: "package-library"
+kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-util-exclusive-publish

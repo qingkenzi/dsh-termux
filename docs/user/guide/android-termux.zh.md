@@ -38,13 +38,21 @@ pnpm dsh web --no-open
 
 ## 权限模式
 
-Android 没有可用的 bionic 文件沙箱后端：bubblewrap 与 Landlock 不可用，user namespace 被禁用。因此默认部署使用 `danger-full-access` 并输出警告。需要其他模式时显式设置 `DSH_PERMISSION_MODE`：
+Android 使用内置的 seccomp user-notification supervisor 提供部分写入隔离。启动探测成功时，默认部署以 `workspace-write` 运行，并对文档列出的写 syscall 实施限制；权限 chip 会显示 partial。`read-only` 与 `workspace-write` 因此无需 bubblewrap 或 Landlock 即可工作。该边界是部分保证：读取、继承的可写 fd、部分 metadata syscall，以及检查后内核重新解析路径的 TOCTOU 仍不在限制内。
+
+若 seccomp 探测失败，部署会回退到 `danger-full-access` 并输出可见的启动告警。需要其他选择时显式设置：
 
 ```sh
-DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
+DSH_PERMISSION_MODE=workspace-write pnpm dsh web --no-open
 ```
 
-在安装沙箱 provider 之前，`read-only` 与 `workspace-write` 会以 `SANDBOX_UNAVAILABLE` fail-closed。不要在未理解该边界的情况下运行不可信提示或工具。
+显式受限模式在无可用后端时会以 `SANDBOX_UNAVAILABLE` fail-closed。不要在未理解该部分边界的情况下运行不可信提示或工具。
+
+## Exec 能力（W^X）
+
+只有当应用 targetSdk 为 28 或更低时，Android 才允许执行应用 data 目录中的二进制。Termux 当前报告 `targetSdk 28`，因此 `node`、`bash`、`ssh` 和内置 `ripgrep` 都能正常启动子进程。未来若 Termux 使用 `targetSdk ≥ 29`，这些子进程会全部被阻止，而 CLI、Web UI、模型请求与文件工具仍可工作。
+
+DSH 在启动时用 `node -e 0` 与 `$PREFIX/bin/sh -c true` 探测一次。若探测被阻止，启动会记录一条告警，说明 `targetSdk` 规则与规避方式；每次依赖 exec 的调用都会以 `PLATFORM_EXEC_BLOCKED` 失败，而不是随机的 `EACCES`。请让 Termux 继续使用 `targetSdk 28` 构建，或把 node 与 shell 解释器放进应用的 native library（lib）目录——Android 仍允许执行该目录——并让 DSH 指向那里的解释器。
 
 ## 可用能力
 
@@ -57,7 +65,7 @@ DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
 | SSH 执行 | 本机有 `ssh` 客户端且可连接远端时可用 |
 | 文件管理器 reveal 与 Open folder | 可用，经 `termux-open`/`xdg-open` |
 | CUA、Playwright 自动化 | 不可用 |
-| 内核文件沙箱 | 不可用 |
+| 文件沙箱 | 部分：seccomp 写入限制，存在已记录缺口 |
 | `pnpm run lint`、`pnpm run duplication`、覆盖率门禁 | 由 Linux CI 负责；Android 原生 binding 不可用 |
 
 ## Provider 传输
@@ -74,6 +82,7 @@ DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
 - `No usable native binding found for node-addon-require-builtin-android-arm64`：在启用 lifecycle scripts 的情况下运行 `pnpm install`，再运行 `pnpm run setup:android`。
 - sharp 加载失败：运行 `pnpm run setup:android`；缺失 libvips 时会重建，重装后会从缓存恢复。
 - `SEARCH_RG_UNAVAILABLE`：运行 `sh scripts/setup-android.sh`，或安装 Termux 的 `ripgrep` 包。
+- `PLATFORM_EXEC_BLOCKED`：启动探测证明 Android 无法执行 app data 中的二进制。请让 Termux 继续使用 `targetSdk 28`，或把 node 与 shell 解释器放进应用 lib 目录后重启 DSH；在此之前依赖 exec 的工具不可用。
 - `SANDBOX_UNAVAILABLE`：改用 `DSH_PERMISSION_MODE=danger-full-access` 或安装沙箱 provider；不要期待 Android 内核自带沙箱。
 
 ## 升级

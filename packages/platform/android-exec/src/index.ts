@@ -118,17 +118,23 @@ export function androidExecBlockedMessage(program: string, detail: string | unde
 
 /**
  * Render the startup warning for an unavailable probe. The lines name the
- * failed commands, the platform rule and remedy, and the surviving capabilities.
+ * failed commands; a blocked platform adds the targetSdk rule, the app-lib
+ * remedy, and the surviving capabilities.
  * @param binName - application prefix on every line.
  * @param result - unavailable probe result.
  * @returns the warning text; empty when the probe reported available.
  */
 export function androidExecDiagnostic(binName: string, result: AndroidExecProbeResult): string {
   if (result.available) return ''
-  return `${binName}: warning: Android exec probe failed (${result.reason ?? 'PROBE_FAILED'}): ${result.detail ?? 'no detail'}\n`
-    + `${binName}: warning: ${androidExecGuidance()}\n`
-    + `${binName}: warning: bash, terminal, LSP, and subprocess tools will fail with ${PLATFORM_EXEC_BLOCKED}; `
-    + 'model requests, the Web UI, and file tools remain available.'
+  const reason = result.reason ?? 'PROBE_FAILED'
+  const consequence = reason === PLATFORM_EXEC_BLOCKED
+    ? `bash, terminal, LSP, and subprocess tools will fail with ${PLATFORM_EXEC_BLOCKED}; `
+      + 'model requests, the Web UI, and file tools remain available.'
+    : 'exec-based tools may fail until the missing interpreter or probe condition is resolved; '
+      + 'model requests, the Web UI, and file tools remain available.'
+  return `${binName}: warning: Android exec probe failed (${reason}): ${result.detail ?? 'no detail'}\n`
+    + `${binName}: warning: ${reason === PLATFORM_EXEC_BLOCKED ? androidExecGuidance() : consequence}\n`
+    + `${binName}: warning: ${reason === PLATFORM_EXEC_BLOCKED ? consequence : 'Android W^X details are in the Android/Termux guide.'}`
 }
 
 /**

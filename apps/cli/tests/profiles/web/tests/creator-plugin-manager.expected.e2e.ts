@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
 import { readProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import { startHttpMcpFixture } from '../../../../../../packages/mcp/mcp-client/tests/http-fixture.ts'
+import { announcedWebUrl } from './web-launch.ts'
 
 interface Observation {
   approvals: string[]
@@ -60,7 +61,7 @@ it('configures MCP on a live profile, restores it on restart, and removes its to
     for (const stream of [child.stdout, child.stderr]) stream!.on('data', (data) => { output = (output + String(data)).slice(-30_000) })
     await expect.poll(() => {
       if (child.exitCode !== null) throw new Error(output)
-      return output.includes('dsh web: http://')
+      return announcedWebUrl(output) !== undefined
     }, { timeout: 60_000 }).toBe(true)
     return { stop, request: (phase: string): Promise<Observation> => new Promise((resolve, reject) => {
       child.once('message', (value: { result: Observation; error?: string }) => {

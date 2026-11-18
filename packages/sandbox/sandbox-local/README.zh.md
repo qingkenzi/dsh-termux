@@ -1,5 +1,5 @@
 ---
-description: "面向 Linux、macOS 或 Windows 上选择、配置或排查进程隔离的用户与维护者的本地各平台沙箱后端。"
+description: "面向 Linux、macOS、Windows 或 Android 上选择、配置或排查进程隔离的用户与维护者的本地各平台沙箱后端。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-sandbox-local` 在共享宿主内核和文件系统的同时，限制 Linux、macOS 与 Windows 上的命令及其派生进程。它自动选择受支持的平台 runner；没有可用 runner 时以 `SANDBOX_UNAVAILABLE` 失败，因此命令绝不会静默无限制运行。每次执行都会报告 `full` 或 `partial` 强制执行，以及拒绝和 runner 失败签名，让调用方能区分不可用或损坏的沙箱与策略拒绝。宿主本地 bash 或 pwsh 执行适合选择它；进程需要隔离环境时应改用容器或远程执行器。
+`dsh-sandbox-local` 在共享宿主内核和文件系统的同时，限制 Linux、macOS、Windows 与 Android 上的命令及其派生进程。它自动选择受支持的平台 runner；没有可用 runner 时以 `SANDBOX_UNAVAILABLE` 失败，因此命令绝不会静默无限制运行。每次执行都会报告 `full` 或 `partial` 强制执行，以及拒绝和 runner 失败签名，让调用方能区分不可用或损坏的沙箱与策略拒绝。宿主本地 bash 或 pwsh 执行适合选择它；进程需要隔离环境时应改用容器或远程执行器。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 何时选择
 
-当命令必须在宿主机上受限运行时选择它：它是挂载 `ctx.sandbox` 的 Linux、macOS 与 Windows 组合的默认后端。当进程必须在隔离环境中运行时请另选机制——容器或远程执行器会替换整个能力，而此提供方与宿主共享内核和文件系统。
+当命令必须在宿主机上受限运行时选择它：它是挂载 `ctx.sandbox` 的 Linux、macOS、Windows 与 Android 组合的默认后端。当进程必须在隔离环境中运行时请另选机制——容器或远程执行器会替换整个能力，而此提供方与宿主共享内核和文件系统。
 
 ### 最小配置
 
@@ -50,13 +50,13 @@ kind: "package-reference"
 
 ### 受限执行与强制执行
 
-挂载提供方后，命令在你逐调用解析的模式下运行。强制执行是报告的事实，而非承诺：`full` 表示后端管辖模式承诺的每个文件操作，`partial` 表示它只管辖子集——Windows ACL 档（硬链接、读取不受限与 AppContainer ACL 边界）与较旧的 Landlock ABI 是当前的部分强制执行情形，因此需要绝对边界的消费方可以拒绝或向上暴露它们。被拒绝的文件操作通过后端的拒绝方言呈现，执行命令前失败的 runner 会报告结构化的 runner 失败签名。
+挂载提供方后，命令在你逐调用解析的模式下运行。强制执行是报告的事实，而非承诺：`full` 表示后端管辖模式承诺的每个文件操作，`partial` 表示它只管辖子集——Windows ACL 档（硬链接、读取不受限与 AppContainer ACL 边界）、较旧的 Landlock ABI 与 Android seccomp supervisor 是当前的部分强制执行情形，因此需要绝对边界的消费方可以拒绝或向上暴露它们。被拒绝的文件操作通过后端的拒绝方言呈现，执行命令前失败的 runner 会报告结构化的 runner 失败签名。
 
 ### 失败与恢复
 
 不受支持的平台或不可用的 runner 会拒绝执行：`confine()` 以 `SANDBOX_UNAVAILABLE` 拒绝 并列出该平台的 runner 选项，消费方会呈现该错误，而不是让命令不受限制地运行。启动后拒绝自身 profile 的 runner 由其致命 stderr 签名与退出码识别，因此损坏的沙箱不会被误认为被拒绝的命令。`runnerCommand` 覆盖是操作方断言：它跳过功能探测，并假定配置的 runner 诚实实现与 bwrap 兼容的 profile。
 
-Seatbelt、bwrap 和 Landlock 在 `workspace-write` 下包含策略显式指定的 `additionalWritableRoots`。只读模式忽略这些授权。不存在的路径、非目录、符号链接目录和其他检查失败会在命令启动前触发 `SANDBOX_INVALID_ROOT`。Windows ACL 后端不检查这些额外根目录，仅保留工作区与私有临时目录访问权限。其按 session 的准备阶段会在命令启动前以 `SandboxPreparationError` 拒绝：主机临时根目录位于工作区内时为 `SANDBOX_INVALID_TEMP_ROOT`；无法创建 SID、ACL 授权或私有临时目录时为 `SANDBOX_PREPARATION_FAILED`，以 `Win32Error` 或 Node 错误作为 `cause`，并回滚已创建的部分授权。
+Seatbelt、bwrap 和 Landlock 在 `workspace-write` 下包含策略显式指定的 `additionalWritableRoots`。只读模式忽略这些授权。不存在的路径、非目录、符号链接目录和其他检查失败会在命令启动前触发 `SANDBOX_INVALID_ROOT`。Windows ACL 后端与 Android supervisor 不检查这些额外根目录：Windows 仅保留工作区与私有临时目录访问权限，Android 仅保留工作区与宿主临时根目录。其按 session 的准备阶段会在命令启动前以 `SandboxPreparationError` 拒绝：主机临时根目录位于工作区内时为 `SANDBOX_INVALID_TEMP_ROOT`；无法创建 SID、ACL 授权或私有临时目录时为 `SANDBOX_PREPARATION_FAILED`，以 `Win32Error` 或 Node 错误作为 `cause`，并回滚已创建的部分授权。
 
 -----
 
@@ -70,7 +70,7 @@ Seatbelt、bwrap 和 Landlock 在 `workspace-write` 下包含策略显式指定�
 
 ### runner 选择
 
-选择按平台优先、探测其次：每个平台都有 runner 链（`linux`：`bwrap` 再 Landlock；`darwin`：Seatbelt；`win32`：ACL 受限令牌 runner）。唯一候选直接选择、不探测；竞争候选按链序各执行一次功能探测，首个可用结论在提供方生命周期内缓存。没有链的平台、或链上所有探测都失败时，平台不可用，`confine()` 会拒绝执行。
+选择按平台优先、探测其次：每个平台都有 runner 链（`linux`：`bwrap` 再 Landlock；`darwin`：Seatbelt；`win32`：ACL 受限令牌 runner；`android`：seccomp supervisor）。唯一候选直接选择、不探测，Android supervisor 例外：它的探测就是启动决策读取的可用性信号。竞争候选按链序各执行一次功能探测，首个可用结论在提供方生命周期内缓存。没有链的平台、或链上所有探测都失败时，平台不可用，`confine()` 会拒绝执行。
 
 ### 平台 profile
 
@@ -79,6 +79,8 @@ bwrap profile 组合只读宿主根目录、全新 `/dev` 与私有 PID 命名�
 `@deepseek-ai/node-addon-system/landlock-run` API 提供平台 launcher、功能探测与授权词汇；此提供方只做模式到授权的映射，把路径解析与探测解析保留在带版本的 binary 中。
 
 Seatbelt profile 默认允许，带 `(deny file-write*)` 与来自共享 `writableRoots` 辅助函数的写入 allow-list，因此恰好管辖模式承诺的文件操作；每个根目录都经过规范化，因为 Seatbelt 匹配解析后的路径（`/tmp` 就是 `/private/tmp`）。
+
+`android-sandbox-run` supervisor 在命令子进程中安装带用户通知监听器的 seccomp 过滤器，把监听器传给未受过滤的 supervisor 进程，并对每个受管辖的写类系统调用返回 ALLOW 或 `EACCES`。`workspace-write` 允许写工作区与宿主临时根目录；只读模式仅保留 `/dev/null` 可写。读取不受限。该档报告 `partial`，因为它只管辖文档列出的写类系统调用，而非每个文件操作。
 
 Windows 档为每个工作区保留一个确定性写入 SID 和常驻 ACE，同时为每个活跃的会话/工作区对分配一个随机私有临时目录，以及不同的 SID 和可撤销 ACE——共享工作区的会话共享其预期写权限，却不会继承彼此的临时目录权限。新的提供方总会选择新的临时路径和 SID，因此崩溃残留既无法阻止恢复的会话，也无法向其授权。该档报告 `partial` 强制执行，因为 NTFS 硬链接会把同一文件对象别名为多个路径、读取仍不受限，且被其他 AppContainer 工具以包 SID 标记过的目录树对 Low 完整性子进程不可读。
 
@@ -133,6 +135,7 @@ Windows 档为每个工作区保留一个确定性写入 SID 和常驻 ACE，同
 - **Windows 额外根目录**——额外目录授权仅适用于 Harness 的 `write` 与 `edit` 工具。PowerShell、终端、PTC 及其他受沙箱限制的进程在 `workspace-write` 下保留工作区与私有临时目录访问权限。额外授权不修改其 ACL，也不阻塞其执行；参见[决策](../../../.agents/notes/implemented/architecture/2026-10-29-windows-file-tool-directory-grants.zh.md)。
 - **Windows ACL 只能实现部分强制执行**——NTFS 硬链接会使工作区路径与外部路径指向同一个文件对象，读取仍不受限，且被其他 AppContainer 工具以包 SID 标记过的目录树对 Low 完整性子进程不可读。提供方报告 `enforcement: 'partial'`，而不会把该边界夸大为完整强制执行。
 - **Landlock 可能只实现部分强制执行**——较旧且受支持的内核 ABI 只能限制自身公开的访问类别，因此报告 `enforcement: 'partial'`，不会夸大为完整强制执行。
+- **Android seccomp 强制执行是部分的**——`android-sandbox-run` 管辖 `openat` 写打开、列出的 `*at` 写类系统调用、truncate/fchmod/utimensat，并拒绝 `openat2` 写入。读取不受限；`fchownat`、`setxattr`、`mknodat` 等其他元数据写入未被过滤；通过调用方继承的文件描述符进行的写入不在策略范围内；用 `realpath` 检查过的路径之后由内核重新解析，因此并发的 rename 或符号链接替换可以重定向已放行的写入。符号链接以及 `/proc`/`/dev/fd` 魔法链接的目标会被解析，授权范围外一律拒绝。`io_uring_setup`、基于 handle 的打开、`ptrace`、跨进程内存访问以及 mount/namespace 系统调用返回 `EPERM`。该档报告 `enforcement: 'partial'`，不会把该边界夸大为完整。
 - **Seatbelt 依赖已弃用的 `sandbox-exec`**——macOS 仍会提供它，但若 Apple 移除该私有策略引擎，该提供方无法替换或探测。
 - **runner 选择在提供方生命周期内缓存**——安装、移除或修复 runner 后，必须重载插件才能改变选择。
 - **`runnerCommand` 是操作方断言**——配置的自定义 runner 会跳过功能探测，并假定它诚实实现与 bwrap 兼容的 profile；如果它本身是 Bash 脚本，其解释器启动发生在该脚本施加约束之前。

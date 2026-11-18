@@ -192,8 +192,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     signal?: AbortSignal,
   ): Promise<string> {
     if (command.length === 0) throw new Error('subprocess-local: executable must be non-empty')
-    this.assertExecAvailable(command)
     signal?.throwIfAborted()
+    this.assertExecAvailable(command)
     const environment = childEnv(env)
     const absolute = isAbsolute(command)
     if (!absolute && (command.includes('/') || (process.platform === 'win32' && command.includes('\\')))) {
@@ -330,8 +330,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     if (file === undefined || file.length === 0) {
       throw new SubprocessError('subprocess-local: terminal argv must contain a program', 'SUBPROCESS_INVALID_ARGV')
     }
-    this.assertExecAvailable(file)
     spec.signal?.throwIfAborted()
+    this.assertExecAvailable(file)
     const inspector = this.terminalInspector ?? createProcessInspector()
     const containmentMode = this.selectContainmentMode('terminal')
     const env = targetEnvironment(spec)

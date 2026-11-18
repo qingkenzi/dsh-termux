@@ -4,13 +4,13 @@
 #   pnpm run verify-translation-pairing --write packages/sandbox/sandbox-local/README.md
 /:
   en: f172767891b86bf4
-  zh: e66e1cc8c96cc259
+  zh: 7c1486578a058a69
 /deepseek-ai-dsh-sandbox-local:
   en: 2331db3e4dfa8f89
   zh: 0182771f7e1b1cd4
 /deepseek-ai-dsh-sandbox-local/summary:
-  en: e8341fe6e38c08f6
-  zh: e38d6ff18fd2b701
+  en: 58be60e015c0f576
+  zh: 97bac179deca331f
 /deepseek-ai-dsh-sandbox-local/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -18,26 +18,26 @@
   en: 3759ad594d0a27fb
   zh: 722010d952b9f87f
 /deepseek-ai-dsh-sandbox-local/use-this-package/when-to-choose-it:
-  en: 722ad601000b13c7
-  zh: d2723f3743fe160b
+  en: 47c0c2a0dff3ebad
+  zh: 24cc02e214676f62
 /deepseek-ai-dsh-sandbox-local/use-this-package/minimal-configuration:
   en: 5d5ac6aaea69b3db
   zh: 8049d91463b6347d
 /deepseek-ai-dsh-sandbox-local/use-this-package/confined-execution-and-enforcement:
-  en: 7282c9ec77fd6f01
-  zh: 10e385a9489105e3
+  en: 8beb83e31f8a463a
+  zh: 18fa8d04c6d67df3
 /deepseek-ai-dsh-sandbox-local/use-this-package/failures-and-recovery:
-  en: 3859a87c6122a1bf
-  zh: 55d7be15527f0347
+  en: fafe5d2c169baa8c
+  zh: 6b8c679d4219a50d
 /deepseek-ai-dsh-sandbox-local/understand-the-implementation:
   en: 15db6ec303151ccc
   zh: 91f62c1f64192f92
 /deepseek-ai-dsh-sandbox-local/understand-the-implementation/runner-selection:
-  en: f0c44248c2ca6acc
-  zh: 554e9f706671d222
+  en: f3d3cf23532ad8fb
+  zh: 4d4865e057d480df
 /deepseek-ai-dsh-sandbox-local/understand-the-implementation/platform-profiles:
-  en: 008967ee30fbbe46
-  zh: 9e5c6a3e97851a69
+  en: 43d3cfd7a220294a
+  zh: da64e499c721e4b6
 /deepseek-ai-dsh-sandbox-local/understand-the-implementation/denial-and-runner-failure-dialects:
   en: 62adfc9229c656cc
   zh: 11b1534b6d61e5de
@@ -54,8 +54,8 @@
   en: e290ccc9b3c92c08
   zh: 469589ac12cdadab
 /deepseek-ai-dsh-sandbox-local/known-limitations-and-deferred-work:
-  en: 08b89c59db310961
-  zh: b505db4148754f94
+  en: f045ef94875cedc4
+  zh: aab9c4572d5808ef
 /deepseek-ai-dsh-sandbox-local/known-limitations-and-deferred-work/dev-note:
   en: cc273320f6a1beaf
   zh: 5c57a312ddc50651

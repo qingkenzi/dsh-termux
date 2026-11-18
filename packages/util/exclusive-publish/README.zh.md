@@ -1,6 +1,6 @@
 ---
 description: "暂存文件的排他发布：先硬链接，再 renameat2(RENAME_NOREPLACE)，最后以排他复制并刷盘，全程保持“目标不存在才创建”的语义。"
-kind: "package-library"
+kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-util-exclusive-publish

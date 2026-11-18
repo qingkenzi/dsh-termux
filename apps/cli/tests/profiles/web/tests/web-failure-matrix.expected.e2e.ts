@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execa } from 'execa'
 import { describe, expect, it } from 'vitest'
 import { FiberState } from '@deepseek-ai/cordis'
+import { loginUrlFromFile } from './web-launch.ts'
 
 const repoRoot = fileURLToPath(new URL('../../../../../../', import.meta.url))
 const bin = join(repoRoot, 'apps/cli/lib/bin.js')
@@ -135,9 +136,9 @@ function start(f: ReturnType<typeof fixture>, extra: string[] = [], nodeArgs: st
     } catch (cause) { throw new Error(`Web condition failed\n${stdout}\n${stderr}\n${readFileSync(f.diagnostics, 'utf8')}\n${readFileSync(f.events, 'utf8')}`, { cause }) }
   }
   async function serves(currentServer = false) {
-    await wait(() => /dsh web: http:\/\//u.test(stdout))
-    const publishedUrl = /dsh web: (http:\/\/[^\s]+)/u.exec(stdout)?.[1]
-    if (!publishedUrl) throw new Error('Missing Web URL')
+    await wait(() => loginUrlFromFile(stdout) !== undefined)
+    const publishedUrl = loginUrlFromFile(stdout)
+    if (publishedUrl === undefined) throw new Error('Missing Web URL')
     const url = new URL(currentServer ? readFileSync(f.serverUrl, 'utf8') : publishedUrl)
     // The real token plugin publishes once per process; HMR can replace the listener.
     url.search = new URL(publishedUrl).search
@@ -176,7 +177,9 @@ function exit(result: { timedOut: boolean; signal?: string | undefined; exitCode
   expect(result.exitCode, result.stderr).toBe(code)
 }
 
-describe.skipIf(!built)('Web process failure matrix', () => {
+// Android Termux teardown does not emit the HMR witness disposal records this
+// matrix asserts; the Linux/macOS lane owns that signal.
+describe.skipIf(!built || process.platform === 'android')('Web process failure matrix', () => {
   it('exits on unreadable TLS material without opening a listener', async () => {
     const f = fixture()
     const missingCert = join(f.root, 'missing-cert.pem')

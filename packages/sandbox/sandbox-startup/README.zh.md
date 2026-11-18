@@ -7,7 +7,7 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
-## 摘要
+## 概述
 
 `dsh-sandbox-startup` 决定部署从哪个文件作用域模式启动，并发布为 `ctx.sandboxStartup`。它向已挂载的沙箱提供者询问本机究竟能强制什么，优先采用显式配置的模式；否则在有后端的宿主上选择 `workspace-write`，无后端时按部署声明的策略处理。所有随发行版提供的 bundle 都读取解析出的模式，而不是各自重复一段平台表达式，因此没有后端的宿主不会悄悄滑入无约束执行：显式要求的受限模式会 fail-closed，GUI 策略则保持受限模式并报告用户尚未做出选择。
 
@@ -36,7 +36,7 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-sandbox-startup'
   config:
     mode: !!js process.env.DSH_PERMISSION_MODE
-    onUnavailable: ask
+    onUnavailable: danger-full-access
 ```
 
 `mode` 是部署的显式模式（随发行版 bundle 中取自 `DSH_PERMISSION_MODE`；headless 的 `--permission-mode` 是按会话选择权限预设，优先级更高）。留空即把选择交给宿主能力。
@@ -51,20 +51,28 @@ kind: "package-reference"
 4. 无显式模式，且宿主有后端——`workspace-write`。
 5. 无显式模式，且宿主无后端——`onUnavailable: 'danger-full-access'` 接受无约束效果，`'ask'` 保持受限模式并报告 `awaitingChoice`，`'fail'` 抛错。
 
-`ask` 是 GUI 默认，`fail` 是 headless 默认。两者都不会自行走到 `danger-full-access`：受限操作会经提供者的 `SANDBOX_UNAVAILABLE` 拒绝而 fail-closed，只有用户显式确认风险的预设切换才会运行无约束工作。
+随发行版提供的 base 与 headless bundle 显式选择 `onUnavailable: danger-full-access`，因此 seccomp 探测失败的 Android 设备仍可启动，并输出可用性告警。`ask` 保持受限模式并 fail-closed，直到用户选择更宽预设；`fail` 拒绝启动。包默认值为 `fail`，供不声明回退的部署使用。
 
+<a id="understand-the-implementation"></a>
 ## 理解实现
 
 服务在构造时解析一次——提供者为同一进程生命周期缓存后端链判定——并在初始化期间发出 `sandbox/availability-changed`，让进程级消费者先订阅再读取。配套的 `approvalPolicy` 仅在接受了无约束模式时为 `never`；因此 `ask` 与 `fail` 部署保留受限部署会用的审批提示。`awaitingChoice` 标记 GUI 状态：横幅与 chip 说明本机没有后端，更宽的模式仍由用户决定。
 
 可用性本身是提供者的报告：`available`、`backend`、`enforcement`（`full`、`partial` 或 `none`）、面向用户的 `reason`，以及可执行的 `remediation`。提供者的 `availability()` 从不抛错；无法解析的判定会变成 `available: false` 并附上原因，使部署能够解释并选择，而不是崩溃。这条规则在此尤为重要：本服务在构造函数中调用提供者，若探针失败以抛错报告，就会拖垮整个组合而不是报告宿主。
 
+<a id="further-exploration"></a>
 ## 延伸阅读
 
 - [进程沙箱子系统](../../../docs/subsystems/sandbox.zh.md)——模式、逐次调用策略、提供者链与 fail-closed 错误。
 - [`dsh-sandbox`](../sandbox/README.zh.md)——约束 seam 与可用性报告契约。
 - [`dsh-sandbox-policy`](../sandbox-policy/README.zh.md)——本服务供给的逐次调用策略归属地。
 - [`dsh-permission-presets`](../../interaction/permission-presets/README.zh.md)——其表行即启动服务解析出的模式/审批配对。
+
+<a id="model-experience"></a>
+
+## 开发备注
+
+启动服务在 `sandbox-policy` 与 `approval` 之前构造；`mode` 与 `approvalPolicy` 是进程级事实，运行中不应改写。
 
 ## 模型体验
 
@@ -74,6 +82,7 @@ kind: "package-reference"
 
 无直接失效；只有当部署模式的改变本身会改变策略文本时，解析出的模式才会影响它。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与后续工作
 
 - 判定每个进程只解析一次；运行期间新装的后端在重启前不会生效。

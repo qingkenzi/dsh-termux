@@ -39,7 +39,7 @@ await cached.probe()                                     // later calls return t
 await installAndroidExec(ctx, 'dsh')                     // publish ctx.androidExec and warn once
 ```
 
-`probeAndroidExec({ platform, execPath, shellPath, spawn, timeoutMs })` starts both commands with ignored stdio under one bound. `available: false` carries a `reason` and a command-level `detail`; the reasons are `PLATFORM_EXEC_BLOCKED`, `INTERPRETER_MISSING`, `PROBE_TIMEOUT`, and `PROBE_FAILED`. `installAndroidExec` publishes `ctx.androidExec`, and a blocked result logs one structured startup warning whose text names the Termux `targetSdk ≥ 29` restriction and the app-lib workaround.
+`probeAndroidExec({ platform, execPath, shellPath, spawn, timeoutMs })` starts both commands with ignored stdio under one bound. `available: false` carries a `reason` and a command-level `detail`; the reasons are `PLATFORM_EXEC_BLOCKED`, `INTERPRETER_MISSING`, `PROBE_TIMEOUT`, and `PROBE_FAILED`. `installAndroidExec` publishes `ctx.androidExec`, and an unavailable result logs one structured startup warning; a blocked one names the Termux `targetSdk ≥ 29` restriction and the app-lib workaround.
 
 ## Understand the implementation
 

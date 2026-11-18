@@ -1,7 +1,8 @@
 /**
  * Build this host's declared system binaries. Landlock is a static musl
- * executable; flock uses stable Node-API with separate Linux libc builds and a
- * bionic build on Android. Node headers come from the Node installation
+ * executable; the Android package carries the bionic flock addon and the
+ * android-sandbox-run seccomp supervisor; flock uses stable Node-API with
+ * separate Linux libc builds. Node headers come from the Node installation
  * running this script.
  */
 import { spawnSync } from 'node:child_process'
@@ -15,6 +16,7 @@ const { values } = parseArgs({ options: { 'host-addon-only': { type: 'boolean' }
 const hostAddonOnly = values['host-addon-only'] === true
 const sources: Record<string, string> = {
   'landlock-run': 'packages/entry/src/main.c',
+  'android-sandbox': 'packages/entry/src/android-sandbox.c',
   flock: 'packages/entry/src/flock.c',
 }
 
@@ -70,34 +72,35 @@ function verifyAndroidLoadAlignment(file: string): void {
 }
 
 /**
- * Compile the Android flock addon into the platform package and the entry
- * package's source-compatible copy.
+ * Compile the Android payloads into the platform package: the bionic flock
+ * addon (also copied to the entry package for source-only checkouts and
+ * `scripts/setup-android.sh`) and the android-sandbox-run seccomp supervisor.
  *
  * Termux reports `android` on bionic libc, so the addon has no glibc/musl
- * variant and lives at a fixed `bionic/` path. Node-API is ABI-stable, so the
- * source and flags match the Linux build; the linker page size is pinned and
- * verified for 16 KB page devices. The entry copy keeps
- * `packages/entry/bin/bionic/system.node` available to source-only checkouts
- * and `scripts/setup-android.sh`. Android has no other native target, so
- * `--host-addon-only` and a full build produce the same payloads.
+ * variant and lives at a fixed `bionic/` path. The supervisor is a dynamically
+ * linked PIE executable, which is what Android loads; both artifacts pin the
+ * linker page size and are verified for 16 KB page devices. Node-API is
+ * ABI-stable, so the addon source and flags match the Linux build. Android has
+ * no other native target, so `--host-addon-only` and a full build produce the
+ * same payloads.
  * @param headers - Node-API header directory from the running Node installation.
  */
-function buildAndroidFlock(headers: string): void {
+function buildAndroidBinaries(headers: string): void {
   const spec = JSON.parse(readFileSync(join(root, 'packages/android-arm64/prebuilds.json'), 'utf8')) as {
     binaries: Binary[]
   }
-  const binary = spec.binaries.find((candidate) => (
+  const addon = spec.binaries.find((candidate) => (
     candidate.kind === 'node-api' && candidate.tool === 'flock' && candidate.napi === 8
   ))
-  if (binary === undefined) {
+  if (addon === undefined) {
     throw new Error('build: packages/android-arm64/prebuilds.json declares no Node-API v8 flock addon')
   }
-  const source = sources[binary.tool]
-  if (source === undefined) throw new Error(`build: unknown tool ${binary.tool}`)
+  const addonSource = sources[addon.tool]
+  if (addonSource === undefined) throw new Error(`build: unknown tool ${addon.tool}`)
   if (!existsSync(join(headers, 'node_api.h'))) {
     throw new Error(`build: Node-API headers missing at ${headers}; install the Node development headers for this Termux nodejs package`)
   }
-  const output = join(root, 'packages/android-arm64', binary.path)
+  const addonOutput = join(root, 'packages/android-arm64', addon.path)
   const entryCopy = join(root, 'packages/entry/bin/bionic/system.node')
   mkdirSync(join(root, '.release'), { recursive: true })
   const temporary = mkdtempSync(join(root, '.release', 'native-build-'))
@@ -106,27 +109,54 @@ function buildAndroidFlock(headers: string): void {
     const result = spawnSync('cc', [
       '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-fPIC', '-fvisibility=hidden',
       '-DNAPI_VERSION=8', '-I', headers, '-shared', '-Wl,-z,max-page-size=16384', '-o', pending,
-      join(root, source),
+      join(root, addonSource),
     ], { stdio: 'inherit' })
     if (result.error) throw result.error
     if (result.status !== 0) throw new Error('build: cc failed for the Android flock addon')
     verifyAndroidLoadAlignment(pending)
-    mkdirSync(dirname(output), { recursive: true })
+    mkdirSync(dirname(addonOutput), { recursive: true })
     mkdirSync(dirname(entryCopy), { recursive: true })
-    copyFileSync(pending, output)
+    copyFileSync(pending, addonOutput)
     copyFileSync(pending, entryCopy)
   } finally {
     rmSync(temporary, { recursive: true, force: true })
   }
   // A binary that cannot register here would only fail the first session write.
-  createRequire(import.meta.url)(output)
-  console.log(`build: verified 16 KB page alignment and built packages/android-arm64/${binary.path}`)
+  createRequire(import.meta.url)(addonOutput)
+  console.log(`build: verified 16 KB page alignment and built packages/android-arm64/${addon.path}`)
   console.log('build: built entry/bin/bionic/system.node as the source-compatible copy')
+
+  const runner = spec.binaries.find((candidate) => (
+    candidate.kind === 'bionic-executable' && candidate.tool === 'android-sandbox'
+  ))
+  if (runner === undefined) {
+    throw new Error('build: packages/android-arm64/prebuilds.json declares no bionic android-sandbox executable')
+  }
+  const runnerSource = sources[runner.tool]
+  if (runnerSource === undefined) throw new Error(`build: unknown tool ${runner.tool}`)
+  const runnerOutput = join(root, 'packages/android-arm64', runner.path)
+  mkdirSync(join(root, '.release'), { recursive: true })
+  const runnerTemporary = mkdtempSync(join(root, '.release', 'native-build-'))
+  try {
+    const pending = join(runnerTemporary, 'android-sandbox-run')
+    const result = spawnSync('cc', [
+      '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+      '-Wl,-z,max-page-size=16384', '-o', pending, join(root, runnerSource),
+    ], { stdio: 'inherit' })
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error('build: cc failed for the Android seccomp supervisor')
+    verifyAndroidLoadAlignment(pending)
+    mkdirSync(dirname(runnerOutput), { recursive: true })
+    renameSync(pending, runnerOutput)
+  } finally {
+    rmSync(runnerTemporary, { recursive: true, force: true })
+  }
+  console.log(`build: verified 16 KB page alignment and built packages/android-arm64/${runner.path}`)
 }
 
 if (process.platform === 'android') {
   const headers = resolve(dirname(process.execPath), '../include/node')
-  buildAndroidFlock(headers)
+  buildAndroidBinaries(headers)
   process.exit(0)
 }
 
