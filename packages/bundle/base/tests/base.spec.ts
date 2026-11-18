@@ -118,7 +118,7 @@ describe('dsh-base bundle', () => {
   })
 
   it('carries a permission preset for every startup decision', async () => {
-    const { resolveDefaultMode } = await import('@deepseek-ai/dsh-sandbox-startup')
+    const { resolveDefaultMode } = await import('@deepseek-ai/dsh-sandbox-startup/src/resolve.ts')
     const root = fileURLToPath(new URL('..', import.meta.url))
     const parsed = parseEntryYaml(readFileSync(resolve(root, 'cordis.patch.yml'), 'utf8'))
     if (!Array.isArray(parsed)) throw new TypeError('base patch must parse to a patch list')

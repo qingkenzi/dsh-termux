@@ -7,10 +7,11 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { SandboxAvailability } from '@deepseek-ai/dsh-sandbox'
-import SandboxStartupService, {
+import SandboxStartupService from '../src/index.ts'
+import {
   SANDBOX_STARTUP_UNAVAILABLE, SandboxStartupUnavailableError, resolveDefaultMode,
-} from '../src/index.ts'
-import type { SandboxUnavailablePolicy } from '../src/index.ts'
+  type SandboxUnavailablePolicy,
+} from '../src/resolve.ts'
 
 const AVAILABLE: SandboxAvailability = {
   available: true,

@@ -2704,7 +2704,7 @@ export interface Config {
 
 - `inject`: `shell` · `approval` · `sessions` · `agents` · `sessionProjections`
 - `refs`: [`ApprovalPolicy`](subsystems/approval.zh.md) · [`SandboxMode`](subsystems/sandbox.zh.md) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/interaction/permission-presets/src/index.ts:154`](../packages/interaction/permission-presets/src/index.ts)
+- `source`: [`packages/interaction/permission-presets/src/index.ts:157`](../packages/interaction/permission-presets/src/index.ts)
 
 ```ts config-catalog
 /** The {@link PermissionPresetService} config: preset table and composition default. */
@@ -3046,7 +3046,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-sandbox-local`
 
-- `source`: [`packages/sandbox/sandbox-local/src/index.ts:63`](../packages/sandbox/sandbox-local/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-local/src/index.ts:72`](../packages/sandbox/sandbox-local/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. All optional — `static Config` supplies the defaults. */
@@ -3112,6 +3112,44 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-policy -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-sandbox-startup -->
+<a id="deepseek-aidsh-sandbox-startup"></a>
+
+## `@deepseek-ai/dsh-sandbox-startup`
+
+- `inject`: `sandbox`
+- `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
+- `source`: [`packages/sandbox/sandbox-startup/src/index.ts:154`](../packages/sandbox/sandbox-startup/src/index.ts)
+
+```ts config-catalog
+/** Plugin config. `mode` is the explicit deployment mode; the unavailable policy is required to be stated. */
+export interface Config {
+  /**
+   * Explicit starting mode from the deployment (`DSH_PERMISSION_MODE` in the
+   * shipped bundles). Absent means the host decides per
+   * {@link SandboxUnavailablePolicy}; an explicit confined mode without a
+   * backend fails closed.
+   */
+  mode?: SandboxMode
+  /** Behavior when this host has no confining backend; the safe default is `fail`. */
+  onUnavailable?: SandboxUnavailablePolicy
+}
+
+/**
+ * What a deployment does when this host has no confining backend. No policy
+ * reaches `danger-full-access` on its own:
+ * - `ask` — start confined anyway, so every confined operation fails closed
+ *   with an actionable denial while the user sees the availability banner and
+ *   the permission chip; switching to full access stays their explicit,
+ *   risk-confirmed choice (the GUI default).
+ * - `danger-full-access` — the deployment states that unconfined file effects
+ *   are acceptable here (an explicit deployment assertion, logged at startup).
+ * - `fail` — refuse to start (the headless and package default).
+ */
+export type SandboxUnavailablePolicy = 'ask' | 'danger-full-access' | 'fail'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-startup -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-schedule -->
 <a id="deepseek-aidsh-schedule"></a>
@@ -5431,6 +5469,7 @@ export interface Config {
 | `@deepseek-ai/dsh-typert-registry` | — | [`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts) |
 | `@deepseek-ai/dsh-util-code-language` | — | [`packages/util/code-language/src/index.ts`](../packages/util/code-language/src/index.ts) |
 | `@deepseek-ai/dsh-util-crypto` | — | [`packages/util/crypto/src/index.ts`](../packages/util/crypto/src/index.ts) |
+| `@deepseek-ai/dsh-util-exclusive-publish` | — | [`packages/util/exclusive-publish/src/index.ts`](../packages/util/exclusive-publish/src/index.ts) |
 | `@deepseek-ai/dsh-util-file-drag` | — | [`packages/util/file-drag/src/index.ts`](../packages/util/file-drag/src/index.ts) |
 | `@deepseek-ai/dsh-util-ripgrep` | — | [`packages/util/ripgrep/src/index.ts`](../packages/util/ripgrep/src/index.ts) |
 | `@deepseek-ai/dsh-util-text-search` | — | [`packages/util/text-search/src/index.ts`](../packages/util/text-search/src/index.ts) |

@@ -88,6 +88,8 @@ flowchart LR
   cfg --> plugin_dsh_base_subprocess
   plugin_dsh_base_sandbox["sandbox<br/>@deepseek-ai/dsh-sandbox-local"]
   cfg --> plugin_dsh_base_sandbox
+  plugin_dsh_base_sandbox_startup["sandbox-startup<br/>@deepseek-ai/dsh-sandbox-startup"]
+  cfg --> plugin_dsh_base_sandbox_startup
   plugin_dsh_base_sandbox_policy["sandbox-policy<br/>@deepseek-ai/dsh-sandbox-policy"]
   cfg --> plugin_dsh_base_sandbox_policy
   plugin_dsh_base_bash_sandbox["bash-sandbox<br/>@deepseek-ai/dsh-bash-sandbox"]
@@ -250,6 +252,7 @@ flowchart LR
 | `session-telemetry-otel` | `@deepseek-ai/dsh-session-telemetry-otel` |
 | `subprocess` | `@deepseek-ai/dsh-subprocess-local` |
 | `sandbox` | `@deepseek-ai/dsh-sandbox-local` |
+| `sandbox-startup` | `@deepseek-ai/dsh-sandbox-startup` |
 | `sandbox-policy` | `@deepseek-ai/dsh-sandbox-policy` |
 | `bash-sandbox` | `@deepseek-ai/dsh-bash-sandbox` |
 | `pwsh-sandbox` | `@deepseek-ai/dsh-pwsh-sandbox` |

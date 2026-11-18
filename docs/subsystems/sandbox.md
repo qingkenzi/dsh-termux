@@ -181,6 +181,17 @@ Abstract process-sandbox service. confine must return enforcing argv or fail clo
 
 ```ts cordis-catalog
 /**
+ * Report whether this host can confine processes, and how completely, before
+ * any call to {@link confine}. Implementations resolve and cache their
+ * backend selection here; a verdict that cannot be resolved reports
+ * `available: false` with the failure in {@link SandboxAvailability.reason}
+ * instead of throwing, so a deployment can explain the state and choose a
+ * default mode without catching provider failures.
+ * @returns this host's availability, its backend, enforcement, reason, and remediation.
+ */
+abstract availability(): SandboxAvailability
+
+/**
  * Wrap `argv` so it executes confined under `policy` on this host; the
  * caller spawns the returned argv in place of its own.
  * @param argv - the exact argv the caller is about to spawn (program plus
@@ -243,4 +254,35 @@ overrideOf(session: Session): SandboxMode | undefined
 Types: [Session](session.md)
 
 Source: [`packages/sandbox/sandbox-policy/src/index.ts`](../../packages/sandbox/sandbox-policy/src/index.ts)
+
+<a id="ctxsandboxstartup--sandboxstartupservice"></a>
+
+### `ctx.sandboxStartup` — `SandboxStartupService`
+
+The starting sandbox mode for this process, published as `ctx.sandboxStartup`. Resolved once at construction from the mounted `ctx.sandbox` provider's availability, so every consumer of the deployment default (mode) and of its paired approval policy reads one decision.
+
+Source: [`packages/sandbox/sandbox-startup/src/index.ts`](../../packages/sandbox/sandbox-startup/src/index.ts)
+
+<a id="sandbox-events"></a>
+
+### `sandbox/*` events
+
+<a id="sandboxavailability-changed--emit"></a>
+
+#### `sandbox/availability-changed` — emit
+
+This process published a new sandbox availability verdict and the startup decision that follows it. Payload-carrying and non-vetoing: consumers re-read `ctx.sandboxStartup` for the complete decision.
+
+```ts cordis-catalog
+/**
+ * This process published a new sandbox availability verdict and the
+ * startup decision that follows it. Payload-carrying and non-vetoing:
+ * consumers re-read `ctx.sandboxStartup` for the complete decision.
+ * @mode emit
+ * @param availability - the verdict the published decision was resolved from.
+ */
+'sandbox/availability-changed'(availability: SandboxAvailability): void
+```
+
+Source: [`packages/sandbox/sandbox-startup/src/index.ts`](../../packages/sandbox/sandbox-startup/src/index.ts)
 <!-- END GENERATED cordis-surface -->

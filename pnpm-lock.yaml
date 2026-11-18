@@ -19919,6 +19919,9 @@ importers:
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:*
         version: link:../../packages/sandbox/sandbox-policy
+      '@deepseek-ai/dsh-sandbox-startup':
+        specifier: workspace:*
+        version: link:../../packages/sandbox/sandbox-startup
       '@deepseek-ai/dsh-schedule':
         specifier: workspace:*
         version: link:../../packages/schedule/schedule
