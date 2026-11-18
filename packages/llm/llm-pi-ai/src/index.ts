@@ -292,7 +292,6 @@ export function apply(ctx: Context, config: Config): void {
     if (profile === undefined) return undefined
     return {
       headers: profile.headers,
-      allowInsecureHttp: profile.allowInsecureHttp,
       resolveApiKey: () => resolveApiKey(provider, profile),
     }
   }

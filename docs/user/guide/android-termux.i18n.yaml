@@ -12,23 +12,23 @@
   en: 5e385398b8e713c1
   zh: 8a6c9f8c46557f1f
 /run-dsh-on-android-with-termux/start-the-web-ui:
-  en: caebcfd6cf053c8c
-  zh: fb9d56c963d4a622
+  en: 28bbda7cc22927cb
+  zh: aecd1b93072acc0d
 /run-dsh-on-android-with-termux/permission-mode:
   en: b5a0e0d18e24eb1f
   zh: 33d84138eb92adec
+/run-dsh-on-android-with-termux/exec-capability-w-x:
+  en: ec0925cfb7ce1cfa
+  zh: 32458ffc2b5a4798
 /run-dsh-on-android-with-termux/what-works:
   en: fde540939a3ef837
   zh: 60959c00cbbae72a
-/run-dsh-on-android-with-termux/provider-transport:
-  en: 14e731359e411cab
-  zh: d6d6c526d40a4f33
 /run-dsh-on-android-with-termux/verification-and-ci:
   en: 5b0f10837b870691
   zh: bb3ae6a817ceb8a3
 /run-dsh-on-android-with-termux/troubleshooting:
-  en: a276ff82c2d00b46
-  zh: 10ad544c5bd74499
+  en: fae552c50d961421
+  zh: 36ea2b5b13c69ee6
 /run-dsh-on-android-with-termux/upgrading:
-  en: d1d40b8f331d6a6a
-  zh: 2bbb2dd4a693a320
+  en: d0976039aa5a86a1
+  zh: 87feadc0f90bbcc6

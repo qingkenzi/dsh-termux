@@ -1822,6 +1822,27 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-host-authentication-desktop -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-host-authentication-token -->
+<a id="deepseek-aidsh-host-authentication-token"></a>
+
+## `@deepseek-ai/dsh-host-authentication-token`
+
+- `inject`: `connection` · `connection.authentication` · `credentials`
+- `source`: [`packages/host/authentication-token/src/index.ts:16`](../packages/host/authentication-token/src/index.ts)
+
+```ts config-catalog
+/** Configuration of the browser-session lifetime. */
+export interface Config {
+  /**
+   * Absolute lifetime of one browser session in days. A restarted process keeps
+   * signing with the same stored secret, so this is how long a login lasts.
+   * @default 30
+   */
+  cookieMaxAgeDays?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-host-authentication-token -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-host-directory-picker-browse -->
 <a id="deepseek-aidsh-host-directory-picker-browse"></a>
 
@@ -2049,7 +2070,7 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:266`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:251`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
@@ -2074,20 +2095,8 @@ export interface PiAiProviderProfile {
    * no protocol at all; a route the catalog does not ship must name one.
    */
   api?: string
-  /**
-   * Endpoint for this route's models; defaults to the installed catalog's
-   * endpoint. Must be `https://`, or plain HTTP only to a loopback host. Plain
-   * HTTP to any other host sends API keys, prompts, and tool output in clear
-   * text and is refused unless {@link allowInsecureHttp} accepts that risk.
-   */
+  /** Endpoint for this route's models; defaults to the installed catalog's endpoint. */
   baseURL?: string
-  /**
-   * Accept plain HTTP to a non-loopback `baseURL`. Off by default because the
-   * provider request carries credentials and conversation content; enable it
-   * only when the network between this process and the endpoint is trusted,
-   * such as a private overlay network, or use HTTPS or an SSH tunnel instead.
-   */
-  allowInsecureHttp?: boolean
   /**
    * This route's model catalog. Omission serves the installed catalog for the
    * route unchanged; an explicit list replaces it, each entry defaulting its
@@ -2704,7 +2713,7 @@ export interface Config {
 
 - `inject`: `shell` · `approval` · `sessions` · `agents` · `sessionProjections`
 - `refs`: [`ApprovalPolicy`](subsystems/approval.zh.md) · [`SandboxMode`](subsystems/sandbox.zh.md) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/interaction/permission-presets/src/index.ts:154`](../packages/interaction/permission-presets/src/index.ts)
+- `source`: [`packages/interaction/permission-presets/src/index.ts:157`](../packages/interaction/permission-presets/src/index.ts)
 
 ```ts config-catalog
 /** The {@link PermissionPresetService} config: preset table and composition default. */
@@ -3046,7 +3055,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-sandbox-local`
 
-- `source`: [`packages/sandbox/sandbox-local/src/index.ts:63`](../packages/sandbox/sandbox-local/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-local/src/index.ts:65`](../packages/sandbox/sandbox-local/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. All optional — `static Config` supplies the defaults. */
@@ -3112,6 +3121,44 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-policy -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-sandbox-startup -->
+<a id="deepseek-aidsh-sandbox-startup"></a>
+
+## `@deepseek-ai/dsh-sandbox-startup`
+
+- `inject`: `sandbox`
+- `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
+- `source`: [`packages/sandbox/sandbox-startup/src/index.ts:154`](../packages/sandbox/sandbox-startup/src/index.ts)
+
+```ts config-catalog
+/** Plugin config. `mode` is the explicit deployment mode; the unavailable policy is required to be stated. */
+export interface Config {
+  /**
+   * Explicit starting mode from the deployment (`DSH_PERMISSION_MODE` in the
+   * shipped bundles). Absent means the host decides per
+   * {@link SandboxUnavailablePolicy}; an explicit confined mode without a
+   * backend fails closed.
+   */
+  mode?: SandboxMode
+  /** Behavior when this host has no confining backend; the safe default is `fail`. */
+  onUnavailable?: SandboxUnavailablePolicy
+}
+
+/**
+ * What a deployment does when this host has no confining backend. No policy
+ * reaches `danger-full-access` on its own:
+ * - `ask` — start confined anyway, so every confined operation fails closed
+ *   with an actionable denial while the user sees the availability banner and
+ *   the permission chip; switching to full access stays their explicit,
+ *   risk-confirmed choice (the GUI default).
+ * - `danger-full-access` — the deployment states that unconfined file effects
+ *   are acceptable here (an explicit deployment assertion, logged at startup).
+ * - `fail` — refuse to start (the headless and package default).
+ */
+export type SandboxUnavailablePolicy = 'ask' | 'danger-full-access' | 'fail'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-sandbox-startup -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-schedule -->
 <a id="deepseek-aidsh-schedule"></a>
@@ -5295,7 +5342,6 @@ export interface Config {
 | `@deepseek-ai/dsh-fs-ssh` | `ssh` · `sandboxPolicy` | [`packages/ssh/fs-ssh/src/index.ts`](../packages/ssh/fs-ssh/src/index.ts) |
 | `@deepseek-ai/dsh-goal-round-driver` | `agents` · `goals` · `sessions` | [`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts) |
 | `@deepseek-ai/dsh-harness-dev-context` | `systemPrompt` · `sessionProjections` · `webApp` | [`packages/context/harness-dev-context/src/index.ts`](../packages/context/harness-dev-context/src/index.ts) |
-| `@deepseek-ai/dsh-host-authentication-token` | `connection` · `connection.authentication` · `credentials` | [`packages/host/authentication-token/src/index.ts`](../packages/host/authentication-token/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-auto` | `webServer` · `connection` · `loader` | [`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-native` | — | [`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts) |
 | `@deepseek-ai/dsh-host-plugin-inventory` | `loader` | [`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts) |
@@ -5360,6 +5406,7 @@ export interface Config {
 | `package` | `inject` | `source` |
 | --- | --- | --- |
 | `@deepseek-ai/dsh-agent-loop-testkit` | — | [`packages/test-support/agent-loop-testkit/src/index.ts`](../packages/test-support/agent-loop-testkit/src/index.ts) |
+| `@deepseek-ai/dsh-android-exec` | — | [`packages/platform/android-exec/src/index.ts`](../packages/platform/android-exec/src/index.ts) |
 | `@deepseek-ai/dsh-anonymous-user-id` | — | [`packages/identity/anonymous-user-id/src/index.ts`](../packages/identity/anonymous-user-id/src/index.ts) |
 | `@deepseek-ai/dsh-app-boot` | — | [`packages/boot/app-boot/src/index.ts`](../packages/boot/app-boot/src/index.ts) |
 | `@deepseek-ai/dsh-atomic-write` | — | [`packages/util/atomic-write/src/index.ts`](../packages/util/atomic-write/src/index.ts) |
@@ -5430,6 +5477,7 @@ export interface Config {
 | `@deepseek-ai/dsh-typert-registry` | — | [`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts) |
 | `@deepseek-ai/dsh-util-code-language` | — | [`packages/util/code-language/src/index.ts`](../packages/util/code-language/src/index.ts) |
 | `@deepseek-ai/dsh-util-crypto` | — | [`packages/util/crypto/src/index.ts`](../packages/util/crypto/src/index.ts) |
+| `@deepseek-ai/dsh-util-exclusive-publish` | — | [`packages/util/exclusive-publish/src/index.ts`](../packages/util/exclusive-publish/src/index.ts) |
 | `@deepseek-ai/dsh-util-file-drag` | — | [`packages/util/file-drag/src/index.ts`](../packages/util/file-drag/src/index.ts) |
 | `@deepseek-ai/dsh-util-ripgrep` | — | [`packages/util/ripgrep/src/index.ts`](../packages/util/ripgrep/src/index.ts) |
 | `@deepseek-ai/dsh-util-text-search` | — | [`packages/util/text-search/src/index.ts`](../packages/util/text-search/src/index.ts) |
