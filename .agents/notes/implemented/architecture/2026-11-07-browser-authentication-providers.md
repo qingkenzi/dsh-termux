@@ -48,7 +48,7 @@ The [browser Token protocol](2026-08-24-browser-token-authentication.md) retains
 
 Desktop uses its private credential directly rather than exchanging a Token URL. The renderer receives ordinary addresses and startup data, not the private credential; the wire `ready` message contains no secret. Desktop can also offer Token login and its printed entry URL. Normal shutdown or parent disconnection while awaiting the Desktop credential ends startup without a fatal authentication error; invalid or repeated credentials remain failures.
 
-Token activation failure may leave the application running without that Provider; it never grants unauthenticated access to a protected route. Token owns `cookieMaxAgeDays`, default30 days. Operators manually move an old Connection setting to Token: the old location is not migrated or rejected and does not affect the Token lifetime. The [upgrade guide](../../../../docs/upgrade-guide/v0.2.2-rc.2/connection-page-peer/guide.md) owns that migration.
+Token activation failure may leave the application running without that Provider; it never grants unauthenticated access to a protected route. Token accepts no configuration: the launch token lives ten minutes, a browser cookie lasts one day, and the signing secret is process memory. The [upgrade guide](../../../../docs/upgrade-guide/v0.2.2-rc.3/web-auth-security/guide.md) owns the migration from `cookieMaxAgeDays` and the retired durable secret.
 
 ## Testing
 

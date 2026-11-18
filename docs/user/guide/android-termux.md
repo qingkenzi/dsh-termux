@@ -34,7 +34,7 @@ pnpm run verify:android
 pnpm dsh web --no-open
 ```
 
-When stdout is not a terminal, the login URL is written to `$DSH_HOME/run/web-<pid>.url` with mode 0600 instead of being printed. Opening the URL signs a browser cookie; the cookie lasts 30 days by default and survives a restart, so the browser stays signed in. The file itself is removed when the server exits, and the new instance publishes its own.
+When stdout is not a terminal, the login URL is written to `$DSH_HOME/run/web-<pid>.url` with mode 0600 instead of being printed. Open the URL once; the server then sets a browser cookie. The cookie is valid for at most one day and every server restart revokes it, so reopen the URL from the run file after a restart. The file is removed when the server exits.
 
 ## Permission mode
 
@@ -45,12 +45,6 @@ DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
 ```
 
 `read-only` and `workspace-write` fail closed with `SANDBOX_UNAVAILABLE` until a sandbox provider is installed. Do not run untrusted prompts or tools without understanding this boundary.
-
-## Exec capability (W^X)
-
-Android permits executing binaries from an app's data directory only while the app targets API 28 or lower. Termux currently reports `targetSdk 28`, so `node`, `bash`, `ssh`, and the bundled `ripgrep` start normally. A future Termux build with `targetSdk ≥ 29` would block every one of those child processes while the CLI, Web UI, model requests, and file tools keep working.
-
-DSH probes this once during startup with `node -e 0` and `$PREFIX/bin/sh -c true`. If the probe is blocked, startup logs one warning naming the `targetSdk` rule and the workaround, and each exec-based call fails with `PLATFORM_EXEC_BLOCKED` instead of a random `EACCES`. Keep Termux on a `targetSdk 28` build, or move the node and shell interpreters into the app's native library (lib) directory, which Android still permits executing, and point DSH at them there.
 
 ## What works
 
@@ -80,7 +74,6 @@ Use an HTTPS provider endpoint, or reach a private HTTP endpoint through an SSH 
 - `No usable native binding found for node-addon-require-builtin-android-arm64`: run `pnpm install` with lifecycle scripts enabled, then `pnpm run setup:android`.
 - sharp load failure: run `pnpm run setup:android`; it rebuilds libvips when absent and restores the cached addon after a reinstall.
 - `SEARCH_RG_UNAVAILABLE`: run `sh scripts/setup-android.sh` or install the Termux `ripgrep` package.
-- `PLATFORM_EXEC_BLOCKED`: startup proved Android cannot execute binaries from app data. Keep Termux at `targetSdk 28`, or place the node and shell interpreters in the app lib directory and restart DSH; exec-based tools stay unavailable until then.
 - `SANDBOX_UNAVAILABLE`: switch to `DSH_PERMISSION_MODE=danger-full-access` or install a sandbox provider; do not expect Android's kernel sandbox to exist.
 
 ## Upgrading

@@ -4,7 +4,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import type { PeerId } from '@deepseek-ai/dsh-typert-protocol'
 import { CONNECT_PATH } from '@deepseek-ai/dsh-client-connection'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
-import type { CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials'
+import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
 import type { ConnectionInteractions } from './types.ts'
 import type {
   ConnectionIndexRequest,
@@ -12,20 +12,17 @@ import type {
   ConnectionTrustRequest,
 } from './types.ts'
 
-/**
- * Credential record holding this Harness home's cookie-signing secret. The
- * secret outlives the process, so a browser session survives a restart instead
- * of asking its user to log in again.
- */
-export const BROWSER_SESSION_KEY = credentialKey('client-connection', 'browser-session')
+/** Credential record key of the retired durable cookie-signing secret. */
+export const LEGACY_BROWSER_SESSION_KEY = credentialKey('client-connection', 'browser-session')
 /** Same-origin endpoint that renews a browser cookie without a launch token. */
 export const REFRESH_PATH = '/_dsh/auth/refresh'
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
-/** Default absolute browser-cookie lifetime in days, matching the official adapter default. */
-export const DEFAULT_COOKIE_MAX_AGE_DAYS = 30
-/** Record payload version of the stored signing secret. */
-const STORED_SECRET_VERSION = 1
+/** Absolute browser-cookie lifetime, also its `Max-Age`; a browser session never outlives one day. */
+const COOKIE_LIFETIME_MILLISECONDS = DAY_MILLISECONDS
+const COOKIE_MAX_AGE_SECONDS = 86_400
+/** A launch token is a one-shot capability for a few minutes, never a durable credential. */
+const LAUNCH_TOKEN_TTL_MILLISECONDS = 10 * 60 * 1000
 const SECRET_BYTES = 32
 const TOKEN_QUERY = 'token'
 const COOKIE_PREFIX = 'dsh-auth-'
@@ -33,15 +30,13 @@ const COOKIE_PAYLOAD_VERSION = 3
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]*$/
 const PROCESS_STATES = new WeakMap<object, ProcessAuthState>()
 
-/** Process-scoped token state: one launch token per root Context, shared by plugin reloads. */
+/** Process-scoped token state: one launch token and one HMAC secret per root Context. */
 interface ProcessAuthState {
   readonly launchToken: string
-}
-
-/** Payload of the stored signing secret. */
-interface StoredSecretPayload {
-  readonly version: typeof STORED_SECRET_VERSION
-  readonly secret: string
+  readonly secret: Buffer
+  readonly launchTokenExpiresAt: number
+  indexExchanged: boolean
+  connectExchanged: boolean
 }
 
 interface CookiePayload {
@@ -72,66 +67,22 @@ function decodeBase64Url(value: string): Buffer | undefined {
 }
 
 /**
- * One root Context's launch token. The token stays valid while this process
- * serves, so the login URL printed at startup can be reopened any number of
- * times; the cookie it mints is what carries the session.
+ * One root Context's authentication state. The state is process memory only:
+ * a restart has no way to reproduce the HMAC secret, so every cookie minted
+ * before it is refused.
  */
 function processState(owner: object): ProcessAuthState {
   const existing = PROCESS_STATES.get(owner)
   if (existing !== undefined) return existing
   const created: ProcessAuthState = {
     launchToken: encodeBase64Url(randomBytes(SECRET_BYTES)),
+    secret: randomBytes(SECRET_BYTES),
+    launchTokenExpiresAt: Date.now() + LAUNCH_TOKEN_TTL_MILLISECONDS,
+    indexExchanged: false,
+    connectExchanged: false,
   }
   PROCESS_STATES.set(owner, created)
   return created
-}
-
-/** Canonicalize one stored secret; anything else is a record this build cannot use. */
-function canonicalSecret(value: unknown): Buffer | undefined {
-  if (typeof value !== 'string') return undefined
-  const decoded = decodeBase64Url(value)
-  if (decoded === undefined || decoded.byteLength !== SECRET_BYTES) return undefined
-  return decoded
-}
-
-/** Read the signing secret out of its credential record. */
-function storedSecret(record: CredentialRecord | undefined): Buffer | undefined {
-  if (record === undefined) return undefined
-  if (record.kind !== 'grant' || !isRecord(record.payload)
-    || record.payload.version !== STORED_SECRET_VERSION) {
-    throw new Error('host-authentication-token: browser-session credential record has an unsupported format')
-  }
-  const secret = canonicalSecret(record.payload.secret)
-  if (secret === undefined) {
-    throw new Error('host-authentication-token: browser-session credential record has an invalid secret')
-  }
-  return secret
-}
-
-/**
- * Load this Harness home's cookie-signing secret, creating it on first use.
- * Creation goes through `modifyRecord`, so two processes starting together
- * converge on one secret instead of invalidating each other's cookies.
- * @param credentials - persistent credential provider of the Web profile.
- * @returns the stored signing secret.
- */
-async function initializeSecret(credentials: CredentialProvider): Promise<Buffer> {
-  const generated: StoredSecretPayload = {
-    version: STORED_SECRET_VERSION,
-    secret: encodeBase64Url(randomBytes(SECRET_BYTES)),
-  }
-  const record = await credentials.modifyRecord(BROWSER_SESSION_KEY, (current) => {
-    if (current !== undefined) {
-      storedSecret(current)
-      return Promise.resolve(undefined)
-    }
-    return Promise.resolve({ kind: 'grant', payload: generated })
-  })
-  const secret = storedSecret(record)
-  if (secret === undefined) {
-    throw new Error('host-authentication-token: browser-session credential record was not created')
-  }
-  return secret
 }
 
 function header(
@@ -191,9 +142,9 @@ function signature(secret: Buffer, body: string): Buffer {
   return createHmac('sha256', secret).update(body).digest()
 }
 
-/** Absolute end of a browser session that starts at `now` under `maxAgeMilliseconds`. */
-function cookieExpiry(now: number, maxAgeMilliseconds: number): number {
-  return now + maxAgeMilliseconds
+/** Absolute end of a browser session that starts at `now`. */
+function cookieExpiry(now: number): number {
+  return now + COOKIE_LIFETIME_MILLISECONDS
 }
 
 function encodeCookie(payload: CookiePayload, secret: Buffer): string {
@@ -236,75 +187,38 @@ function decodeCookie(value: string, secret: Buffer): CookiePayload | undefined 
 }
 
 /**
- * Delete the retired one-day browser-session secret. Superseded by the durable
- * record read through {@link BrowserAuth.create}; a home that still carries the
- * old payload shape is cleared at startup so a new secret can be created.
+ * Delete the retired durable browser-session secret. The record is no longer
+ * read by anything, so it is removed at startup; every other credential record
+ * is left untouched.
  * @param credentials - persistent credential provider of the Web profile.
  * @returns true when a legacy record was present and removed.
  */
 export async function discardLegacyBrowserSession(credentials: CredentialProvider): Promise<boolean> {
-  const record = await credentials.readRecord(BROWSER_SESSION_KEY)
+  const record = await credentials.readRecord(LEGACY_BROWSER_SESSION_KEY)
   if (record === undefined) return false
-  try {
-    storedSecret(record)
-    return false
-  } catch {
-    await credentials.deleteRecord(BROWSER_SESSION_KEY)
-    return true
-  }
+  await credentials.deleteRecord(LEGACY_BROWSER_SESSION_KEY)
+  return true
 }
 
 /**
- * Launch-token exchange and signed-cookie verification.
+ * Process launch-token exchange and in-memory signed-cookie verification.
  *
- * The launch token lives in process memory for the lifetime of the process, so
- * the printed URL can be reopened as often as needed. Cookies are signed by a
- * secret stored in the profile's credential record: a restarted process mints
- * and accepts the same cookies, so a browser session survives a restart and
- * lasts as long as the configured lifetime.
+ * The launch token lives in process memory for ten minutes and each exchange
+ * path — the Web index and `/connect` — accepts it once. Cookies are signed by
+ * a per-process random secret, so a restart revokes every browser session and a
+ * cookie minted under a previous process cannot be forged or replayed.
  */
 export class BrowserAuth {
-  private constructor(
-    private readonly state: ProcessAuthState,
-    private readonly secret: Buffer,
-    private readonly maxAgeMilliseconds: number,
-  ) {}
+  private constructor(private readonly state: ProcessAuthState) {}
 
   /**
-   * Create the authentication owner for one root application context from an
-   * in-memory secret. Intended for tests and in-process callers; a production
-   * plugin uses {@link BrowserAuth.create} so cookies outlive the process.
-   * @param processOwner - root application context retaining one token across
-   *   Token plugin reloads.
-   * @param maxAgeDays - absolute browser-cookie lifetime in days.
+   * Create the authentication owner for one root application context.
+   * @param processOwner - root application context retaining one token and one
+   *   signing secret across Token plugin reloads.
    * @returns authentication owner sharing this process's launch token.
    */
-  static create(processOwner: object, maxAgeDays = DEFAULT_COOKIE_MAX_AGE_DAYS): BrowserAuth {
-    return new BrowserAuth(
-      processState(processOwner),
-      randomBytes(SECRET_BYTES),
-      maxAgeDays * DAY_MILLISECONDS,
-    )
-  }
-
-  /**
-   * Create the authentication owner with the credential-backed signing secret.
-   * @param processOwner - root application context retaining one token across
-   *   Token plugin reloads.
-   * @param credentials - persistent credential provider of the Web profile.
-   * @param maxAgeDays - absolute browser-cookie lifetime in days.
-   * @returns authentication owner sharing this home's signing secret.
-   */
-  static async createPersistent(
-    processOwner: object,
-    credentials: CredentialProvider,
-    maxAgeDays = DEFAULT_COOKIE_MAX_AGE_DAYS,
-  ): Promise<BrowserAuth> {
-    return new BrowserAuth(
-      processState(processOwner),
-      await initializeSecret(credentials),
-      maxAgeDays * DAY_MILLISECONDS,
-    )
+  static create(processOwner: object): BrowserAuth {
+    return new BrowserAuth(processState(processOwner))
   }
 
   /**
@@ -338,7 +252,8 @@ export class BrowserAuth {
     if (tokens.length > 0) {
       const authority = requestAudience(req.headers, secure)
       if (req.method === 'GET' && url.pathname === '/' && tokens.length === 1
-        && authority !== undefined && tokenMatches(tokens.join(''), this.state.launchToken)) {
+        && authority !== undefined && tokenMatches(tokens.join(''), this.state.launchToken)
+        && this.exchangeLaunchToken('index')) {
         this.setCookie(res, 303, { location: './' }, authority, secure)
         return false
       }
@@ -383,22 +298,23 @@ export class BrowserAuth {
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
     const authority = requestAudience(req.headers, secure)
     if (req.method !== 'GET' || url.pathname !== CONNECT_PATH || tokens.length !== 1
-      || authority === undefined || !tokenMatches(tokens.join(''), this.state.launchToken)) {
+      || authority === undefined || !tokenMatches(tokens.join(''), this.state.launchToken)
+      || !this.exchangeLaunchToken('connect')) {
       this.writeUnauthorized(req, res)
       return
     }
     const id = publish(interactions)
-    const expiresAt = cookieExpiry(Date.now(), this.maxAgeMilliseconds)
+    const expiresAt = cookieExpiry(Date.now())
     this.setCookie(res, 302, { location: './api/remote.mux' }, authority, secure, { id, expiresAt })
   }
 
   /**
    * Renew the current browser cookie for the remainder of its absolute
-   * session. The request proves it is same-origin: `Origin` must match
+   * one-day session. The request proves it is same-origin: `Origin` must match
    * the request authority and, when present, `Sec-Fetch-Site` must be
    * `same-origin` or `none`; anything else is refused before the cookie is
-   * read. Renewal cannot extend the session past its first login; reopening the
-   * launch URL is the way to start a new one.
+   * read. Renewal cannot extend the session past its first login, and a
+   * restart still invalidates it because the signing secret is new.
    * @param req - POST request on {@link REFRESH_PATH}.
    * @param res - response owned to completion.
    * @param secure - whether the receiving listener serves TLS.
@@ -452,6 +368,20 @@ export class BrowserAuth {
     return this.authenticate(request, secure)?.id
   }
 
+  /** Consume one one-shot launch-token exchange path; false when spent or expired. */
+  private exchangeLaunchToken(scope: 'index' | 'connect'): boolean {
+    const now = Date.now()
+    if (now >= this.state.launchTokenExpiresAt) return false
+    if (scope === 'index') {
+      if (this.state.indexExchanged) return false
+      this.state.indexExchanged = true
+      return true
+    }
+    if (this.state.connectExchanged) return false
+    this.state.connectExchanged = true
+    return true
+  }
+
   /** Mint the browser or API cookie and write the redirect. */
   private setCookie(
     res: ConnectionIndexResponse,
@@ -462,7 +392,7 @@ export class BrowserAuth {
     options: { id?: PeerId; issuedAt?: number; expiresAt?: number; maxAgeSeconds?: number } = {},
   ): void {
     const issuedAt = options.issuedAt ?? Date.now()
-    const expiresAt = options.expiresAt ?? cookieExpiry(issuedAt, this.maxAgeMilliseconds)
+    const expiresAt = options.expiresAt ?? cookieExpiry(issuedAt)
     const payload: CookiePayload = {
       version: COOKIE_PAYLOAD_VERSION,
       authority,
@@ -476,9 +406,9 @@ export class BrowserAuth {
       ...headers,
       'set-cookie': sessionCookie(
         cookieName(authority),
-        encodeCookie(payload, this.secret),
+        encodeCookie(payload, this.state.secret),
         expiresAt,
-        options.maxAgeSeconds ?? Math.floor(this.maxAgeMilliseconds / 1000),
+        options.maxAgeSeconds ?? COOKIE_MAX_AGE_SECONDS,
         secure,
       ),
     })
@@ -491,11 +421,11 @@ export class BrowserAuth {
     if (authority === undefined || rawCookie === undefined) return undefined
     const value = cookieValue(rawCookie, cookieName(authority))
     if (value === undefined) return undefined
-    const payload = decodeCookie(value, this.secret)
+    const payload = decodeCookie(value, this.state.secret)
     if (payload === undefined || payload.authority !== authority) return undefined
     const now = Date.now()
     if (payload.issuedAt > now || payload.expiresAt <= now || payload.expiresAt <= payload.issuedAt
-      || payload.expiresAt - payload.issuedAt > this.maxAgeMilliseconds) return undefined
+      || payload.expiresAt - payload.issuedAt > COOKIE_LIFETIME_MILLISECONDS) return undefined
     return payload
   }
 

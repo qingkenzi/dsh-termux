@@ -34,7 +34,7 @@ pnpm run verify:android
 pnpm dsh web --no-open
 ```
 
-当 stdout 不是终端时，登录 URL 会以 0600 权限写入 `$DSH_HOME/run/web-<pid>.url`，而不是打印出来。打开该 URL 即签发浏览器 cookie；cookie 默认有效 30 天且跨重启保留，浏览器无需重新登录。该文件在服务器退出时删除，新实例会发布自己的文件。
+当 stdout 不是终端时，登录 URL 会以 0600 权限写入 `$DSH_HOME/run/web-<pid>.url`，而不是打印出来。打开一次该 URL；服务器随后设置浏览器 cookie。cookie 最长有效一天，且每次服务器重启都会撤销，因此重启后需从 run 文件重新打开 URL。服务器退出时会删除该文件。
 
 ## 权限模式
 
@@ -45,12 +45,6 @@ DSH_PERMISSION_MODE=danger-full-access pnpm dsh web --no-open
 ```
 
 在安装沙箱 provider 之前，`read-only` 与 `workspace-write` 会以 `SANDBOX_UNAVAILABLE` fail-closed。不要在未理解该边界的情况下运行不可信提示或工具。
-
-## Exec 能力（W^X）
-
-只有当应用 targetSdk 为 28 或更低时，Android 才允许执行应用 data 目录中的二进制。Termux 当前报告 `targetSdk 28`，因此 `node`、`bash`、`ssh` 和内置 `ripgrep` 都能正常启动子进程。未来若 Termux 使用 `targetSdk ≥ 29`，这些子进程会全部被阻止，而 CLI、Web UI、模型请求与文件工具仍可工作。
-
-DSH 在启动时用 `node -e 0` 与 `$PREFIX/bin/sh -c true` 探测一次。若探测被阻止，启动会记录一条告警，说明 `targetSdk` 规则与规避方式；每次依赖 exec 的调用都会以 `PLATFORM_EXEC_BLOCKED` 失败，而不是随机的 `EACCES`。请让 Termux 继续使用 `targetSdk 28` 构建，或把 node 与 shell 解释器放进应用的 native library（lib）目录——Android 仍允许执行该目录——并让 DSH 指向那里的解释器。
 
 ## 可用能力
 
@@ -80,7 +74,6 @@ DSH 在启动时用 `node -e 0` 与 `$PREFIX/bin/sh -c true` 探测一次。若�
 - `No usable native binding found for node-addon-require-builtin-android-arm64`：在启用 lifecycle scripts 的情况下运行 `pnpm install`，再运行 `pnpm run setup:android`。
 - sharp 加载失败：运行 `pnpm run setup:android`；缺失 libvips 时会重建，重装后会从缓存恢复。
 - `SEARCH_RG_UNAVAILABLE`：运行 `sh scripts/setup-android.sh`，或安装 Termux 的 `ripgrep` 包。
-- `PLATFORM_EXEC_BLOCKED`：启动探测证明 Android 无法执行 app data 中的二进制。请让 Termux 继续使用 `targetSdk 28`，或把 node 与 shell 解释器放进应用 lib 目录后重启 DSH；在此之前依赖 exec 的工具不可用。
 - `SANDBOX_UNAVAILABLE`：改用 `DSH_PERMISSION_MODE=danger-full-access` 或安装沙箱 provider；不要期待 Android 内核自带沙箱。
 
 ## 升级

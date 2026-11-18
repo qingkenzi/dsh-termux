@@ -5,44 +5,34 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import { CONNECT_PATH } from '@deepseek-ai/dsh-client-connection'
 import type { ConnectionTrustRequest, PeerScope } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { BrowserAuth, DEFAULT_COOKIE_MAX_AGE_DAYS, REFRESH_PATH, discardLegacyBrowserSession } from './browser-auth.ts'
+import { BrowserAuth, REFRESH_PATH, discardLegacyBrowserSession } from './browser-auth.ts'
 
 /** Stable plugin name. */
 export const name = 'host-authentication-token'
 /** Services owning request admission, the retired-secret cleanup, and the only cookie writer. */
 export const inject = ['connection', 'connection.authentication', 'credentials']
 
-/** Configuration of the browser-session lifetime. */
-export interface Config {
-  /**
-   * Absolute lifetime of one browser session in days. A restarted process keeps
-   * signing with the same stored secret, so this is how long a login lasts.
-   * @default 30
-   */
-  cookieMaxAgeDays?: number
-}
+/** No configuration: session and launch-token lifetimes are fixed security invariants. */
+export interface Config {}
 
-/** Validate the browser-session lifetime; every other lifetime is a fixed invariant. */
-export const Config: z<Config> = z.object({
-  cookieMaxAgeDays: z.natural().min(1).default(DEFAULT_COOKIE_MAX_AGE_DAYS),
-})
+/** Validate that the token plugin accepts no settings. */
+export const Config: z<Config> = z.object({})
 
 /**
  * Register the token provider and its optional Web transport integration.
  * @param ctx - plugin scope owning the shared Peer and registrations.
- * @param config - browser-session lifetime.
  */
-export async function apply(ctx: Context, config: Config = {}): Promise<void> {
-  const maxAgeDays = config.cookieMaxAgeDays ?? DEFAULT_COOKIE_MAX_AGE_DAYS
+export async function apply(ctx: Context): Promise<void> {
+  const auth = BrowserAuth.create(ctx[Context.root])
   try {
     if (await discardLegacyBrowserSession(ctx.credentials)) {
-      ctx.logger.warn('host-authentication-token: discarded an unreadable browser-session secret record; browsers log in once more')
+      ctx.logger.warn('host-authentication-token: removed the retired browser-session signing secret; existing browser cookies are no longer accepted')
     }
   } catch (error: unknown) {
-    // A malformed record is replaced, so the cleanup failure never blocks login.
+    // The new secret is process memory only, so a failed cleanup cannot weaken
+    // authentication; the retired record stays inert and the cause is reported.
     ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
   }
-  const auth = await BrowserAuth.createPersistent(ctx[Context.root], ctx.credentials, maxAgeDays)
   const peer = ctx.connection.createPeer({ principal: { kind: 'owner' } })
   const apiPeers = new Map<PeerScope['id'], PeerScope>()
   ctx.connection.authentication.register({

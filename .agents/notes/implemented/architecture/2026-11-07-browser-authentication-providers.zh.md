@@ -48,7 +48,7 @@ Token 插件拥有根 Token 交换和 `/connect` 签发。它的 upgrade 中间�
 
 Desktop 直接使用私有凭据，不交换 Token URL。Renderer 接收普通地址与启动数据，不接收私有凭据；wire `ready` 消息不含秘密。Desktop 也可提供 Token 登录及其打印入口 URL。等待 Desktop 凭据时的正常 shutdown 或父通道断连不会导致致命认证错误；非法或重复凭据仍然失败。
 
-Token 激活失败允许应用缺少该 Provider 继续运行，但不授予受保护路由的未认证访问。Token 拥有 `cookieMaxAgeDays`，默认为30天。用户手动将旧 Connection 设置移到 Token：旧位置既不会自动迁移，也不会被拒绝，并且不影响 Token 有效期。[升级指南](../../../../docs/upgrade-guide/v0.2.2-rc.2/connection-page-peer/guide.zh.md)拥有迁移说明。
+Token 激活失败允许应用缺少该 Provider 继续运行，但不授予受保护路由的未认证访问。Token 不接受配置：启动令牌有效十分钟，浏览器 cookie 有效一天，签名密钥保留在进程内存。[升级指南](../../../../docs/upgrade-guide/v0.2.2-rc.3/web-auth-security/guide.zh.md)拥有从 `cookieMaxAgeDays` 与已停用持久密钥迁移的说明。
 
 ## Testing
 
