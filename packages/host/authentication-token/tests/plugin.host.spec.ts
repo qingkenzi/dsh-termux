@@ -9,7 +9,7 @@ import { PassThrough } from 'node:stream'
 import type { WebEntryUrl, WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
 import * as Token from '../src/index.ts'
 import { RecordCredentials } from './browser-credentials.ts'
-import { BrowserAuth, LEGACY_BROWSER_SESSION_KEY } from '../src/browser-auth.ts'
+import { BrowserAuth, BROWSER_SESSION_KEY } from '../src/browser-auth.ts'
 
 const roots: Context[] = []
 afterEach(async () => { for (const ctx of roots.splice(0)) await ctx.fiber.dispose() })
@@ -222,26 +222,29 @@ it('removes all entry registrations on unload', async () => {
 })
 
 
-it('removes the retired browser-session secret, preserves other records, and writes no durable secret', async () => {
+it('stores one browser-session secret, replaces an unreadable one, and preserves other records', async () => {
   const store = new RecordCredentials()
-  const legacy = { kind: 'grant' as const, payload: { version: 1, secret: 'retired' } }
+  const unreadable = { kind: 'grant' as const, payload: { version: 1, secret: 'retired' } }
   const kept = { kind: 'grant' as const, payload: { token: 'kept' } }
-  store.records.set(LEGACY_BROWSER_SESSION_KEY, legacy)
+  store.records.set(BROWSER_SESSION_KEY, unreadable)
   store.records.set(credentialKey('demo', 'keep'), kept)
   const warnings: unknown[] = []
   const { store: provided } = await mounted(false, (ctx) => {
     ctx.logger.warn = ((message: unknown) => { warnings.push(message) }) as typeof ctx.logger.warn
   }, store)
 
-  expect(provided.records.has(LEGACY_BROWSER_SESSION_KEY)).toBe(false)
+  const stored = provided.records.get(BROWSER_SESSION_KEY)
+  expect(stored?.kind).toBe('grant')
   expect(provided.records.get(credentialKey('demo', 'keep'))).toEqual(kept)
-  // The fresh host writes no browser-session record either.
-  const fresh = await mounted()
-  expect(fresh.store.records.size).toBe(0)
-  expect(fresh.store.modifies).toBe(0)
-  expect(provided.modifies).toBe(0)
+  expect(provided.modifies).toBe(1)
   expect(warnings).toHaveLength(1)
-  expect(String(warnings[0])).toContain('removed the retired browser-session signing secret')
+
+  // A fresh home stores its own secret once, and a restart reuses that record.
+  const fresh = await mounted()
+  expect(fresh.store.modifies).toBe(1)
+  const restarted = await mounted(false, undefined, fresh.store)
+  expect(restarted.store.records.get(BROWSER_SESSION_KEY))
+    .toEqual(fresh.store.records.get(BROWSER_SESSION_KEY))
 })
 
 it('contributes its complete login URL only while the provider is mounted', async () => {

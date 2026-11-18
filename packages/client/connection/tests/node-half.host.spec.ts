@@ -287,7 +287,7 @@ describe('connection node half', () => {
     try {
       await fiber.await()
       const connection = ctx.get('connection') as HostConnectionHandle
-      const auth = BrowserAuth.create(ctx[Context.root])
+      const auth = await BrowserAuth.createPersistent(ctx[Context.root], ctx.credentials)
       const exchange = fakeResponse()
       auth.authorizeIndex(fakeRequest({ host: 'localhost' }, auth.authenticatedUrl('http://localhost/')), exchange.response)
       const cookie = exchange.state.headers?.['set-cookie']?.split(';', 1)[0]
@@ -823,22 +823,21 @@ describe('operator-scoped connect', () => {
       const cookie = await browserCookie(host.ctx, 'localhost')
       const browserPeer = admitted(host.connection, cookie)
       expect(browserPeer).not.toBe(host.connection.browserPeer)
-      // The launch token is single-use, so a second exchange of the same URL
-      // mints nothing; the already-issued browser cookie keeps working.
+      // The launch token stays valid for the process, so reopening it mints a
+      // fresh cookie for the same browser session.
       const replayUrl = await loginUrl(host.ctx, 'http://localhost')
       const replayed = fakeResponse()
       await host.ctx.waterfall('webserver/request',
         fakeRequest({ host: 'localhost' }, `${replayUrl.pathname}${replayUrl.search}`), replayed.response, async () => {})
-      expect(replayed.state.status).toBe(401)
+      expect(replayed.state.status).toBe(303)
       expect(admitted(host.connection, cookie)).toBe(browserPeer)
       const api = await connect(host, '', { cookie })
       expect(admitted(host.connection, api.cookie)).not.toBe(browserPeer)
-      // The /connect exchange is single-use too: replaying it mints nothing.
+      // The /connect exchange stays valid too, and each exchange publishes its
+      // own API operator.
       const second = await connect(host, '', { cookie: api.cookie })
-      expect(second.state.status).toBe(401)
-      expect(second.cookie).toBe('')
-      expect(host.ctx.connection.authentication.authenticate({ headers: { host: 'localhost', cookie: api.cookie } }))
-        .toEqual({ peer: admitted(host.connection, api.cookie) })
+      expect(second.state.status).toBe(302)
+      expect(admitted(host.connection, second.cookie)).not.toBe(admitted(host.connection, api.cookie))
     } finally { await host.dispose() }
   })
 
@@ -960,7 +959,7 @@ describe('operator-scoped connect', () => {
     try {
       const { cookie } = await connect(host)
       const peer = admitted(host.connection, cookie)
-      await vi.advanceTimersByTimeAsync(23 * 60 * 60 * 1000)
+      await vi.advanceTimersByTimeAsync(29 * 86_400_000)
       expect(admitted(host.connection, cookie)).toBe(peer)
       const disposed = vi.fn()
       peer.ctx.effect(() => disposed)
@@ -972,7 +971,7 @@ describe('operator-scoped connect', () => {
     } finally { vi.useRealTimers(); await host.dispose() }
   })
 
-  it('preserves browser tabs and revokes every cookie after a restart', async () => {
+  it('preserves browser tabs across a restart and reissues API credentials', async () => {
     const host = await mounted()
     const browser = { cookie: await browserCookie(host.ctx, 'localhost') }
     const api = await connect(host)
@@ -995,15 +994,14 @@ describe('operator-scoped connect', () => {
       await host.dispose()
       expect(cleanup).toHaveBeenCalledOnce()
       expect(host.connection.admit(request)).toEqual({ rejection: 401 })
-      // The signing secret is process memory: a restarted Host refuses both the
-      // old browser session and the old API operator.
+      // The signing secret is stored in the profile, so a restarted Host honours
+      // the same browser session while its API operators must re-connect.
       const restarted = await mounted(undefined, 'http:', host.ctx.credentials)
       try {
-        expect(restarted.connection.admit(fakeRequest({ host: 'localhost', cookie: browser.cookie })))
-          .toEqual({ rejection: 401 })
+        expect(admitted(restarted.connection, browser.cookie).principal).toEqual({ kind: 'owner' })
         expect(restarted.connection.admit(fakeRequest({ host: 'localhost', cookie: api.cookie }))).toEqual({ rejection: 401 })
         const restartedCookie = await browserCookie(restarted.ctx, 'localhost')
-        expect(admitted(restarted.connection, restartedCookie)).not.toBe(restarted.connection.browserPeer)
+        expect(admitted(restarted.connection, restartedCookie).principal).toEqual({ kind: 'owner' })
       } finally { await restarted.dispose() }
     } finally { await host.dispose() }
   })

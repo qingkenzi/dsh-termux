@@ -96,34 +96,32 @@ afterEach(() => {
 })
 
 describe('launch token', () => {
-  it('is one-shot for the index, one-shot for /connect, and expires after ten minutes', async () => {
+  it('is reusable for the index and for /connect while the process serves', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
     const auth = BrowserAuth.create({})
     const first = exchange(auth)
-    const replay = response()
     const target = new URL(first.launchUrl)
+    // Reopening the printed URL mints a fresh cookie instead of answering 401.
+    const replay = response()
     expect(auth.authorizeIndex(request(`${target.pathname}${target.search}`), replay.value)).toBe(false)
-    expect(replay.state.status).toBe(401)
+    expect(replay.state.status).toBe(303)
+    expect(exchangeStatus(auth)).toBe(303)
 
-    // The /connect scope spends its own single use.
-    const connect = auth.authenticatedUrl(`http://${AUTHORITY}/connect`)
+    // /connect stays available to every device that opens the link.
+    const connect = new URL(auth.authenticatedUrl(`http://${AUTHORITY}/connect`))
+    const path = `${connect.pathname}${connect.search}`
     const publish = vi.fn(() => 'api-operator' as PeerId)
-    const connected = response()
-    auth.authorizeConnect(request(new URL(connect).pathname + new URL(connect).search), connected.value, false, publish)
-    expect(connected.state.status).toBe(302)
-    const reconnected = response()
-    auth.authorizeConnect(request(new URL(connect).pathname + new URL(connect).search), reconnected.value, false, publish)
-    expect(reconnected.state.status).toBe(401)
-    expect(publish).toHaveBeenCalledTimes(1)
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const connected = response()
+      auth.authorizeConnect(request(path), connected.value, false, publish)
+      expect(connected.state.status).toBe(302)
+    }
+    expect(publish).toHaveBeenCalledTimes(2)
 
-    // The ten-minute window starts when the process state is created.
-    const nearlyAuth = BrowserAuth.create({})
-    const expiredAuth = BrowserAuth.create({})
-    vi.setSystemTime(new Date('2026-08-24T00:09:59.999Z'))
-    expect(exchange(nearlyAuth).state.status).toBe(303)
-    vi.setSystemTime(new Date('2026-08-24T00:10:00.000Z'))
-    expect(exchangeStatus(expiredAuth)).toBe(401)
+    // The launch token does not expire while the process serves.
+    vi.setSystemTime(new Date('2027-08-24T00:00:00.000Z'))
+    expect(exchangeStatus(auth)).toBe(303)
   })
 
   it('is shared across reloads of the same root and replaced by a restart', () => {
@@ -173,7 +171,7 @@ describe('launch token', () => {
 })
 
 describe('browser cookie', () => {
-  it('is process-memory signed, authority-bound, and one day long', () => {
+  it('is stored-secret signed, authority-bound, and thirty days long', () => {
     const auth = BrowserAuth.create({})
     const login = exchange(auth)
     expect(login.state).toMatchObject({
@@ -185,13 +183,13 @@ describe('browser cookie', () => {
       },
     })
     const setCookie = login.state.headers?.['set-cookie']
-    expect(setCookie).toMatch(/; Max-Age=86400; Path=\/; Expires=.*; HttpOnly; SameSite=Strict$/u)
+    expect(setCookie).toMatch(/; Max-Age=2592000; Path=\/; Expires=.*; HttpOnly; SameSite=Strict$/u)
     expect(setCookie).not.toContain('Secure')
     const [, value] = login.cookie.split('=') as [string, string]
     expect(value.startsWith('v3.')).toBe(true)
     const payload = JSON.parse(Buffer.from(value.split('.')[1]!, 'base64url').toString('utf8'))
     expect(payload).toMatchObject({ version: 3, authority: AUTHORITY })
-    expect(payload.expiresAt - payload.issuedAt).toBe(86_400_000)
+    expect(payload.expiresAt - payload.issuedAt).toBe(2_592_000_000)
 
     expect(auth.isAuthenticated(request('/', AUTHORITY, { cookie: login.cookie }))).toBe(true)
     expect(auth.isAuthenticated({
@@ -204,17 +202,17 @@ describe('browser cookie', () => {
     expect(auth.authenticateApi(request('/', AUTHORITY, { cookie: login.cookie }))).toBeUndefined()
   })
 
-  it('rejects a cookie forged with the retired durable secret', () => {
+  it('rejects a cookie forged with a secret this home never stored', () => {
     const auth = BrowserAuth.create({})
     const issuedAt = Date.now()
-    const payload = { version: 3, authority: AUTHORITY, issuedAt, expiresAt: issuedAt + 86_400_000 }
+    const payload = { version: 3, authority: AUTHORITY, issuedAt, expiresAt: issuedAt + 2_592_000_000 }
     const name = exchange(auth).cookie.split('=', 1)[0]!
     const forged = signedCookie(Buffer.alloc(32, 7).toString('base64url'), name, payload)
     expect(auth.isAuthenticated(request('/', AUTHORITY, { cookie: forged }))).toBe(false)
     expect(auth.authenticateApi(request('/', AUTHORITY, { cookie: forged }))).toBeUndefined()
   })
 
-  it('rejects tampering, a previous process, expiry, future issuance, and a legacy version', () => {
+  it('rejects tampering, a sibling home, expiry, future issuance, and a legacy version', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
     const auth = BrowserAuth.create({})
@@ -232,18 +230,18 @@ describe('browser cookie', () => {
       cookie: cookie.replace('=v3.', '=v2.'),
     }))).toBe(false)
 
-    // A restart cannot reproduce the signing secret.
-    const restarted = BrowserAuth.create({})
-    expect(restarted.isAuthenticated(request('/', AUTHORITY, { cookie }))).toBe(false)
+    // Another home's secret cannot verify this home's cookie.
+    const sibling = BrowserAuth.create({})
+    expect(sibling.isAuthenticated(request('/', AUTHORITY, { cookie }))).toBe(false)
 
     // Issued in the future relative to the verifier's clock.
     vi.setSystemTime(new Date('2026-08-23T23:59:59.000Z'))
     expect(auth.isAuthenticated(request('/', AUTHORITY, { cookie }))).toBe(false)
 
-    // One day after the login the cookie is expired.
-    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'))
+    // Thirty days after the login the cookie is expired.
+    vi.setSystemTime(new Date('2026-09-23T00:00:00.000Z'))
     expect(auth.isAuthenticated(request('/', AUTHORITY, { cookie }))).toBe(false)
-    vi.setSystemTime(new Date('2026-08-24T23:59:59.000Z'))
+    vi.setSystemTime(new Date('2026-09-22T23:59:59.000Z'))
     expect(auth.isAuthenticated(request('/', AUTHORITY, { cookie }))).toBe(true)
   })
 
@@ -300,26 +298,26 @@ describe('API credential', () => {
 })
 
 describe('cookie refresh', () => {
-  it('renews a browser cookie for the remainder of its first-login day', () => {
+  it('renews a browser cookie for the remainder of its first-login session', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))
     const auth = BrowserAuth.create({})
     const login = exchange(auth)
     const first = JSON.parse(Buffer.from(login.cookie.split('.')[1]!, 'base64url').toString('utf8'))
 
-    vi.setSystemTime(new Date('2026-08-24T12:00:00.000Z'))
+    vi.setSystemTime(new Date('2026-09-08T00:00:00.000Z'))
     const renewed = refresh(auth, login.cookie)
     expect(renewed.status).toBe(204)
-    expect(renewed.headers?.['set-cookie']).toMatch(/; Max-Age=43200; Path=\/; Expires=.*; HttpOnly; SameSite=Strict$/u)
+    expect(renewed.headers?.['set-cookie']).toMatch(/; Max-Age=1296000; Path=\/; Expires=.*; HttpOnly; SameSite=Strict$/u)
     const cookie = renewed.headers?.['set-cookie']?.split(';', 1)[0]
     if (cookie === undefined) throw new Error('refresh did not set a cookie')
     const payload = JSON.parse(Buffer.from(cookie.split('.')[1]!, 'base64url').toString('utf8'))
     expect(payload.expiresAt).toBe(first.expiresAt)
-    expect(payload.issuedAt).toBe(Date.parse('2026-08-24T12:00:00.000Z'))
+    expect(payload.issuedAt).toBe(Date.parse('2026-09-08T00:00:00.000Z'))
     expect(auth.isAuthenticated(request('/', AUTHORITY, { cookie }))).toBe(true)
 
-    // Renewal never extends the session past its first-login day.
-    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'))
+    // Renewal never extends the session past its first-login lifetime.
+    vi.setSystemTime(new Date('2026-09-23T00:00:00.000Z'))
     expect(refresh(auth, cookie).status).toBe(401)
   })
 
