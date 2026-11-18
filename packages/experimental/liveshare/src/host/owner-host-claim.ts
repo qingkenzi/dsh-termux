@@ -133,9 +133,10 @@ async function publishClaim(path: string, record: string, hostId: string): Promi
     await publishExclusive(staged, path, { mode: 0o600 })
     return true
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- a non-EEXIST publication refusal needs an IO fault; the claim race is covered. */
+    /* v8 ignore start -- a non-EEXIST publication refusal needs an IO fault; the claim race is covered. */
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false
     throw error
+    /* v8 ignore stop */
   } finally {
     rmSync(staged, { force: true })
   }
