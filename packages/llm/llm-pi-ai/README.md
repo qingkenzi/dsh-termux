@@ -79,7 +79,8 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `apiKeyEnv` | absent | Credential reference resolved per request; omission defers to pi-ai ambient discovery |
 | `displayName` | provider name | Label shown by selector surfaces |
 | `api` | catalog protocol | Wire protocol; only needed for routes the catalog does not supply |
-| `baseURL` | catalog endpoint | Endpoint of every model on the route |
+| `baseURL` | catalog endpoint | Endpoint of every model on the route; `https://`, or plain HTTP only to a loopback host |
+| `allowInsecureHttp` | `false` | Accept plain HTTP to a non-loopback `baseURL` |
 | `models` | installed catalog | Replaces the route's catalog wholesale; each entry defaults from the installed model |
 | `modelOverrides` | none | Reshapes individual installed-catalog models without replacing the rest |
 | `compat` | catalog detection | Wire-compatibility switches for unrecognized endpoints |
@@ -91,6 +92,8 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `maxRequestImages` | `50` | Retained request-image count bound; a request whose retained images exceed it fails with `IMAGE_OFFLOAD_REQUIRED`. The default follows Azure OpenAI's 50-image limit; raise it on routes whose provider accepts more images |
 | `imageOffloadCountQuantum` | `10`, capped at `maxRequestImages` | Oldest images offloaded per count overflow |
 | `retryPolicy` | normal, 5 retries | Provider-owned retry policy executed by `dsh-llm-retry` |
+
+A route's endpoint must use TLS unless it names this machine. `resolveProfiles` accepts `https://` anywhere and plain HTTP only for `localhost`, `127.0.0.0/8`, or `::1`; any other plain-HTTP `baseURL` fails with `LlmError` code `INSECURE_BASE_URL`, whose message names the HTTPS, SSH-tunnel, and `allowInsecureHttp: true` options. Model discovery and request dispatch re-check the endpoint they are about to use, so a hand-built profile or a stored route cannot bypass resolution. The opt-in accepts every risk of cleartext API keys, prompts, and tool output to that endpoint; prefer HTTPS or `ssh -N -L 8080:gateway.example:8000 user@server` with `http://127.0.0.1:8080/v1`.
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-llm-pi-ai) is the exhaustive source for every accepted field and its JSDoc.
 

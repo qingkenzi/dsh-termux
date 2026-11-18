@@ -1232,6 +1232,30 @@ it.each([
   } else await expect(adapter.listModels('deepseek')).rejects.toBe(error)
 })
 
+it('refuses to dispatch a snapshot whose endpoint would leave the machine in clear text', async () => {
+  const adapter = new PiAiAdapter({
+    profiles: () => {
+      // Build the route through the resolver, then hand back a snapshot whose
+      // opt-in was dropped: the request path must re-check the endpoint it uses.
+      const resolved = resolveProfiles({ deepseek: {
+        apiKeyEnv: 'PI_TEST_KEY',
+        baseURL: 'http://gateway.public.example/v1',
+        allowInsecureHttp: true,
+      } })
+      const profile = resolved.get('deepseek')!
+      return new Map([['deepseek', { ...profile, allowInsecureHttp: false }]])
+    },
+    resolveApiKey: () => Promise.resolve('test-key'),
+    auth: memoryAuth(),
+  })
+  const drain = async (): Promise<void> => {
+    for await (const _chunk of adapter.stream({ provider: 'deepseek', model: 'deepseek-flash', messages: [] })) {
+      // The refusal happens before any chunk is produced.
+    }
+  }
+  await expect(drain()).rejects.toMatchObject({ code: 'INSECURE_BASE_URL' })
+})
+
 it('resolves the exact pi-ai image budget for screenshot coordinates', () => {
   const adapter = adapterOf({ deepseek: { apiKeyEnv: 'PI_TEST_KEY', requestImagePixelBudget: 10_000, requestImageMaxBytes: 50_000 } })
   expect(adapter.imageRequestTarget('deepseek', 'deepseek-flash', { ...IMAGE_REF, width: 1000, height: 1000 }))

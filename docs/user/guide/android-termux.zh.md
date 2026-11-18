@@ -66,6 +66,10 @@ DSH 在启动时用 `node -e 0` 与 `$PREFIX/bin/sh -c true` 探测一次。若�
 | 内核文件沙箱 | 不可用 |
 | `pnpm run lint`、`pnpm run duplication`、覆盖率门禁 | 由 Linux CI 负责；Android 原生 binding 不可用 |
 
+## Provider 传输
+
+使用 HTTPS provider 端点；私有 HTTP 端点可通过 SSH 隧道并把 `baseURL` 指向本地回环地址。非 loopback 的明文 HTTP 会以 `INSECURE_BASE_URL` 被拒绝。若端点无法提供 TLS，只有在该 provider 上明确接受“API key、提示与工具输出明文过网”的风险后，才设置 `allowInsecureHttp: true`。
+
 ## 验证与 CI
 
 `.github/workflows/android.yml` 通过 SSH/rsync 连接真实设备的 self-hosted runner 运行 Termux lane：安装依赖、执行 `setup:android`、构建产物、运行 `check:android`，并回放可移植的 snapshot。需要内核沙箱或 CUA 的场景在 `snapshot.yml` 中声明 `requires`/`skip.android`，这些路径仍以 Linux/macOS lane 为准。Hosted Linux CI 不能替代该 lane：它无法提供 `process.platform=android`、bionic N-API 或 Android 应用数据文件系统。 注册带有 `self-hosted`、`linux`、`android-device` 标签的 runner，并把仓库 secret `DSH_ANDROID_DEVICE` 设为 Termux 设备的 SSH 目标（可选 `DSH_ANDROID_ROOT` 指定检出根目录）。runner 不存在时该 lane 会持续排队。
@@ -81,4 +85,4 @@ DSH 在启动时用 `node -e 0` 与 `$PREFIX/bin/sh -c true` 探测一次。若�
 
 ## 升级
 
-拉取源码后重新执行 `pnpm install`、`pnpm run setup:android` 与 `pnpm run build`。请保留 `~/.dsh` 备份；源码构建不会上传它。
+拉取源码后重新执行 `pnpm install`、`pnpm run setup:android` 与 `pnpm run build`。升级后旧浏览器 cookie 失效，需要重新打开登录 URL。请保留 `~/.dsh` 备份；源码构建不会上传它。

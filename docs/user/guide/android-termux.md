@@ -66,6 +66,10 @@ DSH probes this once during startup with `node -e 0` and `$PREFIX/bin/sh -c true
 | Kernel file sandbox | No |
 | `pnpm run lint`, `pnpm run duplication`, coverage gate | Linux CI; Android native bindings are unavailable |
 
+## Provider transport
+
+Use an HTTPS provider endpoint, or reach a private HTTP endpoint through an SSH tunnel and point `baseURL` at the loopback end. Plain HTTP to a non-loopback host is refused with `INSECURE_BASE_URL`. If the endpoint cannot offer TLS, set `allowInsecureHttp: true` on that provider only after accepting that API keys, prompts, and tool output cross the network in clear text.
+
 ## Verification and CI
 
 `.github/workflows/android.yml` runs the Termux lane on a self-hosted runner that reaches a real device over SSH/rsync. It installs dependencies, runs `setup:android`, builds artifacts, runs `check:android`, and replays the portable snapshots. Scenarios that need a kernel sandbox or CUA declare `requires`/`skip.android` in `snapshot.yml`; their Linux/macOS lanes remain the authority for those paths. Hosted Linux CI does not substitute for this lane: it cannot provide `process.platform=android`, bionic N-API, or the Android app-data filesystem. Register a runner labelled `self-hosted`, `linux`, and `android-device`; set the repository secret `DSH_ANDROID_DEVICE` to the SSH destination of a Termux device (and optionally `DSH_ANDROID_ROOT` to its checkout root). The lane stays queued until that runner exists.
@@ -81,4 +85,4 @@ DSH probes this once during startup with `node -e 0` and `$PREFIX/bin/sh -c true
 
 ## Upgrading
 
-Pull the source, run `pnpm install`, `pnpm run setup:android`, and `pnpm run build` again. Keep `~/.dsh` backed up; the source build does not upload it.
+Pull the source, run `pnpm install`, `pnpm run setup:android`, and `pnpm run build` again. Old browser cookies are invalid after the upgrade, so reopen the login URL. Keep `~/.dsh` backed up; the source build does not upload it.
