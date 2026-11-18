@@ -3120,7 +3120,7 @@ export interface Config {
 
 - `inject`: `sandbox`
 - `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
-- `source`: [`packages/sandbox/sandbox-startup/src/index.ts:154`](../packages/sandbox/sandbox-startup/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-startup/src/index.ts:48`](../packages/sandbox/sandbox-startup/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config. `mode` is the explicit deployment mode; the unavailable policy is required to be stated. */
