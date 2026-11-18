@@ -1,0 +1,10 @@
+version: 1
+scenarios:
+  - file: profiles/headless/tests/workspace-context-resume.expected.e2e.ts
+    requires: [sandbox]
+  - file: profiles/headless/tests/subagent-inheritance.expected.e2e.ts
+    requires: [sandbox]
+  - file: profiles/headless/tests/subagent-diagnostic.expected.e2e.ts
+    requires: [sandbox]
+  - file: profiles/headless/tests/semantic-checkpoint.expected.e2e.ts
+    requires: [sandbox]

@@ -29,10 +29,20 @@ import type { PermissionSelectInjected } from '../src/client/PermissionSelect.ts
 import { apply, inject } from '../src/client/index.ts'
 import { accessEn, accessZh } from '../src/client/locales.ts'
 
+/** Host verdict fixture: full enforcement on a bwrap host. */
+const SANDBOX_FULL = {
+  available: true,
+  backend: 'bwrap',
+  enforcement: 'full' as const,
+  reason: 'Confined processes run under bubblewrap mount namespaces; every promised file effect is enforced.',
+  remediation: 'No action needed.',
+  awaitingChoice: false,
+}
+
 const sid = (k: string): SessionId => k as SessionId
 
 const CATALOG: PermissionCatalog = {
-  defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
+  sandbox: SANDBOX_FULL, defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
   options: [
     { value: 'read-only', name: 'read-only', description: 'Reads only.' },
     { value: 'workspace-write', name: 'workspace-write' },

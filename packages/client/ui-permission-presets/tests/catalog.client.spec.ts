@@ -7,12 +7,22 @@ import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { PermissionCatalog } from '@deepseek-ai/dsh-permission-presets/client'
 import { PermissionCatalogDirectory } from '../src/client/catalog.ts'
 
+/** Host verdict fixture: full enforcement on a bwrap host. */
+const SANDBOX_FULL = {
+  available: true,
+  backend: 'bwrap',
+  enforcement: 'full' as const,
+  reason: 'Confined processes run under bubblewrap mount namespaces; every promised file effect is enforced.',
+  remediation: 'No action needed.',
+  awaitingChoice: false,
+}
+
 const FIRST: PermissionCatalog = {
-  defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
+  sandbox: SANDBOX_FULL, defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
   options: [{ value: 'read-only', name: 'Read only' }],
 }
 const SECOND: PermissionCatalog = {
-  defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
+  sandbox: SANDBOX_FULL, defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
   options: [{ value: 'workspace-write', name: 'Workspace write' }],
 }
 

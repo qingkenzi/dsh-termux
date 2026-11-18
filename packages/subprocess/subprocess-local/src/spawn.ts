@@ -12,6 +12,7 @@ import { type ChildProcess, type SpawnOptions, spawn, spawnSync } from 'node:chi
 import type { Readable } from 'node:stream'
 import { setTimeout as sleepMs } from 'node:timers/promises'
 import { scrubbedParentEnv, SubprocessError } from '@deepseek-ai/dsh-subprocess'
+import { androidSpawnFailure } from '@deepseek-ai/dsh-android-exec'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {
   SubprocessCollect,
@@ -462,7 +463,7 @@ export function bindManagedProcess(
 export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInternals = {}): LocalSubprocessHandle {
   const binding = prepareManagedProcessBinding(internals)
   const platform = internals.platform ?? process.platform
-  const [program, ...args] = spec.argv
+  const [program = '', ...args] = spec.argv
   const stdio: import('node:child_process').StdioOptions = [
     spec.stdio.stdin === 'ignore' ? 'ignore' : 'pipe',
     spec.stdio.stdout === 'inherit' ? 'inherit' : 'pipe',
@@ -472,14 +473,26 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     while (stdio.length < SUBPROCESS_CONTROL_FD) stdio.push('ignore')
     stdio.push('overlapped')
   }
-  const child = (internals.spawn ?? spawn)(program as string, args, {
-    cwd: spec.cwd,
-    env: controlEnvironment(childEnv(spec.env), spec.stdio.control),
-    stdio,
-    detached: platform !== 'win32',
-    windowsHide: platform === 'win32',
-  })
+  let child: ChildProcess
+  try {
+    child = (internals.spawn ?? spawn)(program, args, {
+      cwd: spec.cwd,
+      env: controlEnvironment(childEnv(spec.env), spec.stdio.control),
+      stdio,
+      detached: platform !== 'win32',
+      windowsHide: platform === 'win32',
+    })
+  } catch (error) {
+    // Node can throw synchronously for an unusable spawn request. Android still
+    // reports the platform's exec denial as PLATFORM_EXEC_BLOCKED, not EACCES.
+    throw platform === 'android' ? androidSpawnFailure(error, program) : error
+  }
   const direct = directChildResult(child)
+  // A platform error can still arrive after the boot probe (a mount change, a
+  // replaced interpreter); classify it as the same Android capability failure.
+  const classifiedDirect = platform === 'android'
+    ? direct.catch((error: unknown) => { throw androidSpawnFailure(error, program) })
+    : direct
   const pid = child.pid
   const owner = fallbackOwner(
     platform,
@@ -487,14 +500,14 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     child,
     internals.taskkill ?? taskkillProcessTree,
     internals.linuxProcessGroupLiveMember ?? linuxProcessGroupLiveMember,
-    direct,
+    classifiedDirect,
   )
   return bindManagedProcess(spec, {
     stdin: child.stdin,
     stdout: child.stdout,
     stderr: child.stderr,
     control: controlPipe(child, spec.stdio.control),
-    direct,
+    direct: classifiedDirect,
     owner,
   }, binding)
 }

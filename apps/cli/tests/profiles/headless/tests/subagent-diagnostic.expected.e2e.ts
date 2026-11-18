@@ -17,7 +17,8 @@ import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-l
 import { createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionSeq, SESSION_FORMAT_VERSION, type SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { describe, expect, it } from 'vitest'
+import { describe, expect } from 'vitest'
+import { expectedScenario } from '../../../expected-platform.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
 const fixtureDir = fileURLToPath(new URL('./expected/subagent-diagnostic', import.meta.url))
@@ -29,6 +30,7 @@ const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', im
 const parentId = brandString<SessionId>('subagent-diagnostic-parent')
 const childId = brandString<SessionId>('subagent-diagnostic-child')
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
+const scenario = expectedScenario(import.meta.url)
 const task = 'Call list_agents once and report what it shows.'
 
 /** Compare current normalized Session records without historical migration. */
@@ -107,7 +109,7 @@ async function seedCataloguedDescriptorlessChild(root: string, cwd: string): Pro
 }
 
 describe('parent-owned cold child catalog snapshot', () => {
-  it('discovers a descriptorless catalogued child with its tree position through the assembled headless app', async () => {
+  scenario.it('discovers a descriptorless catalogued child with its tree position through the assembled headless app', async () => {
     let cwd = ''
     const result = await runLoaderSmoke({
       label: 'subagent diagnostic headless stream-json snapshot',

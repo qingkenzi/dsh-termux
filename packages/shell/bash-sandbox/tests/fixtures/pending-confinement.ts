@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { SandboxProvider } from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 
 export const name = 'snapshot-pending-confinement'
@@ -26,6 +26,11 @@ export async function apply(ctx: Context): Promise<void> {
     }
   }
   class PendingSandbox extends SandboxProvider {
+
+    /** Test doubles report themselves available so startup composition resolves. */
+    availability(): SandboxAvailability {
+      return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
+    }
     override async confine(_argv: readonly string[], _policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv> {
       if (signal === undefined) throw new Error('foreground confinement requires a deadline signal')
       signal.throwIfAborted()

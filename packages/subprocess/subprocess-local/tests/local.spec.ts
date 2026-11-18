@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import type { IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
+import { PLATFORM_EXEC_BLOCKED, PlatformExecBlockedError } from '@deepseek-ai/dsh-android-exec'
 import type { SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { childEnv } from '../src/spawn.ts'
 import { LinuxScopeNotStartedError, signalLinuxDirectProcess } from '../src/linux-scope.ts'
@@ -107,6 +108,32 @@ describe('LocalSubprocessRuntime', () => {
       userInfo.mockRestore()
       syncBuiltinESMExports()
       await fiber?.dispose()
+    }
+  })
+
+  it('refuses local execution when the boot-time Android probe blocked exec', async () => {
+    const ctx = new Context()
+    ctx.provide('androidExec', {
+      available: false,
+      reason: PLATFORM_EXEC_BLOCKED,
+      detail: 'EACCES: permission denied, spawn /data/data/com.termux/files/usr/bin/sh',
+    })
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    try {
+      (ctx.subprocess as LocalSubprocessRuntime).internals.platform = 'android'
+      expect(() => ctx.subprocess.spawn(spec('true'))).toThrow(PlatformExecBlockedError)
+      await expect(ctx.subprocess.spawnTerminal({
+        argv: ['/data/data/com.termux/files/usr/bin/sh', '-c', 'true'],
+        cwd: process.cwd(),
+        rows: 24,
+        cols: 80,
+        terminalType: 'xterm-256color',
+        graceMs: 100,
+      })).rejects.toMatchObject({ name: 'PlatformExecBlockedError', code: PLATFORM_EXEC_BLOCKED })
+      await expect(ctx.subprocess.resolveExecutable('/data/data/com.termux/files/usr/bin/sh'))
+        .rejects.toMatchObject({ name: 'PlatformExecBlockedError', code: PLATFORM_EXEC_BLOCKED })
+    } finally {
+      await fiber.dispose()
     }
   })
 

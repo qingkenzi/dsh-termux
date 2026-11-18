@@ -158,14 +158,11 @@ export class SandboxPolicyService extends Service {
     super(ctx, 'sandboxPolicy')
     // schemastery (static Config) already filled `mode`; the cast records that
     // runtime fact. `workspaceRoot` has NO schema default, so its fallback to
-    // the process cwd is real branching, resolved absolute either way.
+    // the process cwd is real branching, resolved absolute either way. The
+    // shipped bundles resolve this mode from `ctx.sandboxStartup`, which owns
+    // the host-capability decision and its user-facing report; a deployment
+    // that states a mode here directly overrides that decision.
     this.defaultMode = config.mode as SandboxMode
-    if (process.platform === 'android' && this.defaultMode === 'danger-full-access') {
-      this.ctx.logger.warn(
-        'sandbox-policy: Android has no file-sandbox backend; this session runs with danger-full-access. '
-        + 'Set DSH_PERMISSION_MODE explicitly and review the Android/Termux limitations before running untrusted code.',
-      )
-    }
     // Execution-world spelling is preserved; enforcing providers resolve filesystem identity on their host.
     const workspaceRoot = config.workspaceRoot ?? process.cwd()
     if (!isExecutionWorldPath(workspaceRoot)) {

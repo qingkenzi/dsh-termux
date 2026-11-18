@@ -66,6 +66,7 @@
     "@deepseek-ai/dsh-http-proxy": "workspace:*",
     "@deepseek-ai/dsh-official-bundles": "workspace:*",
     "@deepseek-ai/dsh-typert-protocol": "workspace:*",
+    "@deepseek-ai/dsh-util-exclusive-publish": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "undici": "8.11.2",
     "ws": "^8.18.3",

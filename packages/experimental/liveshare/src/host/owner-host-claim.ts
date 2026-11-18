@@ -17,7 +17,8 @@
  * [owner state note](../../../../../.agents/notes/implemented/feature/2026-11-11-liveshare-owner-state-host-claim.md)
  * records why a recorded claim beats kernel arbitration.
  *
- * The claim is created exclusively (`wx`), so at most one creator wins on a local filesystem. A
+ * The claim is published exclusively (link, no-replace rename, or exclusive copy), so at most one
+ * creator wins on a local filesystem. A
  * holder is live while its recorded pid is; a record left by a process that is gone is reclaimed by
  * the next host, and so is one that names this process. The liveness check protects no share data and
  * no Session log, and pid reuse can at worst leave a live host without its shares until its next
@@ -26,8 +27,9 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { constants, copyFileSync, linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { publishExclusive } from '@deepseek-ai/dsh-util-exclusive-publish'
 import { base64Url } from './base64-url.ts'
 import { isRecord } from './wire-json.ts'
 
@@ -80,17 +82,17 @@ export function ownerHostClaimPath(dir: string): string {
  * Claim one owner state directory for this process.
  * @param dir - Directory that holds the owner state file.
  * @param options - Liveness probe override.
- * @returns The held claim.
+ * @returns The held claim; the promise rejects when the publication primitive fails.
  * @throws {OwnerHostClaimHeldError} while another live host holds the claim.
  */
-export function claimOwnerHost(dir: string, options: OwnerHostClaimOptions = {}): OwnerHostClaim {
+export async function claimOwnerHost(dir: string, options: OwnerHostClaimOptions = {}): Promise<OwnerHostClaim> {
   const path = ownerHostClaimPath(dir)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   const hostId = base64Url(randomBytes(9))
   const record = JSON.stringify({ hostId, pid: process.pid })
   const alive = options.alive ?? processAlive
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (publishClaim(path, record, hostId)) {
+    if (await publishClaim(path, record, hostId)) {
       return {
         hostId,
         release: () => { releaseClaim(path, hostId) },
@@ -116,35 +118,24 @@ export function claimOwnerHost(dir: string, options: OwnerHostClaimOptions = {})
 /**
  * Publish one claim record under its final name, or report that another record already holds it.
  *
- * The record is written beside the claim and then linked into place: a link publishes the whole file
- * it names or fails because the name exists, so no reader ever sees a claim that is not yet written.
+ * The shared exclusive-publication primitive links, renames without replacement, or copies the
+ * staged record, so a reader never sees a claim that is not yet written and an existing claim
+ * keeps its owner.
  * @param path - Claim file path.
  * @param record - Claim record to publish.
  * @param hostId - Host the record names, which names the temporary file too.
  * @returns True when this call's record now sits at the claim path.
  */
-function publishClaim(path: string, record: string, hostId: string): boolean {
+async function publishClaim(path: string, record: string, hostId: string): Promise<boolean> {
   const staged = `${path}.${hostId}.tmp`
   writeFileSync(staged, record, { mode: 0o600 })
   try {
-    linkSync(staged, path)
+    await publishExclusive(staged, path, { mode: 0o600 })
     return true
   } catch (error: unknown) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'EEXIST') return false
-    // Android's SELinux policy refuses hard links in app data. Publish an
-    // exclusive copy instead; COPYFILE_EXCL preserves the same ownership race.
-    if (code !== 'EACCES' && code !== 'EPERM' && code !== 'ENOSYS' && code !== 'EOPNOTSUPP' && code !== 'ENOTSUP') {
-      /* v8 ignore next -- POSIX-only failure path: a directory at the claim path refuses the write too. */
-      throw error
-    }
-    try {
-      copyFileSync(staged, path, constants.COPYFILE_EXCL)
-      return true
-    } catch (copyError: unknown) {
-      if ((copyError as NodeJS.ErrnoException).code === 'EEXIST') return false
-      throw copyError
-    }
+    /* v8 ignore next 2 -- a non-EEXIST publication refusal needs an IO fault; the claim race is covered. */
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false
+    throw error
   } finally {
     rmSync(staged, { force: true })
   }

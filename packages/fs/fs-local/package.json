@@ -37,10 +37,11 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-brand": "workspace:*",
-    "chokidar": "5.0.0",
-    "koffi": "3.1.1",
+    "@deepseek-ai/dsh-fs-patch": "workspace:*",
+    "@deepseek-ai/dsh-util-exclusive-publish": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
-    "@deepseek-ai/dsh-fs-patch": "workspace:*"
+    "chokidar": "5.0.0",
+    "koffi": "3.1.1"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-fs": "workspace:*",

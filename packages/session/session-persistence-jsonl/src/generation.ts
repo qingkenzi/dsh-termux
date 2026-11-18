@@ -179,6 +179,7 @@ interface GenerationFileSystem {
   readdir(path: string): Promise<string[]>
   stat(path: string): Promise<JsonlPhysicalIdentity>
   lstat(path: string): Promise<{ isFile(): boolean; isSymbolicLink(): boolean }>
+  /** Publish the staged path exclusively; a no-replace rename may consume `existingPath`. */
   link(existingPath: string, newPath: string): Promise<void>
   rm(path: string): Promise<void>
 }
@@ -219,9 +220,9 @@ const defaultFileSystem: GenerationFileSystem = {
   readdir: path => fsReaddir(path),
   stat: path => fsStat(path, { bigint: true }),
   lstat: path => fsLstat(path),
-  // Production links degrade to copyFile(COPYFILE_EXCL) on filesystems that
-  // reject hard links (e.g. Termux/Android). Tests may still inject `link` to
-  // simulate collisions directly.
+  // The shared primitive links, renames without replacement, or copies with
+  // COPYFILE_EXCL on filesystems that reject hard links (e.g. Termux/Android).
+  // Tests may still inject `link` to simulate collisions directly.
   link: (existingPath, newPath) => publishExclusive(existingPath, newPath),
   rm: path => fsRm(path, { force: true }),
 }

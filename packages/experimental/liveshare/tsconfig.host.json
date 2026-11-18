@@ -35,6 +35,7 @@
     { "path": "../../host/frontend-static" },
     {
       "path": "../../util/error"
-    }
+    },
+    { "path": "../../util/exclusive-publish" }
   ]
 }

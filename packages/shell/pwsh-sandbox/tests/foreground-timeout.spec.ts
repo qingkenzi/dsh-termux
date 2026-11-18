@@ -1,7 +1,7 @@
 /** One foreground deadline covers sandbox preparation and native execution. */
 import { Context } from '@deepseek-ai/cordis'
 import { SandboxProvider } from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
 import { LocalSubprocessRuntime } from '@deepseek-ai/dsh-subprocess-local'
@@ -25,6 +25,11 @@ async function setup() {
     return prepared.promise
   })
   class ControlledSandbox extends SandboxProvider {
+
+    /** Test doubles report themselves available so startup composition resolves. */
+    availability(): SandboxAvailability {
+      return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
+    }
     override confine(argv: readonly string[], policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv> {
       return confine(argv, policy, signal)
     }

@@ -19,6 +19,7 @@ import {
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import PermissionPresetService, { AUTO_PRESET } from '@deepseek-ai/dsh-permission-presets'
 import SandboxProvider, { type ConfinedArgv, type SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { SandboxAvailability } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import type { SessionId, SessionEvent } from '@deepseek-ai/dsh-session'
 import * as ShellEnv from '@deepseek-ai/dsh-shell-env'
@@ -56,6 +57,11 @@ interface CaseResult {
 
 /** Full access must never ask this fixture to confine a command. */
 class UnusedSandbox extends SandboxProvider {
+
+  /** Test doubles report themselves available so startup composition resolves. */
+  availability(): SandboxAvailability {
+    return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
+  }
   override async confine(_argv: readonly string[], _policy: SandboxPolicy): Promise<ConfinedArgv> {
     throw new Error('Auto certification unexpectedly requested a confining sandbox')
   }

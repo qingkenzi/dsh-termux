@@ -76,6 +76,32 @@ export interface SandboxExecutionPolicy {
 export type SandboxEnforcement = 'full' | 'partial'
 
 /**
+ * Enforcement completeness a host can ACTUALLY deliver for its confined modes,
+ * reported before any command runs. `none` means no backend confines this
+ * host, so every confined mode would fail closed.
+ */
+export type SandboxAvailabilityEnforcement = SandboxEnforcement | 'none'
+
+/**
+ * Whether this host can confine processes at all, and with what completeness.
+ * Reported by {@link SandboxProvider.availability} without running a command,
+ * so deployments can choose a default mode, and users can see what their
+ * sessions will enforce, before an operation fails closed.
+ */
+export interface SandboxAvailability {
+  /** Whether a backend can enforce at least one confined mode on this host. */
+  available: boolean
+  /** Stable identifier of the backend that would confine, or `none`. */
+  backend: string
+  /** Enforcement the selected backend achieves; `none` when unavailable. */
+  enforcement: SandboxAvailabilityEnforcement
+  /** One user-facing sentence explaining this verdict, including platform facts. */
+  reason: string
+  /** Actionable next step for a user who needs confinement on this host. */
+  remediation: string
+}
+
+/**
  * What one confined execution is allowed to touch — carried PER CALL, not
  * fixed on the provider: two consumers may confine under different policies
  * at the same instant (bash under `read-only` while a confined child agent
@@ -209,6 +235,17 @@ export abstract class SandboxProvider extends Service {
   constructor(ctx: Context) {
     super(ctx, 'sandbox')
   }
+
+  /**
+   * Report whether this host can confine processes, and how completely, before
+   * any call to {@link confine}. Implementations resolve and cache their
+   * backend selection here; a verdict that cannot be resolved reports
+   * `available: false` with the failure in {@link SandboxAvailability.reason}
+   * instead of throwing, so a deployment can explain the state and choose a
+   * default mode without catching provider failures.
+   * @returns this host's availability, its backend, enforcement, reason, and remediation.
+   */
+  abstract availability(): SandboxAvailability
 
   /**
    * Wrap `argv` so it executes confined under `policy` on this host; the

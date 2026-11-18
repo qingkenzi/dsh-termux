@@ -700,6 +700,10 @@ describe('streamWholeText', () => {
 // Windows drives only the read-only attribute through `chmod` and reports synthetic `stat` mode
 // bits, so mode assertions are POSIX-only; native DACL preservation is asserted separately.
 const posixModes = process.platform !== 'win32'
+/** A host that exposes neither hard links nor renameat2. */
+const unavailableRename = async (): Promise<void> => {
+  throw Object.assign(new Error('renameat2 unsupported'), { code: 'ENOSYS' })
+}
 
 function daclAcePolicy(descriptor: Buffer): string[] {
   const daclOffset = descriptor.readUInt32LE(16)
@@ -847,6 +851,7 @@ describe('writeFileAtomic — temp-file safety', () => {
 
       await writeFileAtomic(file, 'copied content', 0o640, undefined, {
         linkFile: async () => { throw refused },
+        renameNoReplaceFile: unavailableRename,
         copyExclusiveFile: async (source, destination, flags) => {
           expect(flags).toBe(constants.COPYFILE_EXCL)
           expect(await readFile(source, 'utf8')).toBe('copied content')
@@ -862,12 +867,33 @@ describe('writeFileAtomic — temp-file safety', () => {
     },
   )
 
+  it('publishes through renameat2 when the host refuses hard links', async () => {
+    const file = join(dir, 'renamed.txt')
+    const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
+    let renamed = false
+
+    await writeFileAtomic(file, 'renamed content', 0o640, undefined, {
+      linkFile: async () => { throw refused },
+      renameNoReplaceFile: async (source, destination) => {
+        renamed = true
+        await rename(source, destination)
+      },
+      copyExclusiveFile: async () => { throw new Error('the copy must not run') },
+    }, { displayPath: file, createIfAbsent: true })
+
+    expect(renamed).toBe(true)
+    expect(await readFile(file, 'utf8')).toBe('renamed content')
+    if (posixModes) expect((await stat(file)).mode & 0o777).toBe(0o640)
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
   it.skipIf(!posixModes)('publishes a copied new file owner-only when no mode is requested', async () => {
     const file = join(dir, 'default-mode.txt')
     const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
 
     await writeFileAtomic(file, 'owner only', undefined, undefined, {
       linkFile: async () => { throw refused },
+      renameNoReplaceFile: unavailableRename,
     }, { displayPath: file, createIfAbsent: true })
 
     expect((await stat(file)).mode & 0o777).toBe(0o600)
@@ -876,7 +902,7 @@ describe('writeFileAtomic — temp-file safety', () => {
   it('rejects a second copied create of the same path and keeps the first file', async () => {
     const file = join(dir, 'once.txt')
     const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
-    const internals = { linkFile: async () => { throw refused } }
+    const internals = { linkFile: async () => { throw refused }, renameNoReplaceFile: unavailableRename }
 
     await writeFileAtomic(file, 'first', undefined, undefined, internals, { displayPath: file, createIfAbsent: true })
     await expect(writeFileAtomic(file, 'second', undefined, undefined, internals, { displayPath: file, createIfAbsent: true }))
@@ -895,6 +921,7 @@ describe('writeFileAtomic — temp-file safety', () => {
 
     await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
       linkFile: async () => { throw refused },
+      renameNoReplaceFile: unavailableRename,
       copyExclusiveFile: async () => { throw collision },
     }, { displayPath: file, createIfAbsent: true })).rejects.toMatchObject({
       code: 'FS_NOT_OBSERVED',
@@ -912,6 +939,7 @@ describe('writeFileAtomic — temp-file safety', () => {
 
     await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
       linkFile: async () => { throw refused },
+      renameNoReplaceFile: unavailableRename,
       copyExclusiveFile: async () => { throw copyFailure },
     }, { displayPath: file, createIfAbsent: true })).rejects.toMatchObject({
       code: 'FS_IO_ERROR',

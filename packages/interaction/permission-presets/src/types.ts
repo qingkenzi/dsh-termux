@@ -20,6 +20,31 @@ export interface PresetOption {
 }
 
 /**
+ * Enforcement a host actually delivers for its confined modes. `none` means no
+ * backend confines this host, so confined presets would fail closed.
+ */
+export type SandboxAvailabilityEnforcementView = 'full' | 'partial' | 'none'
+
+/**
+ * This host's sandbox availability as the client presents it. The values come
+ * from the process-level startup decision, not from Session history.
+ */
+export interface SandboxAvailabilityView {
+  /** Whether a backend can enforce at least one confined mode on this host. */
+  available: boolean
+  /** Stable identifier of the backend that would confine, or `none`. */
+  backend: string
+  /** Enforcement the backend achieves; `none` when unavailable. */
+  enforcement: SandboxAvailabilityEnforcementView
+  /** One user-facing sentence explaining the verdict. */
+  reason: string
+  /** Actionable next step for a user who needs confinement. */
+  remediation: string
+  /** Whether unconfined work waits for an explicit user choice behind per-action approval. */
+  awaitingChoice: boolean
+}
+
+/**
  * Process-level permission catalog. It changes with live contributions and is
  * deliberately separate from Session history.
  */
@@ -30,6 +55,8 @@ export interface PermissionCatalog {
   defaultOptions: PresetOption[]
   /** Effective default when the Config field is omitted. */
   defaultPreset: string
+  /** What this host can actually enforce behind those presets. */
+  sandbox: SandboxAvailabilityView
 }
 
 /** Whole `permissions` Session projection: current durable selection only. */

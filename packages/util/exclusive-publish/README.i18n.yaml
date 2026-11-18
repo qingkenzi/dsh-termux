@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/util/exclusive-publish/README.md
+/:
+  en: b0a1a1ac89eb59ab
+  zh: 852580ead6f6d908
+/deepseek-ai-dsh-util-exclusive-publish:
+  en: ccb1e220cde847f7
+  zh: 35ba8e58d32b64eb
+/deepseek-ai-dsh-util-exclusive-publish/summary:
+  en: 1be0999ccd23bed8
+  zh: 6ebe32aadee049b7
+/deepseek-ai-dsh-util-exclusive-publish/table-of-contents:
+  en: 80b31a934611cb4a
+  zh: 05f3f7f9cb2fd881
+/deepseek-ai-dsh-util-exclusive-publish/use-this-package:
+  en: 7956d72967665c75
+  zh: 7d34c088d0545ea2
+/deepseek-ai-dsh-util-exclusive-publish/use-this-package/failures-to-plan-for:
+  en: b90fa3761b247c73
+  zh: 987a156ad6142c46
+/deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/source-map:
+  en: d3038a47907a4032
+  zh: 69ee8171fbec3787
+/deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/publication-order:
+  en: 2d6cdb4d07874802
+  zh: 49a6ef6a741b321b
+/deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/why-the-three-paths-share-one-contract:
+  en: 59b66358204eecb6
+  zh: 3804be3ce97ab118
+/deepseek-ai-dsh-util-exclusive-publish/further-exploration:
+  en: 6b7631ae281f39e3
+  zh: 60476db0f2040ca2
+/deepseek-ai-dsh-util-exclusive-publish/known-limitations-and-deferred-work:
+  en: 04369baf620d7adb
+  zh: 8f500c44ebde2385
+/deepseek-ai-dsh-util-exclusive-publish/known-limitations-and-deferred-work/dev-note:
+  en: 9b9ac5460cd3c3b6
+  zh: c1dd7e125ca29525

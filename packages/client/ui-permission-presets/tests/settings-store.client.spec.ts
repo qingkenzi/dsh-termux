@@ -17,7 +17,11 @@ const SCHEMA = {
   },
 }
 
-const catalog = { options: [], defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'Workspace' }] }
+const catalog = {
+  options: [], defaultPreset: 'read-only',
+  defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'Workspace' }],
+  sandbox: { available: true, backend: 'test', enforcement: 'full' as const, reason: '', remediation: '', awaitingChoice: false },
+}
 const directory = { store: createSnapshotStore({ value: catalog }), load: () => Promise.resolve(catalog) }
 
 function resolveDefault(view: SettingsNamespaceView) {

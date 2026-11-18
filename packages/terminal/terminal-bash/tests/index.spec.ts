@@ -7,7 +7,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SessionStore, { SESSION_FORMAT_VERSION, Session, type SessionId } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import SandboxProvider from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TerminalSessionService, { TerminalBackendCleanupError, type TerminalSessionId } from '@deepseek-ai/dsh-terminal'
@@ -27,12 +27,22 @@ import type {
 import { brandString } from '@deepseek-ai/dsh-brand'
 
 class EmptySandbox extends SandboxProvider {
+
+  /** Test doubles report themselves available so startup composition resolves. */
+  availability(): SandboxAvailability {
+    return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
+  }
   async confine(_argv: readonly string[], _policy: SandboxPolicy): Promise<ConfinedArgv> {
     return { argv: [], enforcement: 'full', denialSignatures: [], runnerFailureRules: [] }
   }
 }
 
 class RecordingSandbox extends SandboxProvider {
+
+  /** Test doubles report themselves available so startup composition resolves. */
+  availability(): SandboxAvailability {
+    return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
+  }
   calls: { argv: readonly string[]; policy: SandboxPolicy }[] = []
 
   async confine(argv: readonly string[], policy: SandboxPolicy): Promise<ConfinedArgv> {

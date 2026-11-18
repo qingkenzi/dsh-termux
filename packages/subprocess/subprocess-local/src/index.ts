@@ -17,6 +17,13 @@ import { Context } from '@deepseek-ai/cordis'
 import type * as NodePty from 'node-pty'
 import type { IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty'
 import { createLazyRequire } from '@deepseek-ai/dsh-lazy-require'
+import {
+  PLATFORM_EXEC_BLOCKED,
+  PlatformExecBlockedError,
+  androidExecBlockedMessage,
+  androidSpawnFailure,
+  type AndroidExecProbeResult,
+} from '@deepseek-ai/dsh-android-exec'
 import { SubprocessRuntime, SubprocessError, SubprocessExecutableNotFoundError } from '@deepseek-ai/dsh-subprocess'
 import type {
   SubprocessHandle,
@@ -115,6 +122,20 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
   /** Spill failures reach the plugin logger; the log line is the only trace of why a result has no spill path. */
   private readonly reportSpillFailure = logSpillFailure(this.ctx.logger, 'subprocess-local')
 
+  /**
+   * Refuse a local execution when the boot-time Android probe proved child
+   * processes cannot start. A missing interpreter or an inconclusive probe
+   * keeps the normal error path; only a denied exec terminates the capability.
+   * @param program - executable the caller asked to start.
+   * @throws PlatformExecBlockedError when the published probe reports `PLATFORM_EXEC_BLOCKED`.
+   */
+  private assertExecAvailable(program: string): void {
+    if ((this.internals.platform ?? process.platform) !== 'android') return
+    const probe: AndroidExecProbeResult | undefined = this.ctx.get('androidExec')
+    if (probe?.reason !== PLATFORM_EXEC_BLOCKED) return
+    throw new PlatformExecBlockedError(androidExecBlockedMessage(program, probe.detail))
+  }
+
   private terminateForHostExit(): void {
     for (const handle of this.live) {
       try {
@@ -171,6 +192,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     signal?: AbortSignal,
   ): Promise<string> {
     if (command.length === 0) throw new Error('subprocess-local: executable must be non-empty')
+    this.assertExecAvailable(command)
     signal?.throwIfAborted()
     const environment = childEnv(env)
     const absolute = isAbsolute(command)
@@ -209,6 +231,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
 
   spawn(spec: SubprocessSpawnSpec): SubprocessHandle {
     validateSubprocessSpec(spec)
+    this.assertExecAvailable(spec.argv[0] ?? '')
     const env = targetEnvironment(spec)
     const containmentMode = this.selectContainmentMode('ordinary')
     let handle: LocalSubprocessHandle
@@ -307,6 +330,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     if (file === undefined || file.length === 0) {
       throw new SubprocessError('subprocess-local: terminal argv must contain a program', 'SUBPROCESS_INVALID_ARGV')
     }
+    this.assertExecAvailable(file)
     spec.signal?.throwIfAborted()
     const inspector = this.terminalInspector ?? createProcessInspector()
     const containmentMode = this.selectContainmentMode('terminal')
@@ -342,7 +366,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     } catch (error) {
       scope?.cleanup()
       activity?.dispose()
-      throw error
+      throw (this.internals.platform ?? process.platform) === 'android' ? androidSpawnFailure(error, file) : error
     }
     // oxlint-disable-next-line eslint/prefer-const -- The owner can query readiness before the handle is published.
     let handle: LocalTerminalHandle | undefined

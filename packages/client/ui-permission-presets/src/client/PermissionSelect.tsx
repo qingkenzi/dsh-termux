@@ -9,7 +9,7 @@ import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PresetOption } from '@deepseek-ai/dsh-permission-presets/client'
+import type { PresetOption, SandboxAvailabilityView } from '@deepseek-ai/dsh-permission-presets/client'
 // Type-only: pulls the conversation-owned permission slot declaration and
 // the standard session projection hook into this package's Client face.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -48,6 +48,26 @@ function permissionLabel(
 
 function optionBadge(value: string, t: PermissionSelectProps['t']): string | undefined {
   return value === AUTO_REVIEW ? t('auto.badge') : undefined
+}
+
+/**
+ * Enforcement suffix shown on the chip: the current preset alone would claim a
+ * boundary this host does not deliver.
+ * @param availability - this host's availability view from the process catalog.
+ * @param t - current-session dictionary lookup.
+ * @returns the suffix to append after the preset label, or undefined under full enforcement.
+ */
+function enforcementSuffix(
+  availability: SandboxAvailabilityView,
+  t: PermissionSelectProps['t'],
+): string | undefined {
+  if (!availability.available) return t('availability.none')
+  return availability.enforcement === 'full' ? undefined : t('availability.partial')
+}
+
+/** Full user-facing explanation of the host verdict: reason first, then the next step. */
+function availabilityDetail(availability: SandboxAvailabilityView): string {
+  return `${availability.reason} ${availability.remediation}`.trim()
 }
 
 /** Resolve locale-owned copy for the shipped Auto option; preserve host copy for other presets. */
@@ -101,8 +121,20 @@ export function PermissionSelect({
     ? permissionLabel(currentValue, currentValue, t)
     : permissionLabel(current.value, current.name, t)
   const busy = pick !== null || confirmation !== null
+  const { sandbox: availability } = catalog
+  const suffix = enforcementSuffix(availability, t)
+  const degraded = suffix !== undefined
+  // The picker restates the verdict the chip compresses, so a user who opens it
+  // reads the reason and the remediation without leaving the composer.
+  const availabilityRows: MenuEntry[] = degraded
+    ? [
+      { type: 'label', id: 'sandbox-availability', text: `${currentLabel} · ${suffix ?? ''}` },
+      { type: 'label', id: 'sandbox-reason', text: availabilityDetail(availability) },
+      { type: 'separator', id: 'sandbox-availability-end' },
+    ]
+    : []
 
-  const items: MenuEntry[] = catalog.options.map((option) => {
+  const items: MenuEntry[] = availabilityRows.concat(catalog.options.map((option) => {
     const icon = permissionGlyph(option.value)
     const label = permissionLabel(option.value, option.name, t)
     const badge = optionBadge(option.value, t)
@@ -118,7 +150,7 @@ export function PermissionSelect({
         ),
       ...icon === undefined ? {} : { icon },
     }
-  })
+  }))
 
   const submit = (id: string): void => {
     setPick(id)
@@ -175,15 +207,20 @@ export function PermissionSelect({
           <button
             type="button"
             className={css.trigger}
-            aria-label={t('mode', { name: currentLabel })}
-            title={current === undefined ? undefined : optionDescription(current, t)}
+            aria-label={t('mode', { name: suffix === undefined ? currentLabel : `${currentLabel} · ${suffix}` })}
+            title={degraded
+              ? availabilityDetail(availability)
+              : current === undefined ? undefined : optionDescription(current, t)}
             disabled={locked || busy}
             onClick={() => { setOpen(!open) }}
           >
             {permissionGlyph(currentValue) !== undefined && (
               <span className={css.triggerIcon} aria-hidden>{permissionGlyph(currentValue)}</span>
             )}
-            <span className={css.triggerLabel}>{currentLabel}</span>
+            <span className={clsx(css.triggerLabel, degraded && css.triggerLabelDegraded)}>
+              {currentLabel}
+              {suffix !== undefined && <span className={css.triggerSuffix}>{` · ${suffix}`}</span>}
+            </span>
             <span className={clsx(css.chevron, open && css.chevronOpen)} aria-hidden>
               <IconChevronDownOutlineRegular />
             </span>

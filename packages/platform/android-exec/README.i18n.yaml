@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/platform/android-exec/README.md
+/:
+  en: 2d3cecbf6b82b29f
+  zh: c575eab25dff864d
+/deepseek-ai-dsh-android-exec:
+  en: 642f2d20956413dc
+  zh: 6fdfcc8a53e3c146
+/deepseek-ai-dsh-android-exec/summary:
+  en: b7233934706724af
+  zh: 43b1bf40940977de
+/deepseek-ai-dsh-android-exec/table-of-contents:
+  en: 80b31a934611cb4a
+  zh: 05f3f7f9cb2fd881
+/deepseek-ai-dsh-android-exec/use-this-package:
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
+/deepseek-ai-dsh-android-exec/use-this-package/when-to-use-it:
+  en: 07903142c42271bf
+  zh: 99abbd46b789e164
+/deepseek-ai-dsh-android-exec/use-this-package/entry-point:
+  en: 6b4dd38ba8eff3c5
+  zh: 3917da3b81eb9bc6
+/deepseek-ai-dsh-android-exec/understand-the-implementation:
+  en: c870bf9f95473149
+  zh: 42369474d2ba0029
+/deepseek-ai-dsh-android-exec/further-exploration:
+  en: 494cdf4a43e233d8
+  zh: bc6c4d0c553c80dc
+/deepseek-ai-dsh-android-exec/known-limitations-and-deferred-work:
+  en: 4c85823790caf828
+  zh: cc9334145b2a8985
+/deepseek-ai-dsh-android-exec/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

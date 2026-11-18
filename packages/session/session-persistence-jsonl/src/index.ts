@@ -1353,11 +1353,11 @@ class JsonlSessionPersistence extends SessionPersistence {
     await this.syncDirPosix(project)
     await this.rejectExistingLog(finalPath, id)
     const tmp = await this.writeSyncedTempFile(finalPath, content)
-    // Publish without rename(): publishExclusive appears the new entry only
+    // Publish without replacement: publishExclusive appears the new entry only
     // when the target is absent and fails with EEXIST otherwise, so two
     // processes materializing the same id concurrently cannot clobber each
-    // other. Its copy fallback keeps that exclusivity and never replaces an
-    // existing target.
+    // other. The shared primitive's no-replace rename and exclusive copy keep
+    // that exclusivity and never replace an existing target.
     let published = false
     try {
       await publishExclusive(tmp, finalPath)

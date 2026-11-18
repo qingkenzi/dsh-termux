@@ -25,6 +25,9 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { SANDBOX_MODES, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+// Type-only: the optional startup authority publishes the host availability
+// this catalog exposes, and the event that invalidates it.
+import type {} from '@deepseek-ai/dsh-sandbox-startup'
 // Side-effect type import: declaration-merges `ctx.shell` (the capability fact
 // `sandboxMode` this service reads), without a value dependency on the seam.
 import type {} from '@deepseek-ai/dsh-shell'
@@ -33,7 +36,7 @@ import { APPROVAL_POLICIES, setApprovalPolicy } from '@deepseek-ai/dsh-user-appr
 // Type-only: resolves the required projection service and optional settings/command children.
 import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-commands'
-import type { PermissionCatalog, PermissionSelection, PresetOption } from './types.ts'
+import type { PermissionCatalog, PermissionSelection, PresetOption, SandboxAvailabilityView } from './types.ts'
 
 export type * from './types.ts'
 
@@ -234,6 +237,9 @@ export class PermissionPresetService extends TypertRemoteService {
     ctx.on('agent/created', ({ agent }) => {
       this.pinInitialPermission(agent.session)
     }, { prepend: true })
+    // A new host verdict changes what the catalog can honestly promise, so the
+    // client re-reads the complete catalog through its existing subscription.
+    ctx.on('sandbox/availability-changed', () => { this.emitCatalogChanged() })
     const selectionSchema = zod.object({
       currentValue: zod.string().min(1),
     }) as zod.ZodType<PermissionSelection>
@@ -295,6 +301,50 @@ export class PermissionPresetService extends TypertRemoteService {
       options: this.names.map(name => this.optionOf(name)),
       defaultOptions: Object.keys(this.presets).map(name => this.optionOf(name)),
       defaultPreset: this.defaultSettings().defaultPreset,
+      sandbox: this.sandboxAvailability(),
+    }
+  }
+
+  /**
+   * This host's availability view for the catalog. The startup authority owns
+   * the verdict when composed; otherwise the mounted provider is asked
+   * directly, and a composition with neither reports no confinement. Pending
+   * user choice is only visible through the startup authority, because it is
+   * the service that resolves the unconfined default.
+   * @returns availability, backend, enforcement, reason, remediation, and whether a choice is pending.
+   */
+  private sandboxAvailability(): SandboxAvailabilityView {
+    const startup = this.ctx.get('sandboxStartup')
+    if (startup !== undefined) {
+      const { availability } = startup
+      return {
+        available: availability.available,
+        backend: availability.backend,
+        enforcement: availability.enforcement,
+        reason: availability.reason,
+        remediation: availability.remediation,
+        awaitingChoice: startup.awaitingChoice,
+      }
+    }
+    const sandbox = this.ctx.get('sandbox')
+    if (sandbox !== undefined) {
+      const availability = sandbox.availability()
+      return {
+        available: availability.available,
+        backend: availability.backend,
+        enforcement: availability.enforcement,
+        reason: availability.reason,
+        remediation: availability.remediation,
+        awaitingChoice: false,
+      }
+    }
+    return {
+      available: false,
+      backend: 'none',
+      enforcement: 'none',
+      reason: 'No sandbox provider and no sandbox startup authority are composed in this deployment.',
+      remediation: 'Compose @deepseek-ai/dsh-sandbox-local and @deepseek-ai/dsh-sandbox-startup to confine processes.',
+      awaitingChoice: false,
     }
   }
 

@@ -12,10 +12,20 @@ import {
 import type { PermissionCatalogState } from '../src/client/catalog.ts'
 import { accessZh } from '../src/client/locales.ts'
 
+/** Host verdict fixture: full enforcement on a bwrap host. */
+const SANDBOX_FULL = {
+  available: true,
+  backend: 'bwrap',
+  enforcement: 'full' as const,
+  reason: 'Confined processes run under bubblewrap mount namespaces; every promised file effect is enforced.',
+  remediation: 'No action needed.',
+  awaitingChoice: false,
+}
+
 afterEach(cleanup)
 
 const CATALOG: PermissionCatalog = {
-  defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
+  sandbox: SANDBOX_FULL, defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
   options: [
     { value: 'read-only', name: 'read-only' },
     { value: 'workspace-write', name: 'workspace-write' },
@@ -94,7 +104,7 @@ describe('PermissionSelect', () => {
 
   it('preserves host labels and ignores the already-current row', () => {
     const catalog: PermissionCatalog = {
-      defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
+      sandbox: SANDBOX_FULL, defaultPreset: 'read-only', defaultOptions: [{ value: 'read-only', name: 'read-only' }, { value: 'workspace-write', name: 'workspace-write' }, { value: 'danger-full-access', name: 'danger-full-access' }],
       options: [
         { value: 'workspace-write', name: 'Project Files' },
         { value: 'danger-full-access', name: 'Operator Mode' },
@@ -237,5 +247,46 @@ describe('PermissionSelect', () => {
     expect(trigger().textContent).toBe('Custom')
     act(() => { selection.set({ value: { currentValue: 'workspace-write' } }) })
     expect(trigger().textContent).toBe('工作区内修改')
+  })
+  it('shows the enforcement verdict beside the preset and explains it in the picker', () => {
+    const catalog: PermissionCatalog = {
+      ...CATALOG,
+      sandbox: {
+        available: true,
+        backend: 'landlock',
+        enforcement: 'partial',
+        reason: 'Landlock ABI 3 cannot govern every promised file effect.',
+        remediation: 'Use a full-enforcement host for an absolute boundary.',
+        awaitingChoice: false,
+      },
+    }
+    setup({ catalog })
+    expect(trigger().textContent).toBe('工作区内修改 · 部分强制')
+    expect(trigger().title).toContain('Landlock ABI 3 cannot govern every promised file effect.')
+    expect(trigger().title).toContain('Use a full-enforcement host for an absolute boundary.')
+    fireEvent.click(trigger())
+    const labels = screen.getAllByText(/Landlock ABI 3|Use a full-enforcement host/u).map(node => node.textContent)
+    expect(labels).toEqual([
+      'Landlock ABI 3 cannot govern every promised file effect. Use a full-enforcement host for an absolute boundary.',
+    ])
+    expect(screen.getAllByRole('menuitem')).toHaveLength(4)
+  })
+
+  it('shows no sandbox on the chip when the host has no backend', () => {
+    const catalog: PermissionCatalog = {
+      ...CATALOG,
+      sandbox: {
+        available: false,
+        backend: 'none',
+        enforcement: 'none',
+        reason: 'No file-sandbox backend is usable on android: Android exposes no runner chain.',
+        remediation: 'Run with danger-full-access only when unconfined file effects are acceptable.',
+        awaitingChoice: true,
+      },
+    }
+    setup({ catalog })
+    expect(trigger().textContent).toBe('工作区内修改 · 无沙箱')
+    fireEvent.click(trigger())
+    expect(screen.getAllByRole('menuitem')).toHaveLength(4)
   })
 })

@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import { SandboxProvider } from '@deepseek-ai/dsh-sandbox'
 
 const NOTICE = 'landlock-run: partial enforcement (older Landlock ABI)'
@@ -12,6 +12,17 @@ const MISSING_RUNNER_ENV = 'DSH_SNAPSHOT_MISSING_SANDBOX_RUNNER'
  * aligned with `RUNNER_FAILURE_RULES` in `packages/sandbox/sandbox-local/src/index.ts`.
  */
 export default class PartialLandlockSandboxProvider extends SandboxProvider {
+  /** The fixture reproduces an older-ABI Landlock host, so it reports partial enforcement. */
+  availability(): SandboxAvailability {
+    return {
+      available: true,
+      backend: 'snapshot-landlock',
+      enforcement: 'partial',
+      reason: 'Snapshot fixture reproducing older-ABI Landlock enforcement.',
+      remediation: 'none (test fixture)',
+    }
+  }
+
   async confine(argv: readonly string[], policy: SandboxPolicy): Promise<ConfinedArgv> {
     if (process.env[MISSING_RUNNER_ENV] === '1') {
       return {

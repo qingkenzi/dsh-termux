@@ -19,7 +19,8 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { createMessage, createUserMessage, type ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionSeq, SESSION_FORMAT_VERSION, type SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { describe, expect, it } from 'vitest'
+import { describe, expect } from 'vitest'
+import { expectedScenario } from '../../../expected-platform.ts'
 
 const fixtureDir = fileURLToPath(new URL('./expected/subagent-inheritance', import.meta.url))
 const replayOverride = join(fixtureDir, 'replay.override.json')
@@ -33,6 +34,7 @@ const binScript = fileURLToPath(new URL('../../../../../../packages/test-support
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const sessionId = brandString<SessionId>('subagent-inheritance-parent')
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
+const scenario = expectedScenario(import.meta.url)
 const task = 'Delegate the write probe to a subagent.'
 
 /** Compare current normalized Session records without historical migration. */
@@ -95,7 +97,7 @@ async function seedReadOnlyParent(root: string, cwd: string): Promise<void> {
 }
 
 describe('parent-only override inheritance snapshot', () => {
-  it('confines a delegated child through the assembled headless app', async () => {
+  scenario.it('confines a delegated child through the assembled headless app', async () => {
     let cwd = ''
     const result = await runLoaderSmoke({
       label: 'subagent inheritance headless stream-json snapshot',
