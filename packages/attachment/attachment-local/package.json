@@ -39,6 +39,7 @@
   "dependencies": {
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-lazy-require": "workspace:*",
+    "@deepseek-ai/dsh-util-exclusive-publish": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "sharp": "0.35.5"
   },

@@ -14,7 +14,7 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readdir, realpath, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -34,6 +34,7 @@ import {
 } from '@deepseek-ai/dsh-session-persistence'
 import { JsonlBackendTracker, JsonlSessionHandle, type StorageHandleState } from './storage.ts'
 import { SessionWriteLease } from './lease.ts'
+import { publishExclusive } from './publish.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { SESSION_FORMAT_VERSION, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId, SessionHeader, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
@@ -1412,30 +1413,31 @@ export class JsonlSessionPersistence extends SessionPersistence {
     await this.syncDirPosix(project)
     await this.rejectExistingLog(finalPath, id)
     const tmp = await this.writeSyncedTempFile(finalPath, content)
-    // Publish via link()+unlink(), NOT rename(): link fails with EEXIST if the
-    // final path already exists, so two processes materializing the same id
-    // concurrently cannot clobber each other. rename() would silently overwrite.
-    let linked = false
+    // Publish without replacement: publishExclusive links the staged inode, or
+    // copies it exclusively where the filesystem refuses hard links, and fails
+    // with EEXIST when the target exists. Two processes materializing the same
+    // id therefore cannot clobber each other.
+    let published = false
     try {
-      await link(tmp, finalPath)
-      linked = true
+      await publishExclusive(tmp, finalPath)
+      published = true
     } finally {
       // Remove an unpublished temp on failure. After publication, defer cleanup
       // until the directory entry is durable so cleanup cannot reject a live log.
-      /* v8 ignore next -- link failure is the TOCTOU/IO race guarded above; not reachable in test */
-      if (!linked) await rm(tmp, { force: true })
+      /* v8 ignore next -- publish failure is the TOCTOU/IO race guarded above; not reachable in test */
+      if (!published) await rm(tmp, { force: true })
     }
-    // link() succeeded — the log is published. fsync the directory so the new
-    // entry survives a power loss: the new link is not crash-durable until the
-    // parent directory's metadata is synced.
+    // The log is published. fsync the directory so the new entry survives a
+    // power loss: a new directory entry is not crash-durable until the parent
+    // directory's metadata is synced.
     await this.syncDirPosix(dir)
     // Best-effort temp cleanup: the log is already published and durable, so a
-    // failure to remove the redundant temp hard link must NOT reject the
-    // append. Swallow only the rm failure; nothing else of consequence runs here.
+    // failure to remove the redundant temp file must NOT reject the append.
+    // Swallow only the rm failure; nothing else of consequence runs here.
     try {
       await rm(tmp, { force: true })
     } catch (_redundantTempRemoveFailed) {
-      /* v8 ignore next -- redundant temp link; publish already durable, rm failure is an unreachable IO edge */
+      /* v8 ignore next -- redundant temp file; publish already durable, rm failure is an unreachable IO edge */
     }
   }
   /* v8 ignore stop */

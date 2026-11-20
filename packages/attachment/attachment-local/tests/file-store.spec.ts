@@ -113,10 +113,18 @@ describe('saveFileVerbatim', () => {
     expect(again).toEqual(first)
     const renamed = await saveFileVerbatim(root, { data, name: 'b.txt' })
     expect(renamed.attachmentId).toBe(first.attachmentId)
-    expect((await stat(storedFilePath(root, first))).ino)
-      .toBe((await stat(storedFilePath(root, renamed))).ino)
     const digestDir = join(root, 'files', sha256(data).slice(0, 2), sha256(data))
     expect((await readdir(digestDir)).sort()).toEqual(['a.txt', 'b.txt'])
+  })
+
+  // Android 应用数据禁止硬链接，去重退回复制后 inode 必然不同；内容去重语义仍由相邻用例覆盖。
+  it.skipIf(process.platform === 'android')('shares one inode across deduplicated names', async () => {
+    const root = await makeRoot()
+    const data = Uint8Array.from([7, 7, 7])
+    const first = await saveFileVerbatim(root, { data, name: 'a.txt' })
+    const renamed = await saveFileVerbatim(root, { data, name: 'b.txt' })
+    expect((await stat(storedFilePath(root, first))).ino)
+      .toBe((await stat(storedFilePath(root, renamed))).ino)
   })
 
   it('refuses a stored object whose bytes no longer match the digest', async () => {

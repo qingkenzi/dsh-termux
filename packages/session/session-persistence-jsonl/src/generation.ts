@@ -10,7 +10,6 @@
 import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { createHash, randomBytes } from 'node:crypto'
 import {
-  link as fsLink,
   lstat as fsLstat,
   open as fsOpen,
   readFile as fsReadFile,
@@ -28,6 +27,7 @@ import { constants, createZstdCompress } from 'node:zlib'
 import { validateSessionLog } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { BlockAssembler, expandAssistantStream } from '@deepseek-ai/dsh-llm'
+import { publishExclusive } from './publish.ts'
 import { SessionFormatError } from '@deepseek-ai/dsh-session-format'
 import type {
   SessionFormatArtifact,
@@ -179,6 +179,7 @@ interface GenerationFileSystem {
   readdir(path: string): Promise<string[]>
   stat(path: string): Promise<JsonlPhysicalIdentity>
   lstat(path: string): Promise<{ isFile(): boolean; isSymbolicLink(): boolean }>
+  /** Publish `existingPath` at `newPath` exclusively, failing with EEXIST when the target exists. */
   link(existingPath: string, newPath: string): Promise<void>
   rm(path: string): Promise<void>
 }
@@ -219,7 +220,10 @@ const defaultFileSystem: GenerationFileSystem = {
   readdir: path => fsReaddir(path),
   stat: path => fsStat(path, { bigint: true }),
   lstat: path => fsLstat(path),
-  link: fsLink,
+  // The shared primitive links the staged inode, or copies it with
+  // COPYFILE_EXCL on filesystems that refuse hard links (e.g. Termux/Android).
+  // Tests may still inject `link` to simulate collisions directly.
+  link: (existingPath, newPath) => publishExclusive(existingPath, newPath),
   rm: path => fsRm(path, { force: true }),
 }
 
