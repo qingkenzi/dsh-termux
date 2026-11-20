@@ -23,7 +23,6 @@ beforeEach(() => {
   Reflect.deleteProperty(process.versions, 'electron')
   Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: originalPlatform })
   process.execPath = originalExecPath
-  delete process.env.DSH_RG_PATH
 })
 
 afterEach(() => {
@@ -31,7 +30,6 @@ afterEach(() => {
   Reflect.deleteProperty(process.versions, 'electron')
   Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: originalPlatform })
   process.execPath = originalExecPath
-  delete process.env.DSH_RG_PATH
 })
 
 describe('ripgrep resolution', () => {
@@ -60,7 +58,6 @@ describe('ripgrep resolution', () => {
   })
 
   it('uses the dependency binary in an ordinary Node process', async () => {
-    Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: 'linux' })
     existsSync.mockReturnValue(true)
     const { resolveRgPath } = await import('@deepseek-ai/dsh-util-ripgrep')
 
@@ -69,7 +66,6 @@ describe('ripgrep resolution', () => {
   })
 
   it('uses the dependency binary when a packaged runtime has no sidecar', async () => {
-    Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: 'linux' })
     Reflect.defineProperty(process, 'pkg', { configurable: true, value: {} })
     existsSync.mockReturnValue(false)
     const { resolveRgPath } = await import('@deepseek-ai/dsh-util-ripgrep')
@@ -83,7 +79,6 @@ describe('ripgrep resolution', () => {
   })
 
   it('uses the unpacked executable path for an Electron ASAR dependency', async () => {
-    Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: 'linux' })
     Reflect.defineProperty(process.versions, 'electron', { configurable: true, value: '44.0.0' })
     dependency.rgPath = '/Applications/DeepSeek Harness.app/Contents/Resources/app.asar/dsh/node_modules/@vscode/ripgrep/bin/rg'
     const { resolveRgPath } = await import('@deepseek-ai/dsh-util-ripgrep')
@@ -91,23 +86,5 @@ describe('ripgrep resolution', () => {
     await expect(resolveRgPath()).resolves.toBe(
       '/Applications/DeepSeek Harness.app/Contents/Resources/app.asar.unpacked/dsh/node_modules/@vscode/ripgrep/bin/rg',
     )
-  })
-
-  it('uses DSH_RG_PATH on Android before the packaged dependency', async () => {
-    Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: 'android' })
-    process.env.DSH_RG_PATH = '/data/vendor/rg'
-    existsSync.mockReturnValue(true)
-    const { resolveRgPath } = await import('@deepseek-ai/dsh-util-ripgrep')
-
-    await expect(resolveRgPath()).resolves.toBe('/data/vendor/rg')
-    expect(existsSync).toHaveBeenCalledWith('/data/vendor/rg')
-  })
-
-  it('uses the bundled Android prebuild when no explicit path is configured', async () => {
-    Reflect.defineProperty(process, 'platform', { configurable: true, enumerable: true, value: 'android' })
-    existsSync.mockImplementation(path => String(path).endsWith('/vendor/android-prebuilds/rg'))
-    const { resolveRgPath } = await import('@deepseek-ai/dsh-util-ripgrep')
-
-    await expect(resolveRgPath()).resolves.toMatch(/\/vendor\/android-prebuilds\/rg$/u)
   })
 })

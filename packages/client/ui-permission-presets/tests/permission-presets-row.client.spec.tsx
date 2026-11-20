@@ -11,21 +11,11 @@ import { zh } from '../src/client/locales.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { PermissionPresetSettingsController } from '../src/client/settings-store.ts'
 
-/** Host verdict fixture: full enforcement on a bwrap host. */
-const SANDBOX_FULL = {
-  available: true,
-  backend: 'bwrap',
-  enforcement: 'full' as const,
-  reason: 'Confined processes run under bubblewrap mount namespaces; every promised file effect is enforced.',
-  remediation: 'No action needed.',
-  awaitingChoice: false,
-}
-
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
-const catalog = { options: [], sandbox: SANDBOX_FULL, defaultPreset: 'read-only', defaultOptions: ['read-only', 'workspace-write', 'danger-full-access'].map(value => ({ value, name: value })) }
+const catalog = { options: [], defaultPreset: 'read-only', defaultOptions: ['read-only', 'workspace-write', 'danger-full-access'].map(value => ({ value, name: value })) }
 const directory = { store: createSnapshotStore({ value: catalog }), load: () => Promise.resolve(catalog) }
 
 /** Controller over a real mirror derived from the same scripted context. */

@@ -1,6 +1,6 @@
 /** Assembled keyless snapshot for the default `dsh web` browser handoff. */
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,7 +11,7 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const builtBin = join(repoRoot, 'apps/cli/lib/bin.js')
 const frontendIndex = join(repoRoot, 'apps/web/dist/index.html')
 const openerHook = new URL('./fixtures/web-browser-open/register.mjs', import.meta.url).href
-const openingMessage = 'dsh web: opening '
+const openingMessage = 'dsh web: opening the default browser; pass --no-open to disable'
 const tempRoots: string[] = []
 const builtArtifactsExist = existsSync(builtBin) && existsSync(frontendIndex)
 
@@ -35,15 +35,6 @@ function normalizeLocalUrl(url: string): string {
   return url
     .replace(/:\d+/u, ':{{port}}')
     .replace(/token=[^&]+/u, 'token={{token}}')
-}
-
-/** Read the login URL from the private run file named on stdout. */
-function runFileUrl(stdout: string): string | undefined {
-  const path = /dsh web: login URL written to (.+)$/mu.exec(stdout)?.[1]
-  if (path === undefined) return undefined
-  const line = readFileSync(path, 'utf8').split('\n')[0] ?? ''
-  const separator = line.indexOf(': ')
-  return separator < 0 ? undefined : line.slice(separator + 2)
 }
 
 describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot', () => {
@@ -72,9 +63,10 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
       killSignal: 'SIGKILL',
       reject: false,
     })
+    const readyUrl = /dsh web: (http:\/\/[^\s]+)/u.exec(result.stdout)?.[1]
     const openLine = result.stdout.split('\n').find(line => line.startsWith('dsh browser-open: '))
     const opening = result.stdout.includes(openingMessage)
-    if (openLine === undefined || !opening) {
+    if (readyUrl === undefined || openLine === undefined || !opening) {
       throw new Error(`dsh web browser-open evidence missing\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`)
     }
     const opened = JSON.parse(openLine.slice('dsh browser-open: '.length)) as BrowserOpenRecord
@@ -82,7 +74,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
     expect({
       exitCode: result.exitCode,
       opening,
-      readyUrl: normalizeLocalUrl(opened.url),
+      readyUrl: normalizeLocalUrl(readyUrl),
       openedUrl: normalizeLocalUrl(opened.url),
       status: opened.status,
       bootManifest: opened.bootManifest,
@@ -131,10 +123,9 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
       killSignal: 'SIGKILL',
       reject: false,
     })
-    const readyUrl = runFileUrl(result.stdout)
+    const readyUrl = /dsh web: (http:\/\/[^\s]+)/u.exec(result.stdout)?.[1]
     const diagnostic = result.stderr.split(/\r?\n/u)
       .find(line => line.startsWith('web-app: could not open the default browser because '))
-      ?.replaceAll(root, '{{root}}').replace(/web-\d+\.url/u, 'web-{{pid}}.url')
 
     expect({
       diagnostic,
@@ -144,7 +135,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
       readyUrl: readyUrl === undefined ? undefined : normalizeLocalUrl(readyUrl),
     }).toMatchInlineSnapshot(`
       {
-        "diagnostic": "web-app: could not open the default browser because fixture desktop unavailable; open it from {{root}}/.dsh/run/web-{{pid}}.url",
+        "diagnostic": "web-app: could not open the default browser because fixture desktop unavailable; use the dsh web URL printed at startup",
         "exitCode": 0,
         "opened": false,
         "opening": true,
@@ -180,7 +171,7 @@ describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot',
       killSignal: 'SIGKILL',
       reject: false,
     })
-    const readyUrl = runFileUrl(result.stdout)
+    const readyUrl = /dsh web: (http:\/\/[^\s]+)/u.exec(result.stdout)?.[1]
 
     expect({
       exitCode: result.exitCode,

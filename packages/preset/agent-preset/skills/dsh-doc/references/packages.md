@@ -291,7 +291,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | Package | Config | Description |
 |---|---|---|
 | `@deepseek-ai/dsh-host-authentication-desktop` | yes | Desktop private-channel authentication provider |
-| `@deepseek-ai/dsh-host-authentication-token` | no | Default token authentication provider and HTTP cookie exchange |
+| `@deepseek-ai/dsh-host-authentication-token` | yes | Default token authentication provider and HTTP cookie exchange |
 | `@deepseek-ai/dsh-host-directory-picker-auto` | no | Adaptive chooser of the directory-picker seam: resolves the host situation at boot and mounts the native or browse backend for the DeepSeek Harness web GUI host |
 | `@deepseek-ai/dsh-host-directory-picker-browse` | yes | In-app browsing backend of the directory-picker seam (listing/creation primitives over the host filesystem) |
 | `@deepseek-ai/dsh-host-directory-picker-native` | no | Native-OS-chooser backend of the directory-picker seam for the DeepSeek Harness web GUI host |
@@ -373,7 +373,6 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-sandbox-local` | yes | Local process-sandbox backends for the DeepSeek Harness sandbox seam: bwrap, the npm-distributed landlock-run launcher, macOS Seatbelt, or the Windows ACL restricted-token runner — functionally probed, fail-closed |
 | `@deepseek-ai/dsh-sandbox-policy` | yes | Per-call sandbox policy resolver and current model context: deployment fallbacks plus each session's mode and workspace root, shared by every enforcing capability family |
-| `@deepseek-ai/dsh-sandbox-startup` | yes | Startup authority for the deployment's sandbox default mode: resolves explicit configuration, host backend availability, and the declared no-backend policy into the one mode (and paired approval policy) every consumer and permission preset starts from |
 
 ## schedule
 

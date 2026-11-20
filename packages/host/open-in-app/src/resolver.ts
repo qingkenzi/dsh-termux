@@ -450,10 +450,9 @@ export function execCommand(exec: string | undefined): string | null {
  * The catalog entry's spec for one platform.
  * @param app - catalog entry.
  * @param platform - host platform.
- * @returns the declared spec; undefined on Android, whose folders open through the native opener, and off the recognized platforms.
+ * @returns the declared spec; undefined off the declared three platforms.
  */
 export function specFor(app: OpenInAppApp, platform: NodeJS.Platform): OpenInAppPlatformSpec | undefined {
-  if (platform === 'android') return undefined
   return platform === 'darwin' || platform === 'win32' || platform === 'linux'
     ? app.platforms[platform]
     : undefined

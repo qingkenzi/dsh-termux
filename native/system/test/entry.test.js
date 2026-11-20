@@ -10,13 +10,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  ANDROID_SANDBOX_BIN,
-  ANDROID_SANDBOX_FAILURE_EXIT,
-  androidSandboxArgs,
-  androidSandboxRunnerPath,
-  probeAndroidSandbox,
-} from '@deepseek-ai/node-addon-system/android-sandbox';
-import {
   LAUNCHER_BIN,
   LAUNCHER_FAILURE_EXIT,
   grantArgs,
@@ -81,42 +74,6 @@ if (process.platform !== 'win32') {
   assert.equal(probe(fake('failing', `exit ${LAUNCHER_FAILURE_EXIT}`)), 'unusable');
   assert.equal(probe(fake('hanging', 'sleep 10'), { timeoutMs: 200 }), 'unusable');
 
-  fs.rmSync(fakeDir, { recursive: true, force: true });
-}
-
-// --- android-sandbox: constants, argv contract, resolution, and probe verdicts ---
-assert.equal(ANDROID_SANDBOX_BIN, 'android-sandbox-run');
-assert.equal(ANDROID_SANDBOX_FAILURE_EXIT, 125);
-assert.deepEqual(
-  androidSandboxArgs({ mode: 'workspace-write', workspaceRoot: '/ws', tempRoot: '/tmp' }),
-  ['--workspace', '/ws', '--tmp', '/tmp', '--mode', 'workspace-write'],
-);
-assert.deepEqual(
-  androidSandboxArgs({ mode: 'read-only', workspaceRoot: '/ws', tempRoot: '/tmp' }),
-  ['--workspace', '/ws', '--tmp', '/tmp', '--mode', 'read-only'],
-);
-const androidResolved = androidSandboxRunnerPath((specifier) => {
-  assert.equal(specifier, `${platformPackage}/package.json`);
-  return path.join('/fake-install', specifier);
-});
-assert.equal(androidResolved, path.join('/fake-install', platformPackage, 'bin', ANDROID_SANDBOX_BIN));
-const androidFallback = androidSandboxRunnerPath(() => {
-  throw new Error('not installed');
-});
-assert.ok(androidFallback.includes(path.join('node_modules', ...platformPackage.split('/'), 'bin', ANDROID_SANDBOX_BIN)));
-assert.equal(probeAndroidSandbox(path.join(os.tmpdir(), 'nalr-no-such-supervisor')), 'unusable');
-
-if (process.platform !== 'win32') {
-  const fakeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nalr-fake-supervisor-'));
-  const fake = (name, script) => {
-    const file = path.join(fakeDir, name);
-    fs.writeFileSync(file, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
-    return file;
-  };
-  const report = 'android-sandbox: probe ok (seccomp user-notification listener active, Seccomp: 2)';
-  assert.equal(probeAndroidSandbox(fake('ok', `echo "${report}"; exit 0`)), 'partial');
-  assert.equal(probeAndroidSandbox(fake('silent', 'exit 0')), 'unusable');
-  assert.equal(probeAndroidSandbox(fake('failing', `exit ${ANDROID_SANDBOX_FAILURE_EXIT}`)), 'unusable');
   fs.rmSync(fakeDir, { recursive: true, force: true });
 }
 

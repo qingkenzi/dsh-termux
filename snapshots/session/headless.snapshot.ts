@@ -28,7 +28,6 @@ import {
   normalizedSystemPrompts,
   normalizedToolSchemas,
   parseSnapshotManifest,
-  snapshotSkipReason,
   parseSessionFixtureName,
   parseToolSchemasSnapshot,
   redactSessionSnapshotIds,
@@ -1351,14 +1350,8 @@ describe('headless recorded-session snapshots', () => {
       ? [{ scenario, retainedToolInput: 'session.v3.jsonl' }] : [],
   ])
   for (const { scenario, retainedToolInput } of runs) {
-    const declaredSkip = snapshotSkipReason(scenario.manifest, process.platform)
-    const missingRequirement = process.platform === 'android'
-      && (scenario.manifest.requires?.includes('sandbox') === true
-        || scenario.manifest.requires?.includes('cua') === true)
     const skipped = scenario.manifest.platform === 'posix' && process.platform === 'win32'
       || scenario.manifest.platform === 'pwsh' && !hasPwsh
-      || declaredSkip !== undefined
-      || missingRequirement
       // A read-only directory does not deny root, so the recorded refusal cannot replay.
       || scenario.manifest.workspace?.setup === 'readonly-patch-directory' && process.getuid?.() === 0
       || mode === 'record' && scenario.manifest.recording === 'authored'

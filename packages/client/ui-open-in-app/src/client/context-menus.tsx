@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionWorkspacePathApplication } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { OpenInAppController } from './controller.ts'
 import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { OpenInAppPathController } from './open-path.ts'
 import type { OpenInAppKey } from './locales.ts'
@@ -43,27 +44,21 @@ function settleWithin(pending: Promise<void>, ms: number, signal: AbortSignal): 
 /**
  * Register native opening, original-path reveal, and URL actions.
  * @param ctx - declared plugin dependencies.
- * @param paths - native desktop facts and file actions over the Session Remote.
+ * @param paths - existing native file actions.
  * @param t - localized action labels.
+ * @param directories - installed directory applications.
  * @param report - native operation feedback shared with the application controls.
  */
 export function registerContextMenus(
   ctx: Context,
   paths: OpenInAppPathController,
   t: (key: OpenInAppKey, values?: Record<string, string>) => string,
+  directories: OpenInAppController,
   report: OpenInAppToastSource['report'],
 ): void {
-  const fileManager = () => paths.fileManager.getSnapshot()
-  // The Host names its file manager; platforms without Finder or Explorer keep the generic copy.
-  const revealLabel = (): string => fileManager() === 'finder' ? t('menu.finder')
-    : fileManager() === 'explorer' ? t('menu.explorer') : t('menu.reveal')
-  const openFolderLabel = (): string => fileManager() === 'finder' ? t('menu.openInFinder')
-    : fileManager() === 'explorer' ? t('menu.openInExplorer') : t('menu.openFolder')
+  const fileManager = () => t(directories.apps.getSnapshot()?.includes('finder') ? 'menu.finder' : 'menu.reveal')
   const open = async (path: string, action: 'open' | 'reveal', application?: string): Promise<void> => {
     report(await paths.openPath(path, action, application))
-  }
-  const openFolder = async (path: string): Promise<void> => {
-    report(await paths.openFolder(path))
   }
   const resolvePath = async (sessionId: SessionId, path: string, signal: AbortSignal): Promise<string | undefined> => {
     try {
@@ -79,12 +74,15 @@ export function registerContextMenus(
   ctx.effect(() => ctx.contextMenus.register({
     id: 'open-in-app.workspace', target: 'workspace', order: 200,
     resolve: async ({ path }, signal) => {
-      await paths.load()
+      await directories.load()
       signal.throwIfAborted()
-      // No Host desktop means no row at all: a disabled folder action offers nothing to do.
-      if (paths.desktop.getSnapshot() !== true) return []
-      return [{ id: 'openFolder', icon: { key: 'open-in-app.reveal' }, label: openFolderLabel(),
-        failureLabel: t('path.openError'), run: () => openFolder(path) }]
+      const manager = directories.apps.getSnapshot()?.find(id => ['finder', 'explorer', 'filemanager'].includes(id))
+      return [{ id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: manager === undefined,
+        failureLabel: t('path.revealError'),
+        ...manager === undefined ? {} : { run: async () => {
+          const outcome = await directories.launch(manager, path)
+          report(outcome.kind === 'failed' ? { kind: 'failed', failure: 'revealError' } : outcome)
+        } } }]
     },
   }), 'open-in-app: Workspace context menu')
   ctx.effect(() => ctx.contextMenus.register({
@@ -95,7 +93,7 @@ export function registerContextMenus(
       const absolutePath = resolveWorkspacePath(cwd, path)
       signal.throwIfAborted()
       return [
-        { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: revealLabel(), disabled: paths.desktop.getSnapshot() !== true,
+        { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: paths.desktop.getSnapshot() !== true,
           run: () => open(absolutePath, 'reveal') },
         { id: 'copyPath', icon: { key: 'open-in-app.copy' }, label: t('menu.copyDirectoryPath'), failureLabel: t('menu.copyFailed'), run: async () => {
           await navigator.clipboard.writeText(absolutePath)
@@ -121,19 +119,14 @@ export function registerContextMenus(
         destination, ...(line === undefined ? {} : { params: { line } }),
       })
     }
-    const applicationsSupported = paths.associationsSupported.getSnapshot() === true
     return [
       { id: 'sidebar', icon: { key: 'open-in-app.sidebar' }, label: t('menu.openInSidebar'), disabled: !available, run: openIn('sidebar') },
       { id: 'float', icon: { key: 'open-in-app.float' }, label: t('menu.openInFloat'), disabled: !available, run: openIn('float') },
-      { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: revealLabel(), disabled: !desktop,
+      { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: !desktop,
         ...absolutePath === undefined ? {} : { run: () => open(absolutePath, 'reveal') } },
-      // A Host without an association query hides the application rows instead of
-      // offering a default-application action it cannot honor.
-      ...!applicationsSupported ? [] : [{
-        id: 'open', label: application ? t('open.title', { app: application.name }) : t('menu.defaultApp'),
+      { id: 'open', label: application ? t('open.title', { app: application.name }) : t('menu.defaultApp'),
         icon: { key: 'open-in-app.application', ...application?.icon ? { src: application.icon } : {} },
-        disabled: openApplication === undefined, ...openApplication === undefined ? {} : { run: openApplication },
-      }],
+        disabled: openApplication === undefined, ...openApplication === undefined ? {} : { run: openApplication } },
       { id: 'copyPath', icon: { key: 'open-in-app.copy' }, failureLabel: t('menu.copyFailed'), label: t('menu.copyPath'),
         run: async () => {
           const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
@@ -214,7 +207,7 @@ export function registerContextMenus(
         ? await resolvePath(sessionId, path, signal) : undefined
       signal.throwIfAborted()
       return [
-        { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: revealLabel(), disabled: local === undefined,
+        { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: local === undefined,
           ...local !== undefined ? { run: () => open(local, 'reveal') } : {} },
       ]
     },

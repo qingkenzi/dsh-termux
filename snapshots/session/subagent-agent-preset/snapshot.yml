@@ -9,5 +9,3 @@ header:
   systemPromptSource: text-turn
   childSystemPrompts: [1]
   childToolSchemas: [1]
-skip:
-  android: The partial seccomp Android startup changes the agent-preset/sandbox event order recorded by this fixture; the Linux/macOS lane remains authoritative

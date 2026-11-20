@@ -1,9 +1,8 @@
 /**
  * Build this host's declared system binaries. Landlock is a static musl
- * executable; the Android package carries the bionic flock addon and the
- * android-sandbox-run seccomp supervisor; flock uses stable Node-API with
- * separate Linux libc builds. Node headers come from the Node installation
- * running this script.
+ * executable; the Android package carries the bionic flock addon; flock uses
+ * stable Node-API with separate Linux libc builds. Node headers come from the
+ * Node installation running this script.
  */
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -16,7 +15,6 @@ const { values } = parseArgs({ options: { 'host-addon-only': { type: 'boolean' }
 const hostAddonOnly = values['host-addon-only'] === true
 const sources: Record<string, string> = {
   'landlock-run': 'packages/entry/src/main.c',
-  'android-sandbox': 'packages/entry/src/android-sandbox.c',
   flock: 'packages/entry/src/flock.c',
 }
 
@@ -74,15 +72,13 @@ function verifyAndroidLoadAlignment(file: string): void {
 /**
  * Compile the Android payloads into the platform package: the bionic flock
  * addon (also copied to the entry package for source-only checkouts and
- * `scripts/setup-android.sh`) and the android-sandbox-run seccomp supervisor.
+ * `scripts/setup-android.sh`).
  *
  * Termux reports `android` on bionic libc, so the addon has no glibc/musl
- * variant and lives at a fixed `bionic/` path. The supervisor is a dynamically
- * linked PIE executable, which is what Android loads; both artifacts pin the
- * linker page size and are verified for 16 KB page devices. Node-API is
- * ABI-stable, so the addon source and flags match the Linux build. Android has
- * no other native target, so `--host-addon-only` and a full build produce the
- * same payloads.
+ * variant and lives at a fixed `bionic/` path. It pins the linker page size and
+ * is verified for 16 KB page devices. Node-API is ABI-stable, so the addon
+ * source and flags match the Linux build. Android has no other native target, so
+ * `--host-addon-only` and a full build produce the same payload.
  * @param headers - Node-API header directory from the running Node installation.
  */
 function buildAndroidBinaries(headers: string): void {
@@ -125,33 +121,6 @@ function buildAndroidBinaries(headers: string): void {
   createRequire(import.meta.url)(addonOutput)
   console.log(`build: verified 16 KB page alignment and built packages/android-arm64/${addon.path}`)
   console.log('build: built entry/bin/bionic/system.node as the source-compatible copy')
-
-  const runner = spec.binaries.find((candidate) => (
-    candidate.kind === 'bionic-executable' && candidate.tool === 'android-sandbox'
-  ))
-  if (runner === undefined) {
-    throw new Error('build: packages/android-arm64/prebuilds.json declares no bionic android-sandbox executable')
-  }
-  const runnerSource = sources[runner.tool]
-  if (runnerSource === undefined) throw new Error(`build: unknown tool ${runner.tool}`)
-  const runnerOutput = join(root, 'packages/android-arm64', runner.path)
-  mkdirSync(join(root, '.release'), { recursive: true })
-  const runnerTemporary = mkdtempSync(join(root, '.release', 'native-build-'))
-  try {
-    const pending = join(runnerTemporary, 'android-sandbox-run')
-    const result = spawnSync('cc', [
-      '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
-      '-Wl,-z,max-page-size=16384', '-o', pending, join(root, runnerSource),
-    ], { stdio: 'inherit' })
-    if (result.error) throw result.error
-    if (result.status !== 0) throw new Error('build: cc failed for the Android seccomp supervisor')
-    verifyAndroidLoadAlignment(pending)
-    mkdirSync(dirname(runnerOutput), { recursive: true })
-    renameSync(pending, runnerOutput)
-  } finally {
-    rmSync(runnerTemporary, { recursive: true, force: true })
-  }
-  console.log(`build: verified 16 KB page alignment and built packages/android-arm64/${runner.path}`)
 }
 
 if (process.platform === 'android') {

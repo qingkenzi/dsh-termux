@@ -435,8 +435,7 @@ const FIXTURE_SESSION_READS = [
 /** Endpoint actions the owner's share policy allows a reader on the global resource. */
 const FIXTURE_GLOBAL_READS = [
   'commands/list', 'llm/listConfigurableProviders', 'llm/listProviders',
-  'session/canOpenWorkspacePath', 'session/control', 'session/list', 'session/modelCatalog', 'session/workspaceDesktop',
-  'workspace/follow',
+  'session/canOpenWorkspacePath', 'session/control', 'session/list', 'session/modelCatalog', 'workspace/follow',
 ] as const
 
 type FixtureControlFrame =
@@ -4298,9 +4297,6 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           return Promise.resolve(workspaceFileRemotes.list(args.path ?? ''))
         }
         case 'session/canOpenWorkspacePath': return Promise.resolve({ ok: true, value: true })
-        case 'session/workspaceDesktop': return Promise.resolve({ ok: true, value: {
-          name: 'fixture', available: true, fileManager: 'directory', associationsSupported: true,
-        } })
         case 'session/modelCatalog': return Promise.resolve({
           ok: true,
           value: {

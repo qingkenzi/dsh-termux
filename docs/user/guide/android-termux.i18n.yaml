@@ -4,34 +4,28 @@
 #   pnpm run verify-translation-pairing --write docs/user/guide/android-termux.md
 /run-dsh-on-android-with-termux:
   en: 02559b30627dfdb8
-  zh: b2df03bd9fe26354
+  zh: 42d34c5a48bb14d8
 /run-dsh-on-android-with-termux/prerequisites:
   en: ba016b51093c8698
   zh: b83f98b716ed4591
 /run-dsh-on-android-with-termux/install-from-source:
   en: 5e385398b8e713c1
-  zh: 8a6c9f8c46557f1f
+  zh: 8a7de773efa6b4a4
 /run-dsh-on-android-with-termux/start-the-web-ui:
-  en: caebcfd6cf053c8c
-  zh: fb9d56c963d4a622
+  en: 03482064d50c4c69
+  zh: a413bb68983a34b5
 /run-dsh-on-android-with-termux/permission-mode:
-  en: 9fb85aa849b40af2
-  zh: a9d3f57b3075cc64
-/run-dsh-on-android-with-termux/exec-capability-w-x:
-  en: ec0925cfb7ce1cfa
-  zh: 32458ffc2b5a4798
+  en: ab4e02f0a3857780
+  zh: 8afcc13ba2f382fb
 /run-dsh-on-android-with-termux/what-works:
-  en: e4b7afc67c9ebde9
-  zh: 3d6c3dc1131082f5
-/run-dsh-on-android-with-termux/provider-transport:
-  en: 14e731359e411cab
-  zh: d6d6c526d40a4f33
+  en: 03193fe6579881c0
+  zh: bf2847cb3cc982be
 /run-dsh-on-android-with-termux/verification-and-ci:
-  en: 5b0f10837b870691
-  zh: bb3ae6a817ceb8a3
+  en: f0aec7ae2a5c7010
+  zh: 9e7360a6bf38e0e5
 /run-dsh-on-android-with-termux/troubleshooting:
-  en: fae552c50d961421
-  zh: 36ea2b5b13c69ee6
+  en: ddccfafb18e7f2fa
+  zh: 967b66dfa60beec7
 /run-dsh-on-android-with-termux/upgrading:
-  en: d1d40b8f331d6a6a
-  zh: 2bbb2dd4a693a320
+  en: 1360852a52433ba4
+  zh: de8bb55e96de80c6

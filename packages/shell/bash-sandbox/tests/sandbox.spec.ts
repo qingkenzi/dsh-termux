@@ -13,7 +13,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { CollectedOutput, ShellExecSpec, ShellExecution, ShellRunResult } from '@deepseek-ai/dsh-shell'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { SANDBOX_UNAVAILABLE, SandboxProvider, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxAvailability, SandboxExecutionPolicy, SandboxMode, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxExecutionPolicy, SandboxMode, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { SandboxBashExecutor } from '@deepseek-ai/dsh-bash-sandbox'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
@@ -71,11 +71,6 @@ async function setup(
   const { mode, workspaceRoot, ...execConfig } = config
   const calls: ConfineCall[] = []
   class FakeSandboxProvider extends SandboxProvider {
-
-    /** Test doubles report themselves available so startup composition resolves. */
-    availability(): SandboxAvailability {
-      return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
-    }
     async confine(argv: readonly string[], policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv> {
       calls.push({ argv: [...argv], policy })
       return behavior(argv, policy, signal)

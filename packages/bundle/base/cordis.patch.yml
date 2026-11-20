@@ -235,27 +235,19 @@
       name: '@deepseek-ai/dsh-subprocess-local'
 
     # Every shipped CLI mode starts with the same file-effect boundary.
+    # The environment remains an explicit deployment override; otherwise fresh
+    # sessions pin workspace-write + ask through the permission service below.
     - id: sandbox
       name: '@deepseek-ai/dsh-sandbox-local'
 
-    # Startup authority: it asks the mounted provider what this host can enforce
-    # and resolves the one starting mode every row below reads. Android's
-    # seccomp supervisor supplies partial confinement when its probe succeeds;
-    # if the probe fails, this deployment explicitly accepts danger-full-access
-    # (the availability reason and warning are logged; the permission chip keeps
-    # the state visible), while an explicit confined mode still fails closed.
-    # A headless deployment states the same acceptance because nothing can ask.
-    - id: sandbox-startup
-      name: '@deepseek-ai/dsh-sandbox-startup'
-      config:
-        mode: !!js process.env.DSH_PERMISSION_MODE
-        onUnavailable: danger-full-access
-
+    # Android ships no sandbox backend (bubblewrap, Landlock, and Seatbelt do
+    # not exist there), so the confined default would fail every command
+    # closed. This is the one platform-conditional default; every other host
+    # keeps the upstream workspace-write behavior.
     - id: sandbox-policy
       name: '@deepseek-ai/dsh-sandbox-policy'
-      inject: [sandboxStartup]
       config:
-        mode: !!js ctx.sandboxStartup.mode
+        mode: !!js "process.env.DSH_PERMISSION_MODE ?? (process.platform === 'android' ? 'danger-full-access' : 'workspace-write')"
         workspaceRoot: !!js process.cwd()
 
     - id: bash-sandbox
@@ -268,19 +260,14 @@
       name: '@deepseek-ai/dsh-pwsh-sandbox'
       disabled: !!js process.platform !== 'win32'
 
-    # The approval policy pairs with the startup decision: an unconfined session
-    # this deployment did not explicitly accept keeps asking per sensitive call.
     - id: approval
       name: '@deepseek-ai/dsh-user-approval'
-      inject: [sandboxStartup]
       config:
-        policy: !!js ctx.sandboxStartup.approvalPolicy
+        policy: !!js "(process.env.DSH_PERMISSION_MODE ?? (process.platform === 'android' ? 'danger-full-access' : 'workspace-write')) === 'danger-full-access' ? 'never' : 'ask'"
 
     - id: permission
       name: '@deepseek-ai/dsh-permission-presets'
       config:
-        # The table names a preset for every (sandbox, approval) pair the startup
-        # authority can resolve, so the default mode is always selectable.
         presets:
           read-only:
             sandbox: read-only

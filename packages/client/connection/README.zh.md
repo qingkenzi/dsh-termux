@@ -42,7 +42,7 @@ kind: "package-reference"
 
 Host Connection 插件将同包的 `ConnectionAuthentication` 挂载为独立嵌套服务 `connection.authentication`。插件注入 `connection.authentication`，通过 `ctx.connection.authentication.register(provider)` 注册 `AuthenticationProvider` 对象。验证器同步返回已有且存活的 `PeerScope` 或 `undefined`。`connection.authentication.authenticate(request)` 返回 `PeerAdmission`，按注册顺序采用首个成功结果；此方法只验证凭据，不处理 HTTP 响应或来源策略。异常仍允许后续 Provider 成功；全部失败时，有异常返回503，普通拒绝返回401。注册归调用插件，Peer 归创建者。请求不含页面/API purpose；Token v2 Cookie 可认证两者，principal 与 RemoteAccess 决定操作权限。
 
-Token 插件拥有 Cookie 签名、authority 绑定、有效期与 TLS 属性。其签名密钥保留在进程内存，启动 token 是有效十分钟的一次性能力，浏览器 Cookie 有效一天；启动时删除已停用的 `client-connection/browser-session` 凭据记录，从而撤销旧密钥签发的 Cookie。Provider 注册表归 ConnectionAuthentication，Token 与 Cookie 算法保留在各自 Provider 内部。凭据协议与撤销规则由各注册实现负责，参见[默认 Token 实现](../../host/authentication-token/README.zh.md)。
+Token 插件拥有既有 `client-connection/browser-session` 凭据记录、Cookie 签名、authority 绑定、有效期与 TLS 属性。它的 `cookieMaxAgeDays` 配置默认为30，在激活时加载签名密钥。Provider 注册表归 ConnectionAuthentication，Token 与 Cookie 算法保留在各自 Provider 内部。凭据协议与撤销规则由各注册实现负责，参见[默认 Token 实现](../../host/authentication-token/README.zh.md)。
 
 HTTPS cookie 名称与签名 audience 包含 `https:` scheme，因此即使 hostname 和 port 相同，HTTP cookie 也无法通过 TLS 监听器的认证。默认端口按监听器的 scheme 归一化。既有 HTTP cookie audience 保持不变。
 

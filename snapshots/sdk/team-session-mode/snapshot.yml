@@ -9,5 +9,3 @@ header:
   toolSchemasSource: session/team-session-mode
   changes: 2
   promptChanges: 2
-skip:
-  android: Android uses partial seccomp write mediation; the fixture records Linux full workspace-write permission events and approval prompts, so replay would not reproduce them

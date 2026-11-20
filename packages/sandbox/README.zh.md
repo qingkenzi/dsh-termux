@@ -1,5 +1,5 @@
 ---
-description: "进程沙箱包组：隔离 seam、各平台后端、共享策略解析器、启动模式权威与 Windows 写入限制档。"
+description: "进程沙箱包组：隔离 seam、各平台后端、共享策略解析器与 Windows 写入限制档。"
 kind: "package-group"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-`sandbox/` 组将子进程执行限制在文件效果策略之下：命令以 `read-only` 运行、只能写入会话工作区（`workspace-write`）或不受限制地运行（`danger-full-access`）。五个包交付该能力：隔离服务（`sandbox/`）、面向 Linux、macOS、Windows 与 Android 部分 seccomp supervisor 的各平台后端（`sandbox-local/`）、共享策略解析器（`sandbox-policy/`）、启动模式权威（`sandbox-startup/`）与 Windows 写入限制后端（`sandbox-windows-acl/`）。被策略拒绝的受限调用可以通过用户批准的一次性升权重试。隔离仅适用于与宿主共享文件系统和内核的子进程；容器、microVM 与远程执行器会替换整个能力，而不是在此注册。
+`sandbox/` 组将子进程执行限制在文件效果策略之下：命令以 `read-only` 运行、只能写入会话工作区（`workspace-write`）或不受限制地运行（`danger-full-access`）。四个包交付该能力：隔离服务（`sandbox/`）、面向 Linux、macOS 与 Windows 的各平台后端（`sandbox-local/`）、共享策略解析器（`sandbox-policy/`）与 Windows 写入限制后端（`sandbox-windows-acl/`）。被策略拒绝的受限调用可以通过用户批准的一次性升权重试。隔离仅适用于与宿主共享文件系统和内核的子进程；容器、microVM 与远程执行器会替换整个能力，而不是在此注册。
 
 ## 目录
 
@@ -22,14 +22,13 @@ kind: "package-group"
 <a id="packages"></a>
 ## 包
 
-五个包承担隔离角色；完整约定和逐调用策略语义以子系统参考文档为准。
+四个包承担隔离角色；完整约定和逐调用策略语义以子系统参考文档为准。
 
 | 包 | 职责 | ctx key |
 |---|---|---|
 | [`sandbox/`](sandbox/README.zh.md) | 隔离服务约定：模式、强制执行、逐调用策略与升权词汇 | `ctx.sandbox` |
 | [`sandbox-local/`](sandbox-local/README.zh.md) | 各平台隔离后端：Linux 先使用 bwrap，再使用 Landlock；macOS 使用 Seatbelt；Windows 使用受限令牌 | 注册到 `ctx.sandbox` |
 | [`sandbox-policy/`](sandbox-policy/README.zh.md) | 共享策略归属：供所有实施隔离的家族使用的部署默认值与逐会话模式覆盖 | `ctx.sandboxPolicy` |
-| [`sandbox-startup/`](sandbox-startup/README.zh.md) | 启动权威：从显式配置与宿主后端可用性解析部署的起始模式，并报告该可用性 | `ctx.sandboxStartup` |
 | [`sandbox-windows-acl/`](sandbox-windows-acl/README.zh.md) | Windows 写入限制：受限子进程只能写入工作区与私有临时目录 | —（由 `sandbox-local` 挂载为 win32 后端） |
 
 -----

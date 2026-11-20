@@ -3,41 +3,41 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/util/exclusive-publish/README.md
 /:
-  en: 06eeec1aa7e400bd
-  zh: c30d4ecd708b6b1e
+  en: 868e817351eaede9
+  zh: c633eec65f9cff16
 /deepseek-ai-dsh-util-exclusive-publish:
   en: ccb1e220cde847f7
   zh: 35ba8e58d32b64eb
 /deepseek-ai-dsh-util-exclusive-publish/summary:
-  en: 1be0999ccd23bed8
-  zh: 6ebe32aadee049b7
+  en: 1bf5dcb8d7f35aae
+  zh: 099b65618fdd8451
 /deepseek-ai-dsh-util-exclusive-publish/table-of-contents:
   en: 80b31a934611cb4a
-  zh: 05f3f7f9cb2fd881
+  zh: 66eae4b2641b173f
 /deepseek-ai-dsh-util-exclusive-publish/use-this-package:
-  en: 7956d72967665c75
-  zh: 7d34c088d0545ea2
+  en: 577217cc245d1bd2
+  zh: b4e1d153e49006f5
 /deepseek-ai-dsh-util-exclusive-publish/use-this-package/failures-to-plan-for:
   en: b90fa3761b247c73
-  zh: 987a156ad6142c46
+  zh: 8162ed1a4f61ef70
 /deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation:
   en: 42b15ac6321706aa
-  zh: 4ed0861911abaf5d
+  zh: ce1d25bffb6948cd
 /deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/source-map:
-  en: d3038a47907a4032
-  zh: 69ee8171fbec3787
+  en: 017062e227172cd7
+  zh: 0d056cc270a58bd0
 /deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/publication-order:
-  en: 2d6cdb4d07874802
-  zh: 49a6ef6a741b321b
-/deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/why-the-three-paths-share-one-contract:
-  en: 59b66358204eecb6
-  zh: 3804be3ce97ab118
+  en: 3f8849d03f67d25f
+  zh: a2098de1acad1137
+/deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/why-both-paths-share-one-contract:
+  en: 2f81dc72f4d9021e
+  zh: 4b776a5db75b4b8d
 /deepseek-ai-dsh-util-exclusive-publish/further-exploration:
   en: 6b7631ae281f39e3
-  zh: 60476db0f2040ca2
+  zh: 10073ee0875804c6
 /deepseek-ai-dsh-util-exclusive-publish/known-limitations-and-deferred-work:
-  en: 04369baf620d7adb
-  zh: 8f500c44ebde2385
+  en: c870f52d6159a65d
+  zh: fa8232dec7bc0765
 /deepseek-ai-dsh-util-exclusive-publish/known-limitations-and-deferred-work/dev-note:
-  en: 9b9ac5460cd3c3b6
-  zh: c1dd7e125ca29525
+  en: 06b1a20230c6e217
+  zh: 7932cd8d4695648f

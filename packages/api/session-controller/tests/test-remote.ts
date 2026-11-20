@@ -51,7 +51,6 @@ import type {
   SessionListValue,
   SessionOpenWorkspacePathRequest,
   SessionOpenWorkspacePathValue,
-  SessionWorkspaceDesktop,
   SessionWorkspacePathApplication,
   SessionEventsPage,
   SessionPageRequest,
@@ -71,7 +70,6 @@ import type {
 
 /** Direct test face for the generated `ctx.remote.session` unary methods these tests exercise. */
 export interface TestSessionRemote {
-  workspaceDesktop(): Promise<RemoteResult<SessionWorkspaceDesktop>>
   workspacePathApplications(
     request: { readonly path: string }, signal?: AbortSignal,
   ): Promise<RemoteResult<readonly SessionWorkspacePathApplication[]>>
@@ -105,8 +103,6 @@ export interface TestSessionRemoteDefaults {
   readonly nativeOpen?: boolean
   readonly saveDefaultModelSelection?: (selection: AgentModelSelection) => void | Promise<void>
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
-  readonly openFolder?: (path: string, signal: AbortSignal) => Promise<void>
-  readonly associationsSupported?: () => boolean
   readonly fileApplications?: SessionControllerInternals['fileApplications']
   readonly openFileApplication?: SessionControllerInternals['openFileApplication']
   readonly revealPath?: (path: string, signal: AbortSignal) => Promise<void>
@@ -317,12 +313,10 @@ async function installControllers(
       },
       {
         ...defaults.openPath === undefined ? {} : { openPath: defaults.openPath },
-        ...defaults.openFolder === undefined ? {} : { openFolder: defaults.openFolder },
         ...defaults.fileApplications === undefined ? {} : { fileApplications: defaults.fileApplications },
         ...defaults.openFileApplication === undefined ? {} : { openFileApplication: defaults.openFileApplication },
         ...defaults.revealPath === undefined ? {} : { revealPath: defaults.revealPath },
         ...defaults.canOpenPath === undefined ? {} : { canOpenPath: defaults.canOpenPath },
-        ...defaults.associationsSupported === undefined ? {} : { associationsSupported: defaults.associationsSupported },
       },
     )
     await controller.initialize()
@@ -368,7 +362,6 @@ export async function createSessionTestRemote(
 ): Promise<TestSessionRemote> {
   const direct = await createSessionTestController(ctx, defaults)
   return {
-    workspaceDesktop: () => remoteResult(() => direct.workspaceDesktop()),
     workspacePathApplications: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.workspacePathApplications(request, signal), signal,
     ),

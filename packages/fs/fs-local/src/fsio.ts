@@ -95,9 +95,7 @@ export interface FsIoInternals {
   replaceFile?: (replaced: string, replacement: string) => Promise<void>
   /** Override the hard-link no-replace publication boundary. */
   linkFile?: (existingPath: string, newPath: string) => Promise<void>
-  /** Override the zero-copy no-replace rename used where hard links are unsupported. */
-  renameNoReplaceFile?: (source: string, destination: string) => Promise<void>
-  /** Override the exclusive-copy publication used where links and renames are unsupported. */
+  /** Override the exclusive-copy publication used where hard links are unsupported. */
   copyExclusiveFile?: (source: string, destination: string, flags: number) => Promise<void>
   /** Override target inspection after guarded publication fails. */
   inspectPublicationTarget?: (path: string) => Promise<BigIntStats>
@@ -603,7 +601,7 @@ function writeIoError(path: string, error: unknown): unknown {
  * @param internals - Test hook for pinning temp names and observing the staged file.
  * @param options - `displayPath` names the target in diagnostics (defaults to `absolutePath`);
  * `createIfAbsent` publishes through the shared exclusive-publication primitive — hard link, then
- * `renameat2(RENAME_NOREPLACE)`, then an exclusive flushed copy — so a concurrent creator's file is
+ * an exclusive flushed copy — so a concurrent creator's file is
  * preserved and this write is rejected with `FS_NOT_OBSERVED`; the staged sibling keeps every
  * publication path on the target's filesystem; `existingDestination`
  * states whether Windows must preserve destination security and defaults to mode presence,
@@ -632,7 +630,6 @@ export async function writeFileAtomic(
   const copyFileDacl = internals.copyFileDacl ?? copyFileDaclWin32
   const replaceFile = internals.replaceFile ?? replaceFileWin32
   const linkFile = internals.linkFile ?? link
-  const renameNoReplaceFile = internals.renameNoReplaceFile
   const copyExclusiveFile = internals.copyExclusiveFile ?? copyFile
   const inspectPublicationTarget = internals.inspectPublicationTarget
     ?? (path => lstat(path, { bigint: true }))
@@ -662,7 +659,6 @@ export async function writeFileAtomic(
       try {
         await publishExclusive(tempPath, absolutePath, {
           link: linkFile,
-          ...renameNoReplaceFile === undefined ? {} : { rename: renameNoReplaceFile },
           exclusive: (source, destination) => copyExclusiveFile(source, destination, constants.COPYFILE_EXCL),
           mode: mode ?? 0o600,
         })

@@ -7,5 +7,3 @@ header:
   class: sdk-desktop-ptc
   pin: true
   toolSchemasSource: session/ptc-turn
-skip:
-  android: Android uses partial seccomp write mediation; the fixture records Linux full workspace-write permission events and approval prompts, so replay would not reproduce them

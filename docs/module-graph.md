@@ -26,7 +26,6 @@ flowchart TD
     pkg_timeout["timeout"]
     pkg_util_code_language["util-code-language"]
     pkg_util_crypto["util-crypto"]
-    pkg_util_exclusive_publish["util-exclusive-publish"]
     pkg_util_file_drag["util-file-drag"]
     pkg_util_ripgrep["util-ripgrep"]
     pkg_util_text_search["util-text-search"]
@@ -380,9 +379,6 @@ flowchart TD
     pkg_mcp_manager["mcp-manager"]
     pkg_mcp_resources["mcp-resources"]
   end
-  subgraph group_platform["packages/platform"]
-    pkg_android_exec["android-exec"]
-  end
   subgraph group_preset["packages/preset"]
     pkg_agent_preset["agent-preset"]
     pkg_agent_preset_registry["agent-preset-registry"]
@@ -396,7 +392,6 @@ flowchart TD
     pkg_sandbox["sandbox"]
     pkg_sandbox_local["sandbox-local"]
     pkg_sandbox_policy["sandbox-policy"]
-    pkg_sandbox_startup["sandbox-startup"]
     pkg_sandbox_windows_acl["sandbox-windows-acl"]
   end
   subgraph group_schedule["packages/schedule"]
@@ -501,7 +496,6 @@ flowchart TD
     pkg_workspace["workspace"]
   end
   pkg_atomic_write --> pkg_error
-  pkg_native_command --> pkg_error
   pkg_llm --> pkg_error
   pkg_session --> pkg_scope
   pkg_api_remotes --> pkg_scope
@@ -607,8 +601,6 @@ flowchart TD
   pkg_sandbox_local --> pkg_llm
   pkg_sandbox_local --> pkg_sandbox
   pkg_sandbox_local --> pkg_session
-  pkg_sandbox_startup --> pkg_llm
-  pkg_sandbox_startup --> pkg_sandbox
   pkg_sandbox_windows_acl --> pkg_skill
   pkg_sandbox_windows_acl --> pkg_subprocess
   pkg_session_persistence_jsonl --> pkg_session
@@ -807,7 +799,6 @@ flowchart TD
   pkg_permission_presets --> pkg_commands
   pkg_permission_presets --> pkg_sandbox
   pkg_permission_presets --> pkg_sandbox_policy
-  pkg_permission_presets --> pkg_sandbox_startup
   pkg_permission_presets --> pkg_session
   pkg_permission_presets --> pkg_session_projection
   pkg_permission_presets --> pkg_shell
@@ -1593,6 +1584,7 @@ flowchart TD
 | [`http-proxy`](../packages/util/http-proxy) | `util` | — |
 | [`launch-environment`](../packages/util/launch-environment) | `util` | — |
 | [`lazy-require`](../packages/util/lazy-require) | `util` | — |
+| [`native-command`](../packages/util/native-command) | `util` | — |
 | [`official-bundles`](../packages/util/official-bundles) | `util` | — |
 | [`output-retention`](../packages/util/output-retention) | `util` | — |
 | [`package-manifest`](../packages/util/package-manifest) | `util` | — |
@@ -1601,7 +1593,6 @@ flowchart TD
 | [`timeout`](../packages/util/timeout) | `util` | — |
 | [`util-code-language`](../packages/util/code-language) | `util` | — |
 | [`util-crypto`](../packages/util/crypto) | `util` | — |
-| [`util-exclusive-publish`](../packages/util/exclusive-publish) | `util` | — |
 | [`util-file-drag`](../packages/util/file-drag) | `util` | — |
 | [`util-text-search`](../packages/util/text-search) | `util` | — |
 | [`util-time`](../packages/util/time) | `util` | — |
@@ -1726,7 +1717,6 @@ flowchart TD
 | [`host-directory-picker-native`](../packages/host/directory-picker-native) | `host` | — |
 | [`host-open-in-app`](../packages/host/open-in-app) | `host` | — |
 | [`host-webserver`](../packages/host/webserver) | `host` | — |
-| [`android-exec`](../packages/platform/android-exec) | `platform` | — |
 | [`message-quotes`](../packages/session/message-quotes) | `session` | — |
 | [`session-format`](../packages/session/session-format) | `session` | — |
 | [`session-format-v0-to-v1`](../packages/session/session-format-v0-to-v1) | `session` | — |
@@ -1739,7 +1729,6 @@ flowchart TD
 | [`typert-generator`](../packages/typert/generator) | `typert` | — |
 | [`typert-registry`](../packages/typert/registry) | `typert` | — |
 | [`atomic-write`](../packages/util/atomic-write) | `util` | [`error`](../packages/util/error) |
-| [`native-command`](../packages/util/native-command) | `util` | [`error`](../packages/util/error) |
 | [`llm`](../packages/llm/llm) | `llm` | [`error`](../packages/util/error) |
 | [`session`](../packages/core/session) | `core` | [`scope`](../packages/core/scope) |
 | [`api-remotes`](../packages/api/remotes) | `api` | [`scope`](../packages/core/scope) |
@@ -1798,7 +1787,6 @@ flowchart TD
 | [`persona`](../packages/preset/persona) | `preset` | [`system-prompt`](../packages/core/system-prompt) |
 | [`ptc-runtime`](../packages/ptc-runtime/ptc-runtime) | `ptc-runtime` | [`attachment`](../packages/attachment/attachment), [`error`](../packages/util/error), [`sandbox`](../packages/sandbox/sandbox) |
 | [`sandbox-local`](../packages/sandbox/sandbox-local) | `sandbox` | [`llm`](../packages/llm/llm), [`sandbox`](../packages/sandbox/sandbox), [`session`](../packages/core/session) |
-| [`sandbox-startup`](../packages/sandbox/sandbox-startup) | `sandbox` | [`llm`](../packages/llm/llm), [`sandbox`](../packages/sandbox/sandbox) |
 | [`sandbox-windows-acl`](../packages/sandbox/sandbox-windows-acl) | `sandbox` | [`skill`](../packages/skill/skill), [`subprocess`](../packages/subprocess/subprocess) |
 | [`session-persistence-jsonl`](../packages/session/session-persistence-jsonl) | `session` | [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence) |
 | [`session-projection-cache`](../packages/session/session-projection-cache) | `session` | [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`storage-domain`](../packages/storage/storage-domain) |
@@ -1847,7 +1835,7 @@ flowchart TD
 | [`web-search-deepseek`](../packages/web/web-search-deepseek) | `web` | [`agent`](../packages/core/agent), [`credentials`](../packages/credentials/credentials), [`deepseek-account`](../packages/credentials/deepseek-account), [`launch-environment`](../packages/util/launch-environment), [`llm-deepseek`](../packages/llm/llm-deepseek), [`session`](../packages/core/session), [`web`](../packages/web/web) |
 | [`compaction`](../packages/compaction/compaction) | `compaction` | [`commands`](../packages/interaction/commands), [`llm`](../packages/llm/llm), [`session`](../packages/core/session) |
 | [`command-feedback`](../packages/feedback/command-feedback) | `feedback` | [`anonymous-user-id`](../packages/identity/anonymous-user-id), [`commands`](../packages/interaction/commands), [`session`](../packages/core/session), [`typert-protocol`](../packages/typert/protocol) |
-| [`permission-presets`](../packages/interaction/permission-presets) | `interaction` | [`agent`](../packages/core/agent), [`commands`](../packages/interaction/commands), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`sandbox-startup`](../packages/sandbox/sandbox-startup), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`shell`](../packages/shell/shell), [`typert-protocol`](../packages/typert/protocol), [`user-approval`](../packages/interaction/user-approval) |
+| [`permission-presets`](../packages/interaction/permission-presets) | `interaction` | [`agent`](../packages/core/agent), [`commands`](../packages/interaction/commands), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`shell`](../packages/shell/shell), [`typert-protocol`](../packages/typert/protocol), [`user-approval`](../packages/interaction/user-approval) |
 | [`jobs-local`](../packages/jobs/jobs-local) | `jobs` | [`agent`](../packages/core/agent), [`jobs`](../packages/jobs/jobs), [`scope`](../packages/core/scope), [`timeout`](../packages/util/timeout) |
 | [`ptc-runtime-node`](../packages/ptc-runtime/ptc-runtime-node) | `ptc-runtime` | [`fs`](../packages/fs/fs), [`ptc-runtime`](../packages/ptc-runtime/ptc-runtime), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`session`](../packages/core/session), [`subprocess`](../packages/subprocess/subprocess), [`timeout`](../packages/util/timeout) |
 | [`session-title-llm`](../packages/session/session-title-llm) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-title`](../packages/session/session-title), [`timeout`](../packages/util/timeout) |

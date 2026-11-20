@@ -42,7 +42,6 @@ import type {
   RouteCatalog,
 } from './catalog.ts'
 import { buildProvider, supportedProtocols } from './provider.ts'
-import { assertSecureBaseURL } from './security.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
@@ -114,20 +113,8 @@ export interface PiAiProviderProfile {
    * no protocol at all; a route the catalog does not ship must name one.
    */
   api?: string
-  /**
-   * Endpoint for this route's models; defaults to the installed catalog's
-   * endpoint. Must be `https://`, or plain HTTP only to a loopback host. Plain
-   * HTTP to any other host sends API keys, prompts, and tool output in clear
-   * text and is refused unless {@link allowInsecureHttp} accepts that risk.
-   */
+  /** Endpoint for this route's models; defaults to the installed catalog's endpoint. */
   baseURL?: string
-  /**
-   * Accept plain HTTP to a non-loopback `baseURL`. Off by default because the
-   * provider request carries credentials and conversation content; enable it
-   * only when the network between this process and the endpoint is trusted,
-   * such as a private overlay network, or use HTTPS or an SSH tunnel instead.
-   */
-  allowInsecureHttp?: boolean
   /**
    * This route's model catalog. Omission serves the installed catalog for the
    * route unchanged; an explicit list replaces it, each entry defaulting its
@@ -243,8 +230,6 @@ export interface ResolvedPiAiProviderProfile
   requestImageMaxBytes: number
   /** Immutable retry policy captured with this provider route. */
   retryPolicy: ResolvedRetryPolicy
-  /** Whether this route accepts plain HTTP to a non-loopback endpoint. */
-  allowInsecureHttp: boolean
   /**
    * The pi-ai provider containing this route's serviceable models. Absent when
    * a stored route cannot be constructed; its configuration remains editable.
@@ -372,7 +357,6 @@ const profile = z.object({
   displayName: z.string(),
   api: z.union(supportedProtocols()),
   baseURL: z.string(),
-  allowInsecureHttp: z.boolean().default(false),
   models: z.array(modelProfile),
   modelOverrides: z.dict(modelOverride),
   compat: compatProfile,
@@ -469,8 +453,6 @@ export function resolveProfiles(
     if (source.baseURL !== undefined && source.baseURL.length === 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" has an empty baseURL`)
     }
-    const allowInsecureHttp = source.allowInsecureHttp ?? false
-    assertSecureBaseURL(provider, source.baseURL, allowInsecureHttp)
     if (source.displayName !== undefined && source.displayName.length === 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" has an empty displayName`)
     }
@@ -557,7 +539,6 @@ export function resolveProfiles(
       requestImagePixelBudget,
       requestImageMaxBytes,
       retryPolicy: resolveRetryPolicy(retryPolicy, `llm-pi-ai: provider "${provider}" retryPolicy`),
-      allowInsecureHttp,
       ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),

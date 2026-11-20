@@ -1,11 +1,10 @@
 /**
  * Exclusive publication of a staged file under a name that must not already exist.
  *
- * Publication tries three capabilities in order and reports which one produced the target:
+ * Publication tries two capabilities in order and reports which one produced the target:
  * `link(2)` keeps the staged inode and publishes it under a second name; a host that refuses hard
- * links (Android app data under SELinux answers EACCES) tries `renameat2(RENAME_NOREPLACE)`, which
- * moves the staged name without copying bytes; a host without that call falls back to
- * `copyFile(..., COPYFILE_EXCL)`, which creates a new inode. All three fail with EEXIST when the
+ * links (Android app data under SELinux answers EACCES) falls back to
+ * `copyFile(..., COPYFILE_EXCL)`, which creates a new inode. Both fail with EEXIST when the
  * target exists, so a concurrent creator keeps its file and this call loses the race.
  *
  * The copy path is not atomic for readers: another process can observe the target while its bytes
@@ -17,16 +16,12 @@
 import { constants } from 'node:fs'
 import { chmod, copyFile, link, open, rm } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
-import { renameNoReplace, type RenameNoReplace } from './renameat2.ts'
 
 /** How a successful publication created the target name. */
-export type PublishMethod = 'linked' | 'renamed' | 'copied'
+export type PublishMethod = 'linked' | 'copied'
 
 /** Filesystem errors that mean hard links are unsupported, not a name collision. */
 const LINK_UNSUPPORTED = new Set(['EACCES', 'EPERM', 'ENOSYS', 'EOPNOTSUPP', 'ENOTSUP'])
-/** `renameat2` errors that mean the call or its flags are unsupported by this filesystem. */
-const RENAME_UNSUPPORTED = new Set(['ENOSYS', 'EINVAL', 'EOPNOTSUPP'])
-
 /** Marks a copy whose bytes were already flushed when its descriptor failed to close. */
 const FLUSHED_COPY = Symbol('dsh-exclusive-publish-flushed-copy')
 
@@ -42,12 +37,6 @@ export interface PublishExclusiveOptions {
   /** Hard-link primitive; defaults to `link(2)`. */
   link?: (source: string, target: string) => Promise<void>
   /**
-   * No-replace rename primitive; defaults to `renameat2(RENAME_NOREPLACE)` through koffi.
-   * Pass `null` when the staged name must survive publication, as when aliasing an existing
-   * object whose canonical name must stay in place.
-   */
-  rename?: RenameNoReplace | null
-  /**
    * Flush a copied target; defaults to opening the copy and fsyncing its inode.
    * A rejection discards the copy unless the default flush already completed that step.
    */
@@ -61,11 +50,6 @@ function errnoCode(error: unknown): string | undefined {
 function isLinkUnsupported(error: unknown): boolean {
   const code = errnoCode(error)
   return code !== undefined && LINK_UNSUPPORTED.has(code)
-}
-
-function isRenameUnsupported(error: unknown): boolean {
-  const code = errnoCode(error)
-  return code !== undefined && RENAME_UNSUPPORTED.has(code)
 }
 
 /** Attach the refusal that forced a fallback without replacing an existing cause. */
@@ -156,16 +140,15 @@ async function copyExclusiveDurable(
 /**
  * Publish `source` at `target`, failing with EEXIST when `target` already exists.
  *
- * A link keeps `source`; a rename moves it, so `source` is gone after a `'renamed'` result; a copy
- * leaves it in place. The caller owns the parent directory's fsync and may remove `source` once the
- * call succeeds in every case.
+ * A link keeps `source`; a copy leaves it in place. The caller owns the parent directory's fsync
+ * and may remove `source` once the call succeeds in every case.
  * @param source - staged file to publish; its own bytes are already durable.
  * @param target - target path that must not exist yet.
  * @param options - Injection seams and the copy mode.
  * @returns How the target name was created.
- * @throws The refusing capability's errno: EEXIST when another writer won, EXDEV or ENOENT when a
- *   rename cannot reach the target, and the copy or flush failure when the copy path cannot
- *   publish durable bytes. A fallback failure carries the refused hard-link error as its cause.
+ * @throws The refusing capability's errno: EEXIST when another writer won, and the copy or flush
+ *   failure when the copy path cannot publish durable bytes. A copy failure carries the refused
+ *   hard-link error as its cause.
  */
 export async function publishExclusive(
   source: string,
@@ -179,16 +162,6 @@ export async function publishExclusive(
   } catch (error: unknown) {
     if (!isLinkUnsupported(error)) throw error
     refusal = error
-  }
-  if (options.rename !== null) {
-    try {
-      await (options.rename ?? renameNoReplace)(source, target)
-      return 'renamed'
-    } catch (error: unknown) {
-      // EXDEV and ENOENT cannot be repaired by copying: the caller named a target the rename
-      // cannot reach.
-      if (!isRenameUnsupported(error)) throw withRefusal(error, refusal)
-    }
   }
   try {
     await copyExclusiveDurable(source, target, options)

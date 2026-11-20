@@ -1,6 +1,6 @@
 /** Remote argv wrapper that selects and applies the sandbox on the SSH host. */
 import { SandboxProvider, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-ssh'
 import { z } from 'zod'
 
@@ -9,23 +9,6 @@ const factsSchema = z.object({ argv: z.array(z.string()).min(1), enforcement: z.
 /** Resolve each confinement request on the same host as its filesystem and subprocess providers. */
 export class SshSandboxProvider extends SandboxProvider {
   static inject = ['ssh']
-
-  /**
-   * Remote hosts resolve their own runner, so this provider cannot answer
-   * synchronously: it reports the decision as deferred rather than claiming a
-   * capability the remote host may not have. The first confined call resolves
-   * it and fails closed through {@link confine}.
-   * @returns an unavailable verdict naming the remote resolution point.
-   */
-  availability(): SandboxAvailability {
-    return {
-      available: false,
-      backend: 'ssh-remote',
-      enforcement: 'none',
-      reason: 'Confinement for this provider is selected on the remote SSH host when the first command runs, so this process cannot report it.',
-      remediation: 'Ensure the remote host has a sandbox backend (bubblewrap or a Landlock-enforcing kernel); the first confined command fails closed otherwise.',
-    }
-  }
 
   override async confine(argv: readonly string[], policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv> {
     signal?.throwIfAborted()

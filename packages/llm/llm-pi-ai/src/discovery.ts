@@ -27,7 +27,6 @@ import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai
 import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
-import { assertSecureBaseURL } from './security.ts'
 
 /**
  * Protocols whose model listing this module can read. OpenAI protocols use
@@ -306,8 +305,6 @@ function usableProbeKey(raw: string): string {
 export interface StoredModelDiscoveryProfile {
   /** Deployment headers configured on the named route. */
   readonly headers: Readonly<Record<string, string>> | undefined
-  /** Whether the named route already accepts plain HTTP to a non-loopback endpoint. */
-  readonly allowInsecureHttp: boolean
   /** Resolve the named route's credential only when the draft carries none. */
   readonly resolveApiKey: () => Promise<string | undefined>
 }
@@ -347,9 +344,6 @@ export async function discoverModels(
       'DISCOVERY_FAILED',
     )
   }
-  // A stored route may have accepted cleartext explicitly; a new draft may not.
-  const stored = storedProfile?.()
-  assertSecureBaseURL(request.provider ?? '', request.baseURL, stored?.allowInsecureHttp ?? false)
   // A draft that has not chosen a protocol yet is asked as OpenAI Chat
   // Completions: it is the shape a gateway is overwhelmingly likely to speak,
   // and the alternative — refusing until the field is filled — would withhold
@@ -369,6 +363,7 @@ export async function discoverModels(
   // and its credential resolver remains lazy so a typed key cannot fail over a
   // stored credential it supersedes. A route may still authenticate through a
   // deployment-owned Authorization header when neither key exists.
+  const stored = storedProfile?.()
   const supplied = request.apiKey ?? await stored?.resolveApiKey()
   const apiKey = supplied === undefined ? undefined : usableProbeKey(supplied)
   let response: Response

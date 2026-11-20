@@ -28,7 +28,6 @@ import {
   normalizedSystemPrompts,
   normalizedToolSchemas,
   parseSnapshotManifest,
-  snapshotSkipReason,
   parseToolSchemasSnapshot,
   redactSessionSnapshotIds,
   refreshFixtureReplacements,
@@ -1197,8 +1196,8 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
   })
 
   for (const scenario of sdkScenarios) {
-    const scenarioTest = snapshotSkipReason(scenario.manifest, process.platform) !== undefined
-      || recording && (scenario.manifest.recording === 'authored' || scenario.manifest.sessionFormat !== undefined)
+    const scenarioTest = recording
+      && (scenario.manifest.recording === 'authored' || scenario.manifest.sessionFormat !== undefined)
       ? it.skip
       : it
     scenarioTest(`${mode}s ${scenario.name} through dsh --profile ${scenario.manifest.profile}`, async () => {

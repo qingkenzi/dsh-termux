@@ -8,5 +8,3 @@ header:
   pin: true
   systemPromptSource: cua-run-code
 permission: danger-full-access
-requires:
-  - cua

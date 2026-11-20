@@ -55,7 +55,7 @@ async function fixture() {
   ctx.provide('sessionQuery', { readEvent } as never)
   const opener = vi.fn(async (_request: { path: string; action?: 'reveal' }, _signal: AbortSignal) => ({ opened: true as const }))
   const applications = vi.fn(async () => [{ id: 'player', name: 'Player', default: true, icon: null }])
-  ctx.provide('sessionController', { workspacePathApplications: applications, resolveAgent, openWorkspacePath: opener, workspaceDesktop: () => ({ name: 'desktop', available: true, fileManager: 'finder', associationsSupported: true }) } as never)
+  ctx.provide('sessionController', { workspacePathApplications: applications, resolveAgent, openWorkspacePath: opener, workspaceDesktop: () => ({ name: 'desktop', available: true, fileManager: 'finder' }) } as never)
   new ConnectionAuthentication(ctx)
   const connection = new HostConnectionService(ctx, [])
   const fiber = ctx.plugin({ inject: ['connection', 'sessionQuery', 'sessionController', 'workspaceFiles', 'fs', 'sandboxPolicy'], apply: registerPresentOpen })
@@ -202,7 +202,7 @@ describe('Presented workspace file native open route', () => {
 it('reports the serving desktop and reveals only an authorized declared source', async () => {
   const { browserPeer, cwd, file, open, opener, handler } = await fixture()
   const info = await handler.fetch(new Request('http://localhost/api/present.host'), browserPeer)
-  expect(await info.json()).toEqual({ name: 'desktop', available: true, fileManager: 'finder', associationsSupported: true })
+  expect(await info.json()).toEqual({ name: 'desktop', available: true, fileManager: 'finder' })
   expect((await open('?sessionId=owner&seq=7&index=0&action=reveal')).status).toBe(204)
   expect(opener).toHaveBeenCalledWith({ path: await realpath(join(cwd, file.path)), action: 'reveal' }, expect.any(AbortSignal))
   expect((await open('?sessionId=owner&seq=7&index=0&action=delete')).status).toBe(400)
@@ -213,7 +213,7 @@ it('reports the serving desktop and reveals only an authorized declared source',
 
 it('refuses native actions when the configured Host desktop is unavailable', async () => {
   const { browserPeer, ctx, open, opener, handler } = await fixture()
-  vi.spyOn(ctx.sessionController, 'workspaceDesktop').mockReturnValue({ name: 'desktop', available: false, fileManager: 'finder', associationsSupported: false })
+  vi.spyOn(ctx.sessionController, 'workspaceDesktop').mockReturnValue({ name: 'desktop', available: false, fileManager: 'finder' })
   expect(await (await handler.fetch(new Request('http://localhost/api/present.host'), browserPeer)).json()).toMatchObject({ available: false })
   for (const action of ['open', 'reveal']) {
     expect((await open(`?sessionId=owner&seq=7&index=0&action=${action}`)).status).toBe(409)

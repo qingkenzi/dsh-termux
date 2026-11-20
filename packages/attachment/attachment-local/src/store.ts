@@ -17,7 +17,7 @@ import { normalizeImage } from './normalization.ts'
 import type { NormalizationPolicy } from './normalization.ts'
 import { detectImage, probeImage } from './image.ts'
 import type { DetectedImage } from './image.ts'
-import { publishExclusive, type PublishMethod } from '@deepseek-ai/dsh-util-exclusive-publish'
+import { publishExclusive } from '@deepseek-ai/dsh-util-exclusive-publish'
 
 const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
 const durableHomes = new Set<string>()
@@ -305,7 +305,7 @@ export async function publishImmutableAlias(
     await ensureDurableDirectory(parent, boundary)
     try {
       // A rename would move the canonical object's only name onto the alias.
-      await publishExclusive(source, target, { rename: null })
+      await publishExclusive(source, target)
     } catch (error) {
       /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable publish race. */
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
@@ -380,9 +380,8 @@ async function publishStagedObject(
   const parent = dirname(target)
   try {
     await ensureDurableDirectory(parent, staged.boundary)
-    let method: PublishMethod | undefined
     try {
-      method = await publishExclusive(staged.path, target)
+      await publishExclusive(staged.path, target)
     } catch (error) {
       /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable publish race. */
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
@@ -390,11 +389,10 @@ async function publishStagedObject(
         throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
       }
     }
-    // A rename already consumed the staging name; link and copy keep it. Windows
-    // shares the read-only attribute across hard links and refuses to unlink
-    // either name once it is set, so discard the staging name before chmod.
-    /* v8 ignore next -- the Linux coverage host links successfully; Android exercises rename consumption. */
-    if (method !== 'renamed') await unlink(staged.path)
+    // Both publication paths keep the staging name. Windows shares the read-only
+    // attribute across hard links and refuses to unlink either name once it is
+    // set, so discard the staging name before chmod.
+    await unlink(staged.path)
     // The target remains the sole name for a new object; this also restores
     // read-only mode when the deduplication path observes an existing object.
     await chmod(target, 0o400)

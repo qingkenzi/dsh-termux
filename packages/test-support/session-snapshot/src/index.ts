@@ -56,7 +56,6 @@ export {
 } from './normalize.ts'
 export {
   parseSnapshotManifest,
-  snapshotSkipReason,
   writesCurrentSessionFixtures,
   type SnapshotHeaderManifest,
   type SnapshotInputAttachment,
@@ -67,8 +66,6 @@ export {
   type SnapshotProfile,
   type SnapshotRecording,
   type SnapshotReplayManifest,
-  type SnapshotRequirement,
-  type SnapshotSkip,
   type SnapshotSessionReference,
   type SnapshotSessionFormatCoverage,
   type SnapshotSessionFormatManifest,

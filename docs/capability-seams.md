@@ -253,12 +253,9 @@ flowchart LR
   pkg_sandbox_policy["sandbox-policy"]
   svc_sandboxPolicy["ctx.sandboxPolicy<br/>Sandbox policy home"]
   pkg_fs_sandbox["fs-sandbox"]
-  pkg_sandbox_startup["sandbox-startup"]
-  svc_sandboxStartup["ctx.sandboxStartup<br/>Sandbox mode startup authority"]
-  pkg_approval["approval"]
-  pkg_permission_presets["permission-presets"]
   pkg_user_approval["user-approval"]
   svc_approval["ctx.approval<br/>Approval seam"]
+  pkg_permission_presets["permission-presets"]
   svc_permissionPresets["ctx.permissionPresets<br/>Permission presets"]
   pkg_ptc_runtime["ptc-runtime"]
   svc_ptcRuntime["ctx.ptcRuntime<br/>PTC execution seam"]
@@ -435,7 +432,6 @@ flowchart LR
   pkg_sandbox_local --> svc_sandbox
   pkg_sandbox_policy --> svc_sandboxPolicy
   pkg_sandbox_ssh --> svc_sandbox
-  pkg_sandbox_startup --> svc_sandboxStartup
   pkg_sandbox_windows_acl --> svc_skills
   pkg_schedule --> svc_schedule
   pkg_session --> svc_sessions
@@ -578,9 +574,6 @@ flowchart LR
   svc_sandboxPolicy --> pkg_fs_sandbox
   svc_sandboxPolicy --> pkg_terminal_bash
   svc_sandboxPolicy --> pkg_terminal_panel
-  svc_sandboxStartup --> pkg_approval
-  svc_sandboxStartup --> pkg_permission_presets
-  svc_sandboxStartup --> pkg_sandbox_policy
   svc_sessionPersistence --> pkg_agent_loop
   svc_sessionPersistence --> pkg_hooks_claude_code
   svc_sessionPersistence --> pkg_hooks_codex
@@ -764,7 +757,6 @@ flowchart LR
 | `ctx.terminals` | `seam` | [`terminal`](../packages/terminal/terminal) | [`terminal-bash`](../packages/terminal/terminal-bash), [`terminal-panel`](../packages/experimental/terminal-panel) | [`tool-terminal`](../packages/experimental/tool-terminal) | - | The registry owns exact-Agent session identity and cleanup; backends own terminal mechanics, while tool-terminal exposes the owner-scoped model tools. |
 | `ctx.sandbox` | `seam` | [`sandbox`](../packages/sandbox/sandbox) | [`sandbox-local`](../packages/sandbox/sandbox-local), [`sandbox-ssh`](../packages/ssh/sandbox-ssh) | [`bash-sandbox`](../packages/shell/bash-sandbox), [`terminal-bash`](../packages/terminal/terminal-bash), [`api-terminal-controller`](../packages/api/terminal-controller) | - | Consumers hand over the exact argv they are about to spawn; same-world backends wrap it under a per-call policy and report enforcement. |
 | `ctx.sandboxPolicy` | `core` | [`sandbox-policy`](../packages/sandbox/sandbox-policy) | - | [`bash-sandbox`](../packages/shell/bash-sandbox), [`fs-sandbox`](../packages/fs/fs-sandbox), [`terminal-bash`](../packages/terminal/terminal-bash), [`terminal-panel`](../packages/experimental/terminal-panel) | - | The one home for the deployment default mode + workspace root; only the sandboxed executor and provider read the service (the tool layers use the pure `sandbox/mode` fold it also exports). Both enforcing families read it so bash and fs cannot confine to different roots. |
-| `ctx.sandboxStartup` | `core` | [`sandbox-startup`](../packages/sandbox/sandbox-startup) | - | [`sandbox-policy`](../packages/sandbox/sandbox-policy), `approval`, [`permission-presets`](../packages/interaction/permission-presets) | - | Resolves the deployment mode from explicit configuration, the mounted provider availability, and the declared no-backend policy; bundles read its mode and paired approval policy. |
 | `ctx.approval` | `seam` | [`user-approval`](../packages/interaction/user-approval) | - | [`tools`](../packages/core/tools), [`tool-bash`](../packages/shell/tool-bash), [`acp`](../packages/acp/acp) | - | One-shot permission decisions dispatched over the `approval/request` waterfall; answerers are listeners (the ACP bridge for its own agents), absence fails closed to `unavailable`. |
 | `ctx.permissionPresets` | `core` | [`permission-presets`](../packages/interaction/permission-presets) | - | - | - | User-facing preset table (`workspace-write`/`danger-full-access`) bundling the sandbox-mode and approval-policy knobs; a switch writes one `permission/preset` event through to both knob events. |
 | `ctx.ptcRuntime` | `seam` | [`ptc-runtime`](../packages/ptc-runtime/ptc-runtime) | [`ptc-runtime-node`](../packages/ptc-runtime/ptc-runtime-node) | [`tool-executor-ptc`](../packages/core/tool-executor-ptc), [`workflow-ptc`](../packages/workflow/workflow-ptc) | - | Runs programs against host-provided async bindings; tool-executor-ptc owns PTC presentation and workflow-ptc owns workflow orchestration. |

@@ -14,7 +14,6 @@ import { probeNonLoopbackIpv4, probeZonedLoopback } from '../../../../../../scri
 import { startPrefixProxy } from '../../../../../../apps/web/tests/prefix-proxy.ts'
 import { PROCESS_SHUTDOWN_TIMEOUT_MS } from '../../../../src/process-shutdown.ts'
 import { materializeTlsFixture } from '../../../../../../packages/host/webserver/tests/tls-fixture.ts'
-import { loginUrlFromFile } from './web-launch.ts'
 
 const repoRoot = fileURLToPath(new URL('../../../../../../', import.meta.url))
 const dshBin = join(repoRoot, 'apps/cli/lib/bin.js')
@@ -78,7 +77,7 @@ interface RunningWeb {
 }
 
 /**
- * Boot the built CLI and wait for its announced URL and bound listener port.
+ * Boot the built CLI and wait for its `dsh web:` line and bound listener port.
  * The marker plugin also polls for the interrupt file and emits `SIGTERM` on
  * the child's own process, because Windows has no deliverable SIGTERM.
  */
@@ -114,8 +113,7 @@ async function bootWeb(root: string, flags: string[]): Promise<RunningWeb> {
   }
   lines.on('line', (line) => {
     if (line.startsWith('public-url-listen-port: ')) port = Number(line.slice('public-url-listen-port: '.length))
-    const announcedUrl = loginUrlFromFile(line)
-    if (announcedUrl !== undefined) startup = new URL(announcedUrl)
+    if (line.startsWith('dsh web: http')) startup = new URL(line.slice('dsh web: '.length))
     announced()
   })
   void child.then((result) => {
@@ -123,7 +121,7 @@ async function bootWeb(root: string, flags: string[]): Promise<RunningWeb> {
   })
   let deadline: NodeJS.Timeout | undefined
   const expired = new Promise<never>((_resolve, reject) => {
-    deadline = setTimeout(() => { reject(new Error('Web profile did not announce its URL and bound port')) }, 60_000)
+    deadline = setTimeout(() => { reject(new Error('Web profile did not print its URL line and bound port')) }, 60_000)
   })
   try {
     return await Promise.race([ready.promise, expired])
@@ -255,16 +253,12 @@ describe.skipIf(!builtArtifactsExist)('dsh Web profile bind address and advertis
           { dial: '127.0.0.1', port: proxy.port, prefix: MOUNT, host: web.startup.host },
           { dial: '127.0.0.1', port: web.port, prefix: '/', host: `127.0.0.1:${String(web.port)}` },
         ]
-        // The launch token is one-shot and the cookie is authority-bound.
-        // Authenticate the advertised authority, then prove the loopback
-        // authority is still protected without its own launch exchange.
-        const { cookie } = await exchange('http:', entries[0]!.dial, entries[0]!.port, `${entries[0]!.prefix}${web.startup.search}`, entries[0]!.host)
-        const authenticated = await request('http:', entries[0]!.dial, entries[0]!.port, `${entries[0]!.prefix}api/session/create`, entries[0]!.host, 'POST', cookie)
-        expect(authenticated.status).toBe(200)
-        expect(await authenticated.json()).toMatchObject({ result: { ok: true } })
-        const loopbackUnauthenticated = await request('http:', entries[1]!.dial, entries[1]!.port, '/api/session/create', entries[1]!.host, 'POST')
-        expect(loopbackUnauthenticated.status).toBe(401)
-        await loopbackUnauthenticated.arrayBuffer()
+        for (const entry of entries) {
+          const { cookie } = await exchange('http:', entry.dial, entry.port, `${entry.prefix}${web.startup.search}`, entry.host)
+          const response = await request('http:', entry.dial, entry.port, `${entry.prefix}api/session/create`, entry.host, 'POST', cookie)
+          expect(response.status).toBe(200)
+          expect(await response.json()).toMatchObject({ result: { ok: true } })
+        }
         const foreign = await request('http:', '127.0.0.1', proxy.port, `${MOUNT}api/session/create`, 'evil.example', 'POST')
         expect(foreign.status).toBe(403)
         await foreign.arrayBuffer()
@@ -293,11 +287,9 @@ describe.skipIf(!builtArtifactsExist)('dsh Web profile bind address and advertis
       // A declared authority is admitted without being advertised; any other
       // name for the same socket is a rebound Host.
       const declared = `${trustedHost}:${String(web.port)}`
-      // A declared authority is routed, but the browser cookie is bound to the
-      // authority that exchanged the one-shot launch token; it cannot
-      // authenticate a second name for the same socket.
-      const viaDeclared = await request('http:', NON_LOOPBACK_IPV4!, web.port, '/api/session/create', declared, 'POST', cookie)
-      expect(viaDeclared.status).toBe(401)
+      const declaredSession = await exchange('http:', NON_LOOPBACK_IPV4!, web.port, `/${web.startup.search}`, declared)
+      const viaDeclared = await request('http:', NON_LOOPBACK_IPV4!, web.port, '/api/session/create', declared, 'POST', declaredSession.cookie)
+      expect(viaDeclared.status).toBe(200)
       await viaDeclared.arrayBuffer()
       const rebound = await request('http:', NON_LOOPBACK_IPV4!, web.port, '/api/session/create', `evil.example:${String(web.port)}`, 'POST', cookie)
       expect(rebound.status).toBe(403)

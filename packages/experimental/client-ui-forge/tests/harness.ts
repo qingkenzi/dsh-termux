@@ -21,7 +21,7 @@ import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { createAssistantMessage, createToolResultMessage, createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
 import SandboxProvider from '@deepseek-ai/dsh-sandbox'
 import LocalSandbox from '@deepseek-ai/dsh-sandbox-local'
-import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import SessionStore, { pluginRecordOf, Session as SessionRecord, SESSION_FORMAT_VERSION, type SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
@@ -195,11 +195,6 @@ export function sandboxRecord(): SandboxRecord {
 
 /** Sandbox double that records each confinement in its plugin config and returns the argv unchanged. */
 export class RecordingSandbox extends SandboxProvider {
-
-  /** Test doubles report themselves available so startup composition resolves. */
-  availability(): SandboxAvailability {
-    return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
-  }
   constructor(ctx: Context, private readonly record: SandboxRecord) {
     super(ctx)
   }

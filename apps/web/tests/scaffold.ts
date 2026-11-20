@@ -654,7 +654,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     // WebApp-published login URL; Playwright owns browser opening.
     // Preserve the composed surface-context choice because a patch replaces
     // the row's complete config.
-    { id: 'web-runtime', config: { surfaceContext, openBrowser: false, printUrl: 'never' } },
+    { id: 'web-runtime', config: { surfaceContext, openBrowser: false, printUrl: true } },
     ...publicHost === undefined && options.remoteAuthority === undefined
       ? []
       : [{

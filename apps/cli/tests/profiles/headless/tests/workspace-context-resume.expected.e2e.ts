@@ -27,8 +27,7 @@ import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-j
 import { logPath } from '../../../../../../packages/session/session-persistence-jsonl/src/format.ts'
 import { renderAgentInstructions } from '@deepseek-ai/dsh-agent-instructions'
 import { resolveConfig, workspaceBaselineIdentity } from '@deepseek-ai/dsh-agent-instructions/src/config.ts'
-import { describe, expect } from 'vitest'
-import { expectedScenario } from '../../../expected-platform.ts'
+import { describe, expect, it } from 'vitest'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'expected/workspace-context-resume/offline-edit')
@@ -41,7 +40,6 @@ const binScript = fileURLToPath(new URL('../../../../../../packages/test-support
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const sessionId = brandString<SessionId>('workspace-context-resume')
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
-const scenario = expectedScenario(import.meta.url)
 const oldInstruction = 'Old workspace instruction.'
 const newInstruction = 'New workspace instruction after offline edit.'
 
@@ -137,7 +135,7 @@ async function seedVisibleBaseline(
 }
 
 describe('agent-instructions resume snapshot', () => {
-  scenario.it('appends an offline replacement without duplicating the visible baseline', async () => {
+  it('appends an offline replacement without duplicating the visible baseline', async () => {
     let cwd = ''
     let sessionPath = ''
     const result = await runLoaderSmoke({
@@ -194,7 +192,7 @@ describe('agent-instructions resume snapshot', () => {
     })
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
-  scenario.it('supersedes an incompatible baseline when precedence changed offline', async () => {
+  it('supersedes an incompatible baseline when precedence changed offline', async () => {
     let cwd = ''
     let sessionPath = ''
     const result = await runLoaderSmoke({

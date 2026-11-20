@@ -7,6 +7,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { MenuRegistry } from '@deepseek-ai/dsh-client-ui-context-menu/src/client/registry.ts'
 import { OpenInAppPathController } from '../src/client/open-path.ts'
+import { OpenInAppController } from '../src/client/controller.ts'
 import { registerFileMenus } from '@deepseek-ai/dsh-client-ui-file-actions/src/client/context-menus.tsx'
 import { registerContextMenus } from '../src/client/context-menus.tsx'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -25,9 +26,7 @@ it('offers image actions on file targets, copies absolute paths, and keeps save 
   vi.stubGlobal('navigator', { clipboard: { writeText } })
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ apps: ['finder'] }))))
   const remote = { session: {
-    workspaceDesktop: async () => ({ ok: true as const, value: {
-      name: 'desktop', available: true, fileManager: 'directory' as const, associationsSupported: true,
-    } }),
+    canOpenWorkspacePath: async () => ({ ok: true as const, value: true }),
     workspacePathApplications: async () => ({ ok: true as const, value: [] }),
     openWorkspacePath: async () => ({ ok: true as const, value: undefined }),
   }, workspaceFiles: {
@@ -39,8 +38,9 @@ it('offers image actions on file targets, copies absolute paths, and keeps save 
   ctx.provide('sessions', { list: createSnapshotStore({ byId: { [id]: { cwd: '/workspace' } } }) } as never)
   ctx.provide('fileActions', { save, copyImage: copy, canSaveAs: true } as never)
   const paths = new OpenInAppPathController(remote)
+  const directories = new OpenInAppController()
   const fiber = ctx.plugin({ apply: (plugin: Context) => {
-    registerContextMenus(plugin, paths, key => key, vi.fn())
+    registerContextMenus(plugin, paths, key => key, directories, vi.fn())
     registerFileMenus(plugin, ctx.fileActions, key => key)
   } })
   await fiber.await()

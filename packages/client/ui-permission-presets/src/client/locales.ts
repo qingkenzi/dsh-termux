@@ -41,8 +41,6 @@ export const en = {
 /** Simplified Chinese dictionary for the current-session popup gate. */
 export const accessZh = {
   'mode': '访问模式，当前：{name}',
-  'availability.partial': '部分强制',
-  'availability.none': '无沙箱',
   'close': '关闭',
   'preset.readOnly': '仅可查看',
   'preset.workspaceWrite': '工作区内修改',
@@ -67,8 +65,6 @@ export type PermissionAccessKey = keyof typeof accessZh
 /** English dictionary for the current-session popup gate. */
 export const accessEn = {
   'mode': 'Access mode, current: {name}',
-  'availability.partial': 'partial',
-  'availability.none': 'no sandbox',
   'close': 'Close',
   'preset.readOnly': 'Read Only',
   'preset.workspaceWrite': 'Workspace Write',
@@ -186,8 +182,6 @@ export const pt = {
 /** Japanese copy, checked against the English keys. */
 export const accessJa = {
   'mode': 'アクセスモード、現在: {name}',
-  'availability.partial': '部分的',
-  'availability.none': 'サンドボックスなし',
   'close': '閉じる',
   'preset.readOnly': '読み取り専用',
   'preset.workspaceWrite': 'ワークスペース書き込み',
@@ -209,8 +203,6 @@ export const accessJa = {
 /** Spanish dictionary, checked against the English keys. */
 export const accessEs = {
   'mode': 'Modo de acceso, actual: {name}',
-  'availability.partial': 'parcial',
-  'availability.none': 'sin sandbox',
   'close': 'Cerrar',
   'preset.readOnly': 'Sólo lectura',
   'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
@@ -232,8 +224,6 @@ export const accessEs = {
 /** French dictionary, checked against the English keys. */
 export const accessFr = {
   'mode': "Mode d'accès, actuel : {name}",
-  'availability.partial': 'partiel',
-  'availability.none': 'sans bac à sable',
   'close': 'Fermer',
   'preset.readOnly': 'Lecture seule',
   'preset.workspaceWrite': "Écriture dans l'espace de travail",
@@ -255,8 +245,6 @@ export const accessFr = {
 /** German dictionary, checked against the English keys. */
 export const accessDe = {
   'mode': 'Zugriffsmodus, aktuell: {name}',
-  'availability.partial': 'teilweise',
-  'availability.none': 'keine Sandbox',
   'close': 'Schließen',
   'preset.readOnly': 'Nur lesen',
   'preset.workspaceWrite': 'Arbeitsbereich schreiben',
@@ -278,8 +266,6 @@ export const accessDe = {
 /** Russian dictionary, checked against the English keys. */
 export const accessRu = {
   'mode': 'Режим доступа, текущий: {name}',
-  'availability.partial': 'частично',
-  'availability.none': 'без песочницы',
   'close': 'Закрыть',
   'preset.readOnly': 'Только чтение',
   'preset.workspaceWrite': 'Запись в рабочей области',
@@ -301,8 +287,6 @@ export const accessRu = {
 /** Portuguese dictionary, checked against the English keys. */
 export const accessPt = {
   'mode': 'Modo de acesso, atual: {name}',
-  'availability.partial': 'parcial',
-  'availability.none': 'sem sandbox',
   'close': 'Fechar',
   'preset.readOnly': 'Somente leitura',
   'preset.workspaceWrite': 'Gravação no espaço de trabalho',

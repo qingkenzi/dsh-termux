@@ -2094,9 +2094,6 @@ importers:
 
   packages/boot/app-boot:
     dependencies:
-      '@deepseek-ai/dsh-android-exec':
-        specifier: workspace:*
-        version: link:../../platform/android-exec
       '@deepseek-ai/dsh-atomic-write':
         specifier: workspace:*
         version: link:../../util/atomic-write
@@ -2619,9 +2616,6 @@ importers:
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:*
         version: link:../../sandbox/sandbox-policy
-      '@deepseek-ai/dsh-sandbox-startup':
-        specifier: workspace:*
-        version: link:../../sandbox/sandbox-startup
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
@@ -11351,9 +11345,6 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol
-      '@deepseek-ai/dsh-util-exclusive-publish':
-        specifier: workspace:*
-        version: link:../../util/exclusive-publish
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values
@@ -14059,9 +14050,6 @@ importers:
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:*
         version: link:../../sandbox/sandbox-policy
-      '@deepseek-ai/dsh-sandbox-startup':
-        specifier: workspace:*
-        version: link:../../sandbox/sandbox-startup
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
@@ -15072,16 +15060,6 @@ importers:
         specifier: workspace:*
         version: link:../../interaction/user-questions
 
-  packages/platform/android-exec:
-    dependencies:
-      '@deepseek-ai/dsh-error':
-        specifier: workspace:*
-        version: link:../../util/error
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-
   packages/preset/agent-preset:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -15379,22 +15357,6 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:*
         version: link:../../core/system-prompt
-
-  packages/sandbox/sandbox-startup:
-    dependencies:
-      '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
-        version: link:../../../vendor/schemastery
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-llm':
-        specifier: workspace:*
-        version: link:../../llm/llm
-      '@deepseek-ai/dsh-sandbox':
-        specifier: workspace:*
-        version: link:../sandbox
 
   packages/sandbox/sandbox-windows-acl:
     dependencies:
@@ -18291,9 +18253,6 @@ importers:
 
   packages/subprocess/subprocess-local:
     dependencies:
-      '@deepseek-ai/dsh-android-exec':
-        specifier: workspace:*
-        version: link:../../platform/android-exec
       '@deepseek-ai/dsh-lazy-require':
         specifier: workspace:*
         version: link:../../util/lazy-require
@@ -19107,10 +19066,6 @@ importers:
         version: link:../../../vendor/cordis
 
   packages/util/exclusive-publish:
-    dependencies:
-      koffi:
-        specifier: 3.1.1
-        version: 3.1.1(patch_hash=df4adc7bee9d90d12a5cdc6869acba2d31a13249287a4b146fba96898f4849f4)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -19162,9 +19117,6 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-error':
-        specifier: workspace:*
-        version: link:../error
 
   packages/util/official-bundles:
     dependencies:
@@ -19919,9 +19871,6 @@ importers:
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:*
         version: link:../../packages/sandbox/sandbox-policy
-      '@deepseek-ai/dsh-sandbox-startup':
-        specifier: workspace:*
-        version: link:../../packages/sandbox/sandbox-startup
       '@deepseek-ai/dsh-schedule':
         specifier: workspace:*
         version: link:../../packages/schedule/schedule

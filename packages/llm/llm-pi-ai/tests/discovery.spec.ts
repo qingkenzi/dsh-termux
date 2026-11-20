@@ -115,13 +115,6 @@ describe('catalog-route model discovery', () => {
 })
 
 describe('draft-provider model discovery', () => {
-  it('refuses a public plain-HTTP draft before any request', async () => {
-    const server = await listingServer({ body: '{}' })
-    await expect(discoverModels({ baseURL: 'http://gateway.public.example/v1' }))
-      .rejects.toMatchObject({ code: 'INSECURE_BASE_URL' })
-    expect(server.paths).toEqual([])
-  })
-
   it('reads an OpenAI-compatible listing and keeps the capacities it discloses', async () => {
     const server = await listingServer({
       body: JSON.stringify({

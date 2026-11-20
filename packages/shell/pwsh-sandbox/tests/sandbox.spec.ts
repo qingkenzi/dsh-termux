@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { SandboxProvider, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, RunnerFailureRule, SandboxAvailability, SandboxExecutionPolicy, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, RunnerFailureRule, SandboxExecutionPolicy, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
@@ -71,11 +71,6 @@ async function setup(
 ): Promise<{ ctx: Context; executor: SandboxPwshExecutor; calls: ConfineCall[] }> {
   const calls: ConfineCall[] = []
   class FakeSandboxProvider extends SandboxProvider {
-
-    /** Test doubles report themselves available so startup composition resolves. */
-    availability(): SandboxAvailability {
-      return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
-    }
     async confine(argv: readonly string[], policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv> {
       calls.push({ argv: [...argv], policy })
       return behavior(argv, policy, signal)

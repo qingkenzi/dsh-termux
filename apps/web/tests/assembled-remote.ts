@@ -161,9 +161,6 @@ export function createAssembledRemote(options: AssembledRemoteOptions = {}): Ass
       'terminal/list': ok([]),
       'skills/list': ok({ skills: [] }),
       'session/canOpenWorkspacePath': ok(true),
-      'session/workspaceDesktop': ok({
-        name: 'fixture', available: true, fileManager: 'directory', associationsSupported: false,
-      }),
       'session/openWorkspacePath': ok({ opened: true }),
       'session/updateQueue': {
         ok: false,

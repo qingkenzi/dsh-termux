@@ -335,7 +335,7 @@ fs.appendFileSync(${JSON.stringify(openLog)}, JSON.stringify({ path, action, con
       const revealResponse = phone.waitForResponse(response => response.url().includes('action=reveal') && response.request().method() === 'POST')
       await phone.getByRole('menuitem', { name: 'Show file location', exact: true }).tap()
       expect((await revealResponse).status()).toBe(204)
-      const revealed = phone.getByRole('alert').filter({ hasText: 'File location opened on another device' })
+      const revealed = phone.getByRole('alert').filter({ hasText: 'File location shown on another device' })
       await revealed.waitFor()
       notices.push(`## Show file location\n\n${await revealed.ariaSnapshot()}`)
       await expect.poll(opened).toHaveLength(beforeOpen + 2)

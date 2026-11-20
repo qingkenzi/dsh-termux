@@ -17,7 +17,6 @@ import Loader, { type Entry, type EntryGroup, type EntryOptions } from '@deepsee
 import Include, { applyEntryPatches, parseEntryYaml, stringifyEntryYaml, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import Group from '@deepseek-ai/cordis-plugin-group'
 import { dshHomePath, dshPath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import { installAndroidExec } from '@deepseek-ai/dsh-android-exec'
 import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 export { readBundlePatches, readProfilePatches, resolveTelemetryPatch, type ProfileContext, type ProfilePnpmInvocation } from './profile-context.ts'
 export { sanitizeProfile } from './profile-sanitize.ts'
@@ -1189,11 +1188,7 @@ export async function auditStartupEntries(
  * is statically imported and mounted as the `cordis:include` builtin, loading
  * through the ambient module pipeline (vite/tsx/plain ESM). The package build
  * embeds Include while leaving Loader external, so the built include tree and
- * host share one Loader peer. Before any entry mounts, the boot probes Android
- * exec capability once and publishes the result as `ctx.androidExec`; a blocked
- * platform logs one actionable warning and leaves exec-based tools to fail with
- * `PLATFORM_EXEC_BLOCKED` while the rest of the application starts normally.
- * Loader settlement drains entry work without
+ * host share one Loader peer. Loader settlement drains entry work without
  * rejecting the whole tree. The final {@link auditStartupEntries} call rejects
  * failures in the global required list and warns about other failed, missing,
  * and pending entries while successful siblings remain active. Later unhandled
@@ -1241,10 +1236,6 @@ export async function boot(
     ctx.baseUrl = pathToFileURL(dirname(absoluteConfigPath)).href + '/'
     ctx.provide('dshHomePath', dshHomePath)
     ctx.provide('dshPath', dshPath)
-    // One Android W^X/exec probe before any config-tree entry mounts: a
-    // blocked platform publishes PLATFORM_EXEC_BLOCKED here, and exec-based
-    // providers read the result instead of each reporting a generic EACCES.
-    await installAndroidExec(ctx, binName)
     await ctx.plugin(Loader)
     await prepare?.(ctx)
     stage = 'plugin tree failed to load'

@@ -36,20 +36,6 @@ describe('native path opener', () => {
     expect(run).toHaveBeenCalledWith('open', ['-t', '/Users/test/settings.yaml'], expect.any(AbortSignal), 'hidden')
   })
 
-  it('opens an android file as one absolute argv element without a shell', async () => {
-    const path = '/data/data/com.termux/files/home/work/report $1; touch nope.txt'
-    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
-    await openNativeAssociatedPath(path, signal(), { platform: 'android', env: {}, run })
-    expect(run).toHaveBeenCalledExactlyOnceWith('xdg-open', [path], expect.any(AbortSignal), 'hidden')
-  })
-
-  it('classifies a missing android viewer as unavailable', async () => {
-    const missing = Object.assign(new Error('spawn xdg-open ENOENT'), { code: 'ENOENT' })
-    const run = vi.fn<PathOpenerRunner>().mockRejectedValue(missing)
-    await expect(openNativePath('/data/work/report.txt', signal(), { platform: 'android', env: {}, run }))
-      .rejects.toMatchObject({ code: 'NATIVE_FILE_MANAGER_UNAVAILABLE', cause: missing })
-  })
-
   it('uses the Linux desktop association for text documents', async () => {
     const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
     await openNativeTextFile('/tmp/settings.yaml', signal(), {
@@ -300,29 +286,6 @@ describe('browser-renderable documents', () => {
     expect(bare[1]).toEqual(['open', '/w/page.html'])
   })
 
-  it('honors $BROWSER on android and falls back to xdg-open without it', async () => {
-    const android: string[][] = []
-    await openNativePath('/data/data/com.termux/files/home/page.html', new AbortController().signal, {
-      platform: 'android',
-      env: { BROWSER: 'firefox' },
-      run: async (command, args) => {
-        android.push([command, ...args])
-        return { stdout: '', stderr: '' }
-      },
-    })
-    // Termux reports `android` but reads the Linux browser convention, so a
-    // configured browser wins over the xdg-open association.
-    expect(android).toEqual([['firefox', '/data/data/com.termux/files/home/page.html']])
-
-    const bare: string[][] = []
-    await openNativePath('/data/data/com.termux/files/home/page.html', new AbortController().signal, {
-      platform: 'android',
-      env: {},
-      run: async (command, args) => { bare.push([command, ...args]); return { stdout: '', stderr: '' } },
-    })
-    expect(bare).toEqual([['xdg-open', '/data/data/com.termux/files/home/page.html']])
-  })
-
   it('honors $BROWSER on linux and leaves windows to its association', async () => {
     const linux: string[][] = []
     await openNativePath('/w/page.html', new AbortController().signal, {
@@ -377,9 +340,6 @@ describe('canOpenNativePath', () => {
   it('always answers yes where the desktop is part of the platform', () => {
     expect(canOpenNativePath({ platform: 'darwin', env: {} })).toBe(true)
     expect(canOpenNativePath({ platform: 'win32', env: {} })).toBe(true)
-    // Termux reaches Android's viewer through its xdg-open regardless of a
-    // display-server variable, which Android does not set.
-    expect(canOpenNativePath({ platform: 'android', env: {} })).toBe(true)
   })
 
   it('requires a display server or WSL interop on linux', () => {
@@ -420,8 +380,6 @@ describe('native file manager', () => {
     ['darwin', 'finder', '/tmp/my report.txt', 'open', ['-R', '/tmp/my report.txt']],
     ['win32', 'explorer', 'C:\\work\\my report.txt', 'explorer.exe', ['/select,', 'file:///C:/work/my%20report.txt']],
     ['linux', 'directory', '/tmp/a $b; report.txt', 'xdg-open', ['/tmp']],
-    ['android', 'directory', '/data/data/com.termux/files/home/a $b; report.txt', 'xdg-open',
-      ['/data/data/com.termux/files/home']],
   ] as const)('reveals through %s without opening the file association', async (platform, manager, path, command, args) => {
     const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
     const internals = { platform, env: {}, osRelease: 'generic', run }
@@ -449,32 +407,6 @@ describe('native file manager', () => {
     run.mockImplementationOnce(async () => { abort.abort(new Error('stopped')); return { stdout: 'C:\\file', stderr: '' } })
     await expect(revealNativePath('/file', abort.signal, internals)).rejects.toThrow('stopped')
     expect(run.mock.calls.every(([cmd]) => cmd === 'wslpath')).toBe(true)
-  })
-
-  it('opens the containing directory on android and rejects cancellation or a launcher failure', async () => {
-    const path = '/data/data/com.termux/files/home/work/report.txt'
-    const abort = new AbortController()
-    const reason = new Error('cancelled')
-    abort.abort(reason)
-    const cancelled = vi.fn<PathOpenerRunner>()
-    await expect(revealNativePath(path, abort.signal, { platform: 'android', env: {}, run: cancelled }))
-      .rejects.toBe(reason)
-    expect(cancelled).not.toHaveBeenCalled()
-
-    const failure = new Error('termux-open failed')
-    const failed = vi.fn<PathOpenerRunner>().mockRejectedValue(failure)
-    await expect(revealNativePath(path, signal(), { platform: 'android', env: {}, run: failed })).rejects.toMatchObject({
-      code: 'NATIVE_FILE_OPEN_FAILED', cause: failure,
-    })
-    expect(failed).toHaveBeenCalledExactlyOnceWith('xdg-open', ['/data/data/com.termux/files/home/work'],
-      expect.any(AbortSignal), 'hidden')
-  })
-
-  it('classifies a missing android file-manager command as unavailable', async () => {
-    const missing = Object.assign(new Error('spawn xdg-open ENOENT'), { code: 'ENOENT' })
-    const run = vi.fn<PathOpenerRunner>().mockRejectedValue(missing)
-    await expect(revealNativePath('/data/work/report.txt', signal(), { platform: 'android', env: {}, run }))
-      .rejects.toMatchObject({ code: 'NATIVE_FILE_MANAGER_UNAVAILABLE', cause: missing })
   })
 
   it('rejects unsupported platforms, cancellation, and launcher errors', async () => {

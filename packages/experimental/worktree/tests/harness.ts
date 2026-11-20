@@ -9,7 +9,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { unsupportedModel, unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import SandboxProvider from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxAvailability, SandboxMode, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxMode, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import LocalSandbox from '@deepseek-ai/dsh-sandbox-local'
 import { Session, type SessionId, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
@@ -33,11 +33,6 @@ export async function git(cwd: string, ...args: string[]): Promise<string> {
 
 /** Unconfined fixtures must never accidentally exercise the confined branch. */
 export class UnusedSandbox extends SandboxProvider {
-
-  /** Test doubles report themselves available so startup composition resolves. */
-  availability(): SandboxAvailability {
-    return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
-  }
   async confine(_argv: readonly string[], _policy: SandboxPolicy): Promise<ConfinedArgv> {
     throw new Error('unexpected confinement in a danger-full-access fixture')
   }

@@ -58,8 +58,8 @@ it('opens its tokenized URL only after the complete authenticated page is reacha
     { name: 'webserver', config: { host: '127.0.0.1', port: 0 } },
     { name: 'credentials', config: { path: join(root, 'credentials.yaml'), watch: false } },
     { name: 'connection' },
-    { name: 'token' },
-    { name: 'web-app', config: { printUrl: 'never' } },
+    { name: 'token', config: { cookieMaxAgeDays: 30 } },
+    { name: 'web-app', config: { printUrl: false } },
   ]
   const config = join(root, 'cordis.yml')
   await writeFile(config, rows.map(row => `- ${JSON.stringify({ ...row, name: `cordis:${row.name}` })}`).join('\n') + '\n')

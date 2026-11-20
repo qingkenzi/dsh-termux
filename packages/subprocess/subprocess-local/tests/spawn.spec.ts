@@ -1,6 +1,6 @@
 import { logSpillFailure, OutputCollector, type SpillOptions } from '../src/output.ts'
 import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -211,17 +211,6 @@ describe('spawnSubprocess', () => {
         .toThrow(`subprocess graceMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
     },
   )
-
-  it.skipIf(process.platform === 'win32')('maps an Android EACCES spawn failure to PLATFORM_EXEC_BLOCKED', async () => {
-    const file = join(spillDir, `android-noexec-${Date.now()}`)
-    writeFileSync(file, '#!/bin/sh\nexit 0\n')
-    chmodSync(file, 0o644)
-    const running = spawnSubprocess({ ...spec('unused'), argv: [file] }, { spillDir, platform: 'android' })
-    await expect(running.done).rejects.toMatchObject({
-      name: 'PlatformExecBlockedError',
-      code: 'PLATFORM_EXEC_BLOCKED',
-    })
-  })
 
   it('captures stdout on success', async () => {
     const result = await finish(spawnSubprocess(spec('echo hello')))

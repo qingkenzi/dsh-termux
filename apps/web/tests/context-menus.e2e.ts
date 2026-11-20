@@ -181,8 +181,8 @@ describe.each(['MacIntel', 'Win32', 'Linux x86_64'])('web context menus on %s', 
     const menu = page.getByRole('menu')
     await menu.getByRole('menuitem', { name: 'Rename', exact: true }).waitFor()
     const names = await menuLabels(menu)
-    expect(names).toEqual(['Rename', 'Delete workspace'])
-    expect(await menu.locator('svg[data-icon]').count()).toBe(2)
+    expect(names).toEqual(['Rename', 'Show in folder', 'Delete workspace'])
+    expect(await menu.locator('svg[data-icon]').count()).toBe(3)
     expect(await workspace.getAttribute('aria-expanded')).toBe(expanded)
     await page.keyboard.press('Escape')
     await workspace.getByRole('button', { name: /actions/i }).click()
@@ -458,43 +458,5 @@ describe.each(['MacIntel', 'Win32', 'Linux x86_64'])('web context menus on %s', 
       await native.close()
       opened.mockRestore()
     }
-  })
-})
-
-describe('web context menus with a native desktop', () => {
-  let scaffold: WebScaffold, browser: Browser, page: Page
-  let tripwire: ReturnType<typeof watchConsole>
-  beforeAll(async () => {
-    scaffold = await launchWebScaffold({
-      extraOverlayPath: fileURLToPath(new URL('./context-menus-native.overlay.yml', import.meta.url)),
-    })
-    await mkdir(join(scaffold.workspaceCwd, 'folder'))
-    await scaffold.ctx.workspaceRegistry.create(join(scaffold.workspaceCwd, 'folder'), 'Native workspace')
-    await seedSession(scaffold, fixture('Native foreground'), 'context-menu-native')
-    browser = await chromium.launch()
-    const context = await browser.newContext({ viewport: { width: 1291, height: 768 }, locale: 'en-US', timezoneId: 'Asia/Shanghai' })
-    await context.addInitScript(() => { Object.defineProperty(navigator, 'platform', { value: 'Linux x86_64' }) })
-    page = await context.newPage()
-    tripwire = watchConsole(page)
-    await page.goto(scaffold.authenticatedUrl)
-    await page.locator('[data-row-key="session:context-menu-native"]').click()
-    await page.getByText('CONTEXT_MENU_READY', { exact: true }).waitFor()
-  })
-  afterAll(async () => { await browser?.close(); await scaffold?.close() })
-
-  it('offers the Workspace folder action from the Host desktop fact', async () => {
-    onTestFailed(() => saveFailureShot(page, 'context-menus-native-workspace'))
-    const workspace = page.locator('[data-row-key^="workspace:"]').filter({ hasText: 'Native workspace' })
-    await workspace.click({ button: 'right' })
-    const menu = page.getByRole('menu')
-    // The Host names its file manager; the platform matrix of the other suite covers the client-side labels.
-    const label = process.platform === 'darwin' ? 'Open in Finder'
-      : process.platform === 'win32' ? 'Open in File Explorer' : 'Open folder'
-    const openFolder = menu.getByRole('menuitem', { name: label, exact: true })
-    await openFolder.waitFor()
-    expect(await openFolder.isDisabled()).toBe(false)
-    expect(await menuLabels(menu)).toEqual(['Rename', label, 'Delete workspace'])
-    await page.keyboard.press('Escape')
-    expect(tripwire.pageErrors).toEqual([])
   })
 })

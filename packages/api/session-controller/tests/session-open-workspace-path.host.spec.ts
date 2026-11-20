@@ -227,7 +227,7 @@ it('uses the same path verification for handler queries and explicit application
   const openFileApplication = vi.fn(async () => {})
   const controller = await createSessionTestController(ctx, {
     defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default', nativeOpen: true,
-    fileApplications, openFileApplication, associationsSupported: () => true,
+    fileApplications, openFileApplication,
   })
   const signal = new AbortController().signal
   expect(await controller.workspacePathApplications({ path: '/file.mp3' }, signal)).toEqual(applications)
@@ -250,7 +250,6 @@ it('avoids desktop queries when unavailable and rejects an empty query path', as
   expect(await unavailable.workspacePathApplications({ path: '/file.mp3' }, new AbortController().signal)).toEqual([])
   const available = await createSessionTestController(await context(), {
     defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default', nativeOpen: true, fileApplications,
-    associationsSupported: () => true,
   })
   await expect(available.workspacePathApplications({ path: '' }, new AbortController().signal)).rejects.toMatchObject({ code: 'gateway/bad-request' })
   expect(fileApplications).not.toHaveBeenCalled()
@@ -267,7 +266,6 @@ it('returns bounded query failures and classifies cancellation through the Remot
     })
   const remote = await createSessionTestRemote(await context(), {
     defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default', nativeOpen: true, fileApplications,
-    associationsSupported: () => true,
   })
   await expect(remote.workspacePathApplications({ path: '/file.mp3' })).resolves.toMatchObject({
     ok: false, error: { code: 'gateway/internal', message: 'file application query failed' },
@@ -275,79 +273,4 @@ it('returns bounded query failures and classifies cancellation through the Remot
   await expect(remote.workspacePathApplications({ path: '/file.mp3' }, lifetime.signal)).resolves.toMatchObject({
     ok: false, error: { code: 'gateway/cancelled' },
   })
-})
-
-
-it('reports the serving desktop facts through the Remote surface', async () => {
-  const ctx = await context()
-  const manager = vi.spyOn(nativeCommand, 'nativeFileManager').mockReturnValue('directory')
-  onTestFinished(() => { manager.mockRestore() })
-  const remote = await createSessionTestRemote(ctx, {
-    defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default',
-    canOpenPath: () => true, associationsSupported: () => true,
-  })
-  await expect(remote.workspaceDesktop()).resolves.toMatchObject({
-    ok: true,
-    value: {
-      name: expect.any(String) as string,
-      available: true,
-      fileManager: 'directory',
-      associationsSupported: true,
-    },
-  })
-})
-
-it('hides association support when the host has no desktop', async () => {
-  const manager = vi.spyOn(nativeCommand, 'nativeFileManager').mockReturnValue(null)
-  onTestFinished(() => { manager.mockRestore() })
-  const remote = await createSessionTestRemote(await context(), {
-    defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default',
-    canOpenPath: () => false, associationsSupported: () => true,
-  })
-  await expect(remote.workspaceDesktop()).resolves.toMatchObject({
-    ok: true, value: { available: false, fileManager: null, associationsSupported: false },
-  })
-})
-
-it('opens the workspace folder through the folder opener and keeps association opening separate', async () => {
-  const ctx = await context()
-  const openFolder = vi.fn(async (_path: string, _signal: AbortSignal) => {})
-  const openPath = vi.fn(async (_path: string, _signal: AbortSignal) => {})
-  const remote = await createSessionTestRemote(ctx, {
-    defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default',
-    canOpenPath: () => true, associationsSupported: () => true, openFolder, openPath,
-  })
-  const signal = new AbortController().signal
-  await expect(remote.openWorkspacePath({ path: '/workspace/project', action: 'open' }, signal))
-    .resolves.toEqual({ ok: true, value: { opened: true } })
-  expect(openFolder).toHaveBeenCalledWith(resolve('/workspace/project'), signal)
-  expect(openPath).not.toHaveBeenCalled()
-  await remote.openWorkspacePath({ path: '/workspace/report.html' }, signal)
-  expect(openPath).toHaveBeenCalledWith(resolve('/workspace/report.html'), signal)
-})
-
-it('skips association queries without a native association registry', async () => {
-  const fileApplications = vi.fn()
-  const remote = await createSessionTestRemote(await context(), {
-    defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default',
-    canOpenPath: () => true, associationsSupported: () => false, fileApplications,
-  })
-  await expect(remote.workspacePathApplications({ path: '/workspace/report.txt' }))
-    .resolves.toEqual({ ok: true, value: [] })
-  expect(fileApplications).not.toHaveBeenCalled()
-})
-
-it('maps native opener codes to actionable Remote failures', async () => {
-  const ctx = await context()
-  const missing = Object.assign(new Error('spawn xdg-open ENOENT'), { code: 'NATIVE_FILE_MANAGER_UNAVAILABLE' })
-  const revealPath = vi.fn(async (_path: string, _signal: AbortSignal) => { throw missing })
-  const remote = await createSessionTestRemote(ctx, {
-    defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/default',
-    canOpenPath: () => true, associationsSupported: () => true, revealPath,
-  })
-  await expect(remote.openWorkspacePath({ path: '/workspace/report.txt', action: 'reveal' }))
-    .resolves.toMatchObject({
-      ok: false,
-      error: { code: 'session/native-file-manager-unavailable', message: 'no native file manager is available' },
-    })
 })

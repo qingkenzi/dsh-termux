@@ -54,12 +54,12 @@ dsh --profile web --no-open --port 8080
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `printUrl` | `'auto'` | 登录 URL 的去向：`auto` 仅在未自动打开浏览器的交互式终端打印，否则写入 `$DSH_HOME/run/web-<pid>.url`；`always` 打印并警告凭据；`never` 不打印 URL |
+| `printUrl` | `true` | 启动就绪后打印贡献的入口 URL |
 | `openBrowser` | `true` | 启动后打开首个允许自动打开的入口，SSH 下除外 |
 | `surfaceContext` | `true` | 把 `DSH_WEB_URL` 暴露给 agent 的 shell 命令 |
 | `publicUrl` | 未设置 | 对外公告的 HTTP(S) 应用根；否则公告绑定地址 URL |
 
-WebApp 拥有 `printUrl` 与 `openBrowser`。本组合选择 `auto`，并把解析后的 `--no-open` 设置传给 runtime。就绪后，同步 `webserver/entry-url` 监听器贡献完整入口，同时携带含凭据的 `url` 与不含凭据的 `displayUrl`。`auto` 下，未自动打开浏览器的终端按 `label: url` 打印；非终端输出把入口写入私有 run 文件并只打印路径；自动打开浏览器的终端改为打印 `displayUrl` 提示而不是凭据。`always` 打印每行 `label: url` 并警告该 URL 是凭据。`never` 不打印任何入口。浏览器打开始终使用首个 `open: true` 的入口，与 `printUrl` 无关。没有入口则不输出、不打开。
+WebApp 拥有 `printUrl` 与 `openBrowser`。本组合启用 URL 打印，并把解析后的 `--no-open` 设置传给 runtime。就绪后，同步 `webserver/entry-url` 监听器贡献完整入口。启用打印时，WebApp 按 `label: url` 逐行打印；启用浏览器打开且不在 SSH 下时，仅打开首个 `open: true` 的入口。没有入口则不输出、不打开。
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-app)列出了本运行时插件接受的字段及其 JSDoc。随发行版交付的组合插入 `schedule` 服务行与 `ui-schedule` 任务页面行，时钟读数与四个提醒工具则属于 `standard`、`cordis` 与 `ptc` 三个 preset。这三个 preset 的 `tool-subagent` 与 `tool-subagent-fork` 两行都 deny 这四个工具，因此被委派子 agent 的作用域不会列出它们。
 
@@ -86,7 +86,7 @@ dsh --profile web --no-open --host "$(hostname -i | awk '{print $1}')" --public-
 
 无论是公告 URL 还是浏览器信任栅栏都不保护端口本身，因此请把端口限制在可信代理或网络内。
 
-打印的 URL 与 run 文件包含进程凭据，只应与预期用户分享。`printUrl: 'never'` 无论是否配置 `--public-url` 都会抑制两者；凭据也绝不会出现在模型上下文、启动诊断或 `DSH_WEB_URL` 中：打开失败时 URL 被替换为 `[login URL]`，auto 模式只报告 run 文件路径。
+打印的 URL 包含进程凭据，只应与预期用户分享。WebApp runtime 上的 `printUrl: false` 无论是否配置 `--public-url` 都会抑制该行，凭据也绝不会出现在模型上下文或 `DSH_WEB_URL` 中。
 
 ### 通过 SSH 运行
 

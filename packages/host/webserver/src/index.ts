@@ -35,11 +35,6 @@ export interface WebEntryUrl {
   readonly label: string
   /** Complete entry URL, including any credentials required by its provider. */
   readonly url: string
-  /**
-   * The same entry without credentials, safe to print or log. It navigates to
-   * the provider's login requirement instead of authenticating by itself.
-   */
-  readonly displayUrl: string
   /** Whether this entry is eligible for the application's automatic browser handoff. */
   readonly open: boolean
 }

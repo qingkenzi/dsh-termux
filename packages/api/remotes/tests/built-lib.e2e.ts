@@ -148,7 +148,7 @@ describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
       const previousFetch = globalThis.fetch
       try {
         globalThis.document = { baseURI: origin + '/' }
-        await host.plugin(await import(urls.tokenProvider)).await()
+        await host.plugin(await import(urls.tokenProvider), { cookieMaxAgeDays: 30 }).await()
         const entries = []
         host.emit(host.webServer, 'webserver/entry-url', origin + '/', entries)
         if (entries.length !== 1) throw new Error('Token did not contribute exactly one login URL')

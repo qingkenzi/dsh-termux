@@ -5,7 +5,7 @@ import { changedFileUrl } from '../changes.ts'
 import { presentedFileUrl, PRESENT_HOST_ROUTE, isPresentedHost, type PresentedAction, type PresentedHost } from '../presented.ts'
 
 /** Failure feedback for the shared native opening control. */
-export type PresentedOpenFailure = 'openError' | 'revealError' | 'managerUnavailable'
+export type PresentedOpenFailure = 'openError' | 'revealError'
 
 /**
  * Settled result of one native file gesture, for the contributed control to

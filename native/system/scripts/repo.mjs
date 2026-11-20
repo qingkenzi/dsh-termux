@@ -49,8 +49,7 @@ export function packageDirs() {
  * Verify platform metadata, complete bin/ payloads, executable permissions,
  * and native file formats before packing. Linux and Android addons are ELF;
  * Linux addons name their libc variant, while the Android addon runs on bionic
- * alone and declares none. Node addons must export Node-API. Android also
- * carries the android-sandbox-run seccomp supervisor as an executable PIE.
+ * alone and declares none. Node addons must export Node-API.
  */
 export function verifyPlatformBinaries(packageDir) {
   const manifest = readJson(path.join(packageDir, 'package.json'));
@@ -74,8 +73,7 @@ export function verifyPlatformBinaries(packageDir) {
     }
     if (declared.has(binary.path)) throw new Error(`${manifest.name}: duplicate binary path ${binary.path}`);
     declared.add(binary.path);
-    const executable = (binary.kind === 'static-musl' && binary.tool === 'landlock-run' && os === 'linux')
-      || (binary.kind === 'bionic-executable' && binary.tool === 'android-sandbox' && os === 'android');
+    const executable = binary.kind === 'static-musl' && binary.tool === 'landlock-run' && os === 'linux';
     const addon = binary.kind === 'node-api' && binary.tool === 'flock' && binary.napi === 8;
     if (!executable && !addon) throw new Error(`${manifest.name}: unsupported binary kind/tool/NAPI for ${binary.path}`);
     if (addon && os === 'linux' && !['glibc', 'musl'].includes(binary.libc)) {

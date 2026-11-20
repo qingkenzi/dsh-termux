@@ -13,7 +13,6 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
-import { chmod, mkdir, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -22,19 +21,11 @@ import { auditStartupEntries } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import { bindUrlHost, isLoopbackHost, type WebEntryUrl } from '@deepseek-ai/dsh-host-webserver'
-import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { launchedThroughSsh, launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { parsePublicUrl } from './public-url.ts'
-
-/**
- * How startup publishes the login URL: `auto` prints it only on an interactive
- * terminal that is not opening a browser and otherwise writes a 0600 file;
- * `always` prints it with a secret warning; `never` prints no URL at all.
- */
-export type PrintUrlMode = 'auto' | 'always' | 'never'
 
 /** The Web GUI this process serves, provided by the `web-runtime` row. */
 export interface WebApp {
@@ -64,16 +55,8 @@ export const inject = ['webServer']
 export interface Config {
   /** Permit default-browser handoff after the Loader tree settles; an SSH launch suppresses it. */
   openBrowser: boolean
-  /**
-   * Login-URL publication for this invocation. `auto` keeps the one-time
-   * secret out of captured stdout: an interactive terminal that is not opening
-   * a browser receives the full URL, while every other invocation writes it to
-   * `$DSH_HOME/run/web-<pid>.url` (directory 0700, file 0600, removed on exit)
-   * and prints only that path. `always` prints the full URL and warns that it
-   * is a credential. `never` prints no URL.
-   * @default 'auto'
-   */
-  printUrl: PrintUrlMode
+  /** Print the URL lines on activation; a non-interactive layer can turn them off. */
+  printUrl: boolean
   /**
    * Register the `DSH_WEB_URL` bash variable naming this GUI. A one-shot
    * non-interactive layer can turn it off when its user is not in the GUI.
@@ -91,33 +74,13 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   openBrowser: z.boolean().default(true),
-  printUrl: z.union(['auto', 'always', 'never']).default('auto'),
+  printUrl: z.boolean().default(true),
   surfaceContext: z.boolean().default(true),
   publicUrl: z.transform(z.string(), value => parsePublicUrl(value).href),
 })
 
 /** Environment variable naming the advertised URL of this Web GUI. */
 const DSH_WEB_URL = 'DSH_WEB_URL' as const
-
-/**
- * Write this process's complete entry URLs to its private run file.
- * @param entries - contributed entries, written in order.
- * @returns the file path, inside a 0700 directory, readable only by this user.
- */
-async function writeLoginUrlFile(entries: readonly WebEntryUrl[]): Promise<string> {
-  const path = join(resolveDshHome(), 'run', `web-${String(process.pid)}.url`)
-  const directory = dirname(path)
-  await mkdir(directory, { recursive: true, mode: 0o700 })
-  await chmod(directory, 0o700)
-  await writeFile(path, entries.map(entry => `${entry.label}: ${entry.url}`).join('\n') + '\n', { mode: 0o600 })
-  await chmod(path, 0o600)
-  return path
-}
-
-/** Remove this process's run file; a stale file must not outlive the listener. */
-async function removeLoginUrlFile(path: string): Promise<void> {
-  await rm(path, { force: true })
-}
 
 const BROWSER_OPENER_MODULE = import.meta.resolve('open')
 
@@ -218,13 +181,11 @@ async function openBrowser(url: string, signal?: AbortSignal): Promise<void> {
   })
 }
 
-/** Test hooks for the built dist, browser handoff, and private URL file; production never mutates them. */
+/** Test hooks for the built dist and native browser handoff; production never mutates them. */
 export const internals: {
   resolveDistIndex: () => string
   openBrowser: (url: string, signal?: AbortSignal) => Promise<void>
-  loginUrlFile: (entries: readonly WebEntryUrl[]) => Promise<string>
-  removeLoginUrlFile: (path: string) => Promise<void>
-} = { resolveDistIndex, openBrowser, loginUrlFile: writeLoginUrlFile, removeLoginUrlFile }
+} = { resolveDistIndex, openBrowser }
 
 /**
  * Mount the Web runtime: dist serving, the bash runtime variable, entry URL
@@ -264,62 +225,28 @@ export function apply(ctx: Context, config: Config): void {
       })
     })
   }
-  if (config.printUrl !== 'never' || handoffBrowser) {
+  if (config.printUrl || handoffBrowser) {
     const lifetime = new AbortController()
     let opening: Promise<void> | undefined
-    let urlFile: string | undefined
-    let publishing: Promise<unknown> | undefined
-    const publishUrlFile = async (entries: readonly WebEntryUrl[]): Promise<string | undefined> => {
-      if (urlFile !== undefined) return urlFile
-      if (lifetime.signal.aborted) return undefined
-      try {
-        const written = await internals.loginUrlFile(entries)
-        if (lifetime.signal.aborted) {
-          await internals.removeLoginUrlFile(written)
-          return undefined
-        }
-        urlFile = written
-        return written
-      } catch (error: unknown) {
-        if (lifetime.signal.aborted) return undefined
-        console.error(`web-app: could not write the login URL file because ${error instanceof Error ? error.message : String(error)}`)
-        return undefined
-      }
-    }
     ctx.effect(() => async () => {
       lifetime.abort()
       await opening
-      await publishing
-      if (urlFile !== undefined) await internals.removeLoginUrlFile(urlFile)
     }, 'web-app: startup handoff')
     const announceReady = (): void => {
       if (lifetime.signal.aborted || ctx.get('webServer') === undefined || ANNOUNCED_ROOTS.has(ctx[Context.root])) return
       const entries: WebEntryUrl[] = []
       ctx.emit(ctx.webServer, 'webserver/entry-url', appRootUrl(), entries)
       ANNOUNCED_ROOTS.add(ctx[Context.root])
-      const entry = entries.find(entry => entry.open)
-      if (config.printUrl === 'always' && entries.length > 0) {
-        for (const printed of entries) console.log(`${printed.label}: ${printed.url}`)
-        console.warn('dsh web: the printed URL contains a one-time login secret; anyone who can read it can open this GUI until the token is used or expires')
-      } else if (config.printUrl === 'auto' && entries.length > 0) {
-        // Off a terminal, and when opening a browser, the secret never reaches
-        // captured stdout or a log; the operator reads it from the run file.
-        if (!handoffBrowser && process.stdout.isTTY === true) {
-          for (const printed of entries) console.log(`${printed.label}: ${printed.url}`)
-        } else if (process.stdout.isTTY !== true) {
-          publishing = publishUrlFile(entries).then(path => {
-            if (path !== undefined && !lifetime.signal.aborted) console.log(`dsh web: login URL written to ${path}`)
-          })
-        }
+      if (config.printUrl) {
+        for (const entry of entries) console.log(`${entry.label}: ${entry.url}`)
       }
+      const entry = entries.find(entry => entry.open)
       if (handoffBrowser && entry !== undefined) {
-        console.log(`dsh web: opening ${entry.displayUrl} in the default browser; pass --no-open to disable`)
-        opening = internals.openBrowser(entry.url, lifetime.signal).catch(async (error: unknown) => {
+        console.log('dsh web: opening the default browser; pass --no-open to disable')
+        opening = internals.openBrowser(entry.url, lifetime.signal).catch((error: unknown) => {
           if (lifetime.signal.aborted) return
           const reason = (error instanceof Error ? error.message : String(error)).replaceAll(entry.url, '[login URL]')
-          const path = config.printUrl === 'auto' ? await publishUrlFile(entries) : undefined
-          console.error(`web-app: could not open the default browser because ${reason};`
-            + (path === undefined ? ' use the dsh web URL printed at startup' : ` open it from ${path}`))
+          console.error(`web-app: could not open the default browser because ${reason}; use the dsh web URL printed at startup`)
         })
       }
     }

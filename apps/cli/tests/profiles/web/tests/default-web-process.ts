@@ -12,7 +12,6 @@ import ts from 'typescript'
 import { expect } from 'vitest'
 import type { TestContext } from 'vitest'
 import { PROCESS_SHUTDOWN_TIMEOUT_MS } from '../../../../src/process-shutdown.ts'
-import { loginUrlFromFile } from './web-launch.ts'
 import type { RuntimeRoster } from './runtime-roster.ts'
 
 const repoRoot = fileURLToPath(new URL('../../../../../../', import.meta.url))
@@ -153,10 +152,9 @@ export async function withDefaultWeb(
       await expect.poll(() => {
         test.signal.throwIfAborted()
         if (exited) throw new Error(`Web exited before readiness\n${stdout}\n${stderr}`)
-        return loginUrlFromFile(stdout)
+        return /dsh web: (http:\/\/[^\s]+)/u.exec(stdout)?.[1]
       }, { timeout: test.task.timeout }).toBeDefined()
-      const url = loginUrlFromFile(stdout)
-      if (url === undefined) throw new Error(`Web launcher announced no URL\n${stdout}${stderr}`)
+      const url = /dsh web: (http:\/\/[^\s]+)/u.exec(stdout)![1]!
       await inspect({ root, url, request })
     } finally {
       const result = await close()

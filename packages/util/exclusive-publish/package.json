@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-util-exclusive-publish",
-  "description": "Exclusive file publication by hard link, then renameat2(RENAME_NOREPLACE), then a flushed exclusive copy",
+  "description": "Exclusive file publication by hard link, then a flushed exclusive copy",
   "version": "0.2.2-rc.3",
   "publishConfig": {
     "access": "public"
@@ -31,9 +31,6 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"
-  },
-  "dependencies": {
-    "koffi": "3.1.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

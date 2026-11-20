@@ -207,12 +207,6 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/title-invalid': { readonly sessionId: SessionId }
     'session/fork-unavailable': { readonly sessionId: SessionId }
     'session/migration-required': { readonly sessionId: SessionId }
-    /** The Host platform has no per-file association query; application rows stay hidden. */
-    'session/native-file-associations-unsupported': Record<string, never>
-    /** No native file manager or opener is installed for this action. */
-    'session/native-file-manager-unavailable': Record<string, never>
-    /** The native opener ran but refused the path. */
-    'session/native-open-failed': Record<string, never>
     'subagent/not-found': {
       readonly parentSessionId: SessionId
       readonly childSessionId: SessionId
@@ -380,13 +374,9 @@ export interface SessionCancelValue {
 
 /** Request to open one path prepared by a Session-aware caller on the Host desktop. */
 export interface SessionOpenWorkspacePathRequest {
-  /**
-   * `open` hands the path itself to the default folder viewer (the workspace
-   * folder action); `reveal` selects or opens the containing folder. Omission
-   * uses the file-type association.
-   */
-  readonly action?: 'open' | 'reveal'
-  /** Registered application identifier; ignored for reveal and folder open. Omission preserves the operating system default. */
+  /** File-manager navigation when requested; omission uses the default application. */
+  readonly action?: 'reveal'
+  /** Registered application identifier; ignored for reveal. Omission preserves the operating system default. */
   readonly application?: string
   /** Path after best-effort Session workspace resolution, in Host filesystem syntax. */
   readonly path: string
@@ -395,18 +385,6 @@ export interface SessionOpenWorkspacePathRequest {
 /** Confirmation that the Host handed a workspace path to its native opener. */
 export interface SessionOpenWorkspacePathValue {
   readonly opened: true
-}
-
-/** Native desktop facts for the serving Host, shared with Client path controls. */
-export interface SessionWorkspaceDesktop {
-  /** Serving Host name. */
-  readonly name: string
-  /** Whether the Host can hand a workspace path to a native desktop. */
-  readonly available: boolean
-  /** File-manager action behind folder open and file reveal, or null when unavailable. */
-  readonly fileManager: 'finder' | 'explorer' | 'directory' | null
-  /** Whether the Host can enumerate and revalidate per-file application handlers. */
-  readonly associationsSupported: boolean
 }
 
 /** Client-minted prompt identity used to reconcile optimistic and durable messages. */

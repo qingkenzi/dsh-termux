@@ -6,5 +6,3 @@ composition: sdk-desktop
 recording: authored
 header:
   class: sdk-desktop
-skip:
-  android: Android uses partial seccomp write mediation; the fixture records Linux full workspace-write permission events and approval prompts, so replay would not reproduce them

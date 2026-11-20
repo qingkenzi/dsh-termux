@@ -52,16 +52,6 @@
   white-space: nowrap;
 }
 
-/* The chip carries the enforcement verdict beside the preset label: a wider
-   preset whose boundary the host does not deliver must not read as enforced. */
-.triggerLabelDegraded {
-  color: var(--dsw-alias-state-warn-primary, var(--dsw-alias-label-secondary));
-}
-
-.triggerSuffix {
-  font-weight: 400;
-}
-
 .optionLabel {
   display: inline-flex;
   align-items: center;

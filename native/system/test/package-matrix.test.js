@@ -60,19 +60,16 @@ test('the real Landlock subpath imports without platform packages or dlopen, whi
 function fixture(t, { platform = 'linux', arch = platform === 'android' ? 'arm64' : 'x64', kind = 'node-api' } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'system-package-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const bionicExecutable = kind === 'bionic-executable';
-  const executable = kind === 'static-musl' || bionicExecutable;
+  const executable = kind === 'static-musl';
   const binary = kind === 'static-musl'
     ? { tool: 'landlock-run', kind, path: 'bin/landlock-run' }
-    : bionicExecutable
-      ? { tool: 'android-sandbox', kind, path: 'bin/android-sandbox-run' }
-      : {
-          tool: 'flock',
-          kind,
-          napi: 8,
-          ...(platform === 'linux' ? { libc: 'glibc' } : {}),
-          path: platform === 'android' ? 'bin/bionic/system.node' : 'bin/system.node',
-        };
+    : {
+        tool: 'flock',
+        kind,
+        napi: 8,
+        ...(platform === 'linux' ? { libc: 'glibc' } : {}),
+        path: platform === 'android' ? 'bin/bionic/system.node' : 'bin/system.node',
+      };
   const spec = { platform: `${platform}-${arch}`, binaries: [binary] };
   const manifest = { name: 'fixture', os: [platform], cpu: [arch] };
   const bytes = Buffer.alloc(256);
@@ -115,19 +112,6 @@ test('accepts the Android arm64 bionic addon without a libc field', (t) => {
   const f = fixture(t, { platform: 'android' });
   assert.equal(f.spec.binaries[0].libc, undefined);
   assert.equal(verifyPlatformBinaries(f.dir).count, 1);
-});
-
-test('accepts the Android seccomp supervisor as a PIE executable', (t) => {
-  const f = fixture(t, { platform: 'android', kind: 'bionic-executable' });
-  assert.equal(f.binary.tool, 'android-sandbox');
-  assert.equal(verifyPlatformBinaries(f.dir).count, 1);
-});
-
-test('rejects an Android seccomp supervisor with a static ELF file type', (t) => {
-  const f = fixture(t, { platform: 'android', kind: 'bionic-executable' });
-  f.bytes.writeUInt16LE(2, 16);
-  fs.writeFileSync(f.file, f.bytes);
-  assert.throws(() => verifyPlatformBinaries(f.dir), /ELF file type/);
 });
 
 for (const [name, change, expected] of [

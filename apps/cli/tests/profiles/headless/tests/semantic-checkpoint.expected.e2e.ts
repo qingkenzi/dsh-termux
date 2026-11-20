@@ -14,8 +14,7 @@ import { createUserMessage, type ToolCallId, createMessage } from '@deepseek-ai/
 import { SessionSeq, SESSION_FORMAT_VERSION, type SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { logPath } from '../../../../../../packages/session/session-persistence-jsonl/src/format.ts'
-import { describe, expect } from 'vitest'
-import { expectedScenario } from '../../../expected-platform.ts'
+import { describe, expect, it } from 'vitest'
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'expected/semantic-checkpoint')
 const replayFixture = join(fixtureDir, 'replay.jsonl')
@@ -26,7 +25,6 @@ const binScript = fileURLToPath(new URL('../../../../../../packages/test-support
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const sessionId = brandString<SessionId>('semantic-checkpoint-unknown-outcome')
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
-const scenario = expectedScenario(import.meta.url)
 const task = 'Continue safely from the interrupted operation.'
 
 /** Compare one current normalized Session with its generation-aware committed fixture. */
@@ -104,7 +102,7 @@ async function seedInterruptedSession(root: string, cwd: string): Promise<string
 }
 
 describe('semantic checkpoint recovery snapshot', () => {
-  scenario.it('resumes an unknown tool outcome through the headless stream-json app', async () => {
+  it('resumes an unknown tool outcome through the headless stream-json app', async () => {
     let cwd = ''
     let sessionPath = ''
     const result = await runLoaderSmoke({

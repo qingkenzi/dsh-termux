@@ -9,7 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { errorChain, type ReasoningEffortId, type MessageSource } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
-import { canOpenNativePath, nativeFileAssociationsSupported, nativeFileManager, nativeFileApplications, openNativeAssociatedPath, openNativeFileApplication, openNativePath, revealNativePath } from '@deepseek-ai/dsh-native-command'
+import { canOpenNativePath, nativeFileManager, nativeFileApplications, openNativeFileApplication, openNativeAssociatedPath, revealNativePath } from '@deepseek-ai/dsh-native-command'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
@@ -51,7 +51,6 @@ import type {
   SessionListValue,
   SessionOpenWorkspacePathRequest,
   SessionOpenWorkspacePathValue,
-  SessionWorkspaceDesktop,
   SessionEventsPage, SessionPageRequest, SessionEventFrame, SessionObserveEventRequest,
   SessionProjectionFrame, SessionStateRequest, SessionState, SessionWaitRequest, SessionWaitValue,
   SessionPromptRequest,
@@ -121,10 +120,8 @@ type ResolvedConfig = Config & { readonly listWorkSliceMs: number }
 
 /** Host integrations replaceable by direct unit tests. */
 export interface SessionControllerInternals {
-  /** Native default-application handoff for a file-type association. */
+  /** Native default-application handoff. */
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
-  /** Native folder handoff for the workspace folder action. */
-  readonly openFolder?: (path: string, signal: AbortSignal) => Promise<void>
   /** Native file-association query. */
   readonly fileApplications?: typeof nativeFileApplications
   /** Explicit registered-application handoff. */
@@ -133,34 +130,6 @@ export interface SessionControllerInternals {
   readonly revealPath?: (path: string, signal: AbortSignal) => Promise<void>
   /** Native handoff availability probe. */
   readonly canOpenPath?: () => boolean
-  /** Whether this Host can enumerate per-file application handlers. */
-  readonly associationsSupported?: () => boolean
-}
-
-/** Native-command failure codes the Remote surface maps to its own vocabulary. */
-const NATIVE_FAILURE_CODES = {
-  NATIVE_FILE_ASSOCIATIONS_UNSUPPORTED: 'session/native-file-associations-unsupported',
-  NATIVE_FILE_MANAGER_UNAVAILABLE: 'session/native-file-manager-unavailable',
-  NATIVE_FILE_OPEN_FAILED: 'session/native-open-failed',
-} as const
-
-/**
- * Translate one native-command failure into the Remote vocabulary so Clients
- * can offer actionable copy instead of a generic retry message.
- * @param error - caught native failure.
- * @returns the coded Remote failure, or undefined when another layer owns it.
- */
-function nativeOpenFailure(error: unknown): RemoteError | undefined {
-  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
-  const code = error.code
-  if (typeof code !== 'string' || !(code in NATIVE_FAILURE_CODES)) return undefined
-  const mapped = NATIVE_FAILURE_CODES[code as keyof typeof NATIVE_FAILURE_CODES]
-  const message = mapped === 'session/native-file-manager-unavailable'
-    ? 'no native file manager is available'
-    : mapped === 'session/native-file-associations-unsupported'
-      ? 'native file associations are unsupported on this host'
-      : 'the native opener refused the path'
-  return new RemoteError(mapped, message, {}, { cause: error })
 }
 
 /** Host service backing the generated `ctx.remote.session` namespace. */
@@ -195,12 +164,10 @@ export class SessionController extends TypertRemoteService {
   private controlState!: SessionControlController
   private listState!: ApiSessionList
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
-  private readonly openFolder: (path: string, signal: AbortSignal) => Promise<void>
   private readonly fileApplications: typeof nativeFileApplications
   private readonly openFileApplication: typeof openNativeFileApplication
   private readonly revealPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
-  private readonly associationsSupported: () => boolean
   private readonly listWorkSliceMs: number
   private readonly promotions = new Set<Promise<void>>()
 
@@ -215,11 +182,9 @@ export class SessionController extends TypertRemoteService {
     this.fileApplications = internals.fileApplications ?? nativeFileApplications
     this.openFileApplication = internals.openFileApplication ?? openNativeFileApplication
     this.openPath = internals.openPath ?? openNativeAssociatedPath
-    this.openFolder = internals.openFolder ?? openNativePath
     this.revealPath = internals.revealPath ?? revealNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
-    this.associationsSupported = internals.associationsSupported ?? (() => nativeFileAssociationsSupported())
   }
 
   protected async [Service.init](): Promise<void> {
@@ -392,14 +357,12 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Describe the serving desktop for authenticated file-action routes and Client path controls.
-   * @returns Host name, opener availability, the file-manager action, and whether file associations can be queried.
+   * Describe the serving desktop for authenticated file-action routes.
+   * @returns Host name, configured availability, and platform-specific file-manager behavior.
    */
-  @Remote
-  workspaceDesktop(): SessionWorkspaceDesktop {
+  workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 'explorer' | 'directory' | null } {
     const fileManager = nativeFileManager()
-    const available = fileManager !== null && this.canOpenPath()
-    return { name: hostname(), available, fileManager, associationsSupported: available && this.associationsSupported() }
+    return { name: hostname(), available: fileManager !== null && this.canOpenPath(), fileManager }
   }
 
   /**
@@ -417,15 +380,12 @@ export class SessionController extends TypertRemoteService {
     try {
       const path = await this.verifyDesktopPath(request.path, signal)
       if (request.action === 'reveal') await this.revealPath(path, signal)
-      else if (request.action === 'open') await this.openFolder(path, signal)
       else if (request.application !== undefined) await this.openFileApplication(path, request.application, signal)
       else await this.openPath(path, signal)
       return { opened: true }
     } catch (error: unknown) {
       if (signal.aborted) throw new RemoteError('gateway/cancelled', 'path open was aborted', {})
       if (error instanceof RemoteError) throw error
-      const native = nativeOpenFailure(error)
-      if (native !== undefined) throw native
       throw new RemoteError(
         'gateway/internal',
         'path open failed',
@@ -446,7 +406,7 @@ export class SessionController extends TypertRemoteService {
   async workspacePathApplications(
     request: { readonly path: string }, signal: AbortSignal,
   ): Promise<readonly SessionWorkspacePathApplication[]> {
-    if (!this.canOpenPath() || !this.associationsSupported()) return []
+    if (!this.canOpenPath()) return []
     try {
       const path = await this.verifyDesktopPath(request.path, signal)
       return await this.fileApplications(path, signal)

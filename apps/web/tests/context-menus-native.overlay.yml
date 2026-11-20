@@ -1,5 +1,0 @@
-# A Host with a native desktop: the workspace folder action is offered, never clicked,
-# so the assertion covers the enabled Host-fact path without launching an opener.
-- id: session-controller
-  config:
-    nativeOpen: true

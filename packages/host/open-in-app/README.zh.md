@@ -113,7 +113,6 @@ Linux 桌面文件字段和图标使用共享的 [native-command](../../util/nat
 - **macOS 检测只查已知路径。** bundle 改名超出目录收录的拼写、或挪到 `/Applications` 与 `~/Applications` 之外就不会被检测；不做 Launch Services 查询（原生 LaunchServices/NSWorkspace 查询需要仓库尚无的 addon），也刻意不扫描磁盘。
 - **图标保真度受平台约束。** Windows 图标来自 32px 的 `ExtractAssociatedIcon`——不带原生 addon 时 .NET 标准面能给出的最大尺寸——在高分屏上可能略微发软；Linux 图标只查 hicolor 主题与 pixmaps，不追用户的自定义图标主题；若干条目（没有 desktop 条目的纯 CLI 启动器）没有图标来源，保持通用占位图形。
 - **新安装要重启后出现。** 解析每主机进程一次；只有卸载方向自愈（启动器缺失时当场只重解析该条目）。
-- **Android 通过原生路径打开器打开文件夹。** 目录不声明任何 Android 应用：`specFor` 在该平台返回 undefined，解析结果保持为空，因此 Termux Host 的 workspace 文件夹操作走 Session Remote 的 `openWorkspacePath({ action: 'open' })` 与原生打开器，而不是本目录。
 
 <a id="dev-note"></a>
 ### 开发备注

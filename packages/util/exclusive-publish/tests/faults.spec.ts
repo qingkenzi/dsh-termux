@@ -72,10 +72,6 @@ async function tempRoot(): Promise<string> {
 const refusedLink = async (): Promise<void> => {
   throw Object.assign(new Error('link refused'), { code: 'EACCES' })
 }
-const unavailableRename = async (): Promise<void> => {
-  throw Object.assign(new Error('renameat2 unsupported'), { code: 'ENOSYS' })
-}
-
 beforeEach(() => {
   faults.writableOpenFailure = undefined
   faults.readOpenFailure = undefined
@@ -99,7 +95,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).rejects.toBe(closeFailure)
 
     // The bytes were flushed before close failed, so the publication stays.
@@ -117,7 +112,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).rejects.toBe(syncFailure)
 
     await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -135,7 +129,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).rejects.toBe(syncFailure)
 
     expect(faults.closeFailure).toBeUndefined()
@@ -151,7 +144,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).rejects.toMatchObject({ code: 'EIO', cause: { code: 'EACCES' } })
 
     await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -166,7 +158,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).rejects.toBe('close refused')
 
     await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -181,7 +172,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).resolves.toBe('copied')
 
     expect(faults.writableOpenFailure).toBeUndefined()
@@ -198,7 +188,6 @@ describe('copy flush descriptor faults', () => {
 
     await expect(publishExclusive(source, target, {
       link: refusedLink,
-      rename: unavailableRename,
     })).rejects.toMatchObject({ code: 'EACCES', cause: { code: 'EACCES' } })
 
     await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' })

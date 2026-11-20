@@ -1,8 +1,7 @@
 /**
  * Local sandbox backend. It selects the platform runner chain (Linux bwrap then
- * Landlock; macOS Seatbelt; Windows the ACL restricted-token runner; Android
- * the seccomp user-notification supervisor), functionally probes competing
- * candidates once, and reports each wrap's enforcement and stderr
+ * Landlock; macOS Seatbelt; Windows the ACL restricted-token runner), functionally probes
+ * competing candidates once, and reports each wrap's enforcement and stderr
  * classification facts. Missing or unusable confinement fails closed rather
  * than returning the original argv.
  *
@@ -28,12 +27,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  ANDROID_SANDBOX_FAILURE_EXIT,
-  androidSandboxArgs,
-  androidSandboxRunnerPath,
-  probeAndroidSandbox as defaultProbeAndroidSandbox,
-} from '@deepseek-ai/node-addon-system/android-sandbox'
-import {
   LAUNCHER_BIN,
   LAUNCHER_FAILURE_EXIT,
   launcherPath as landlockLauncherPath,
@@ -42,9 +35,7 @@ import {
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { SandboxPreparationError, SandboxProvider, SandboxUnavailableError, canonicalPath } from '@deepseek-ai/dsh-sandbox'
-import type {
-  ConfinedArgv, ConfinedSandboxMode, RunnerFailureRule, SandboxAvailability, SandboxEnforcement, SandboxPolicy,
-} from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, ConfinedSandboxMode, RunnerFailureRule, SandboxEnforcement, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { AclWriteGrant, isTempRootInsideWorkspace, registerAclDiagnosisSkill, tempWriteSid, workspaceWriteSid } from '@deepseek-ai/dsh-sandbox-windows-acl'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
@@ -159,10 +150,6 @@ export interface SandboxInternals {
   windowsAclRunnerArgs?: string[]
   /** Replaces the resolved windows-acl runner built entry path (a fake lib/runner.js location). */
   windowsAclRunnerEntry?: string
-  /** Replaces the resolved `android-sandbox-run` supervisor path (a fake script). */
-  androidSandboxRunner?: string
-  /** Replaces the functional Android seccomp probe (the android chain's sole rung). */
-  probeAndroidSandbox?: () => SandboxEnforcement | 'unusable'
   /** Replaces the functional windows-acl probe (the win32 chain's sole rung — only consulted if that chain ever grows). */
   probeWindowsAcl?: () => boolean
   /** Replaces the private-temp-directory removal at provider dispose (a throwing fake exercises the cleanup-failure path). */
@@ -170,7 +157,7 @@ export interface SandboxInternals {
 }
 
 /** The chain's verdict: which runner confines, and how completely it enforces. */
-type SelectedRunner = { runner: 'bwrap' | 'landlock' | 'seatbelt' | 'windows-acl' | 'android-sandbox'; enforcement: SandboxEnforcement }
+type SelectedRunner = { runner: 'bwrap' | 'landlock' | 'seatbelt' | 'windows-acl'; enforcement: SandboxEnforcement }
 
 /** One live session/workspace pair's private temp directory and capability. */
 interface AclTempCapability {
@@ -195,11 +182,6 @@ const PLATFORM_CHAINS: Record<string, readonly SelectedRunner['runner'][]> = {
   // a sole candidate, selected without a probe — its execution-time refusal
   // fails closed through its stderr signature (windows-acl-run:) and exit 127.
   win32: ['windows-acl'],
-  // The Android seccomp supervisor. It is the one sole candidate that IS
-  // probed: availability must be known before startup resolves a default mode,
-  // and a kernel without user-notification support must report unavailable
-  // rather than fail every confined command at execution time.
-  android: ['android-sandbox'],
 }
 
 /**
@@ -222,38 +204,6 @@ const STATIC_ENFORCEMENT: Record<SelectedRunner['runner'], SandboxEnforcement> =
   // child: the backend enforces the remaining ACL-addressable surface but
   // must not advertise the absolute promise.
   'windows-acl': 'partial',
-  // The seccomp supervisor mediates the documented write syscalls only:
-  // reads stay unconfined, other metadata effects and inherited descriptors
-  // are outside the filter, and an allowed path check is re-resolved by the
-  // kernel afterwards.
-  'android-sandbox': 'partial',
-}
-
-/**
- * What each rung tells the user about itself: the confinement mechanism behind
- * its name, and the next step when every rung on the platform failed to probe.
- */
-const BACKEND_FACTS: Record<SelectedRunner['runner'], { mechanism: string; remediation: string }> = {
-  bwrap: {
-    mechanism: 'bubblewrap mount namespaces',
-    remediation: 'install bubblewrap (bwrap) or enable a Landlock-enforcing kernel',
-  },
-  landlock: {
-    mechanism: 'the Landlock launcher (node-addon-system landlock-run)',
-    remediation: 'run a kernel with Landlock enabled (Linux 5.13 or later with the Landlock LSM compiled in)',
-  },
-  seatbelt: {
-    mechanism: 'the macOS sandbox-exec Seatbelt profile',
-    remediation: 'ensure sandbox-exec is available on this macOS host',
-  },
-  'windows-acl': {
-    mechanism: 'the Windows restricted-token ACL runner',
-    remediation: 'ensure the ACL restricted-token runner can start for this user and workspace',
-  },
-  'android-sandbox': {
-    mechanism: 'the Android seccomp user-notification supervisor (android-sandbox-run)',
-    remediation: 'ensure the Android arm64 system package is installed and this kernel supports seccomp user notification',
-  },
 }
 
 /**
@@ -279,10 +229,6 @@ const DENIAL_SIGNATURES = {
   // pwsh/.NET: "Access to the path '...' is denied."; cmd: "Access is denied.";
   // Node EACCES: "permission denied"; EPERM: "operation not permitted".
   'windows-acl': ['access is denied', 'access to the path', 'permission denied', 'operation not permitted'],
-  // The supervisor answers policy denials with EACCES, which shells and Node
-  // render as "permission denied"; EPERM is only the filter's escape-surface
-  // refusal and is not a file-effect denial.
-  'android-sandbox': ['permission denied'],
   runnerCommand: ['read-only file system', 'permission denied'],
 } as const satisfies Record<SelectedRunner['runner'] | 'runnerCommand', readonly string[]>
 
@@ -311,13 +257,6 @@ const RUNNER_FAILURE_RULES = {
   }],
   seatbelt: [{ fatalSignatures: ['sandbox-exec: '] }],
   'windows-acl': [{ allowedExitCodes: [WINDOWS_ACL_RUNNER_FAILURE_EXIT], fatalSignatures: ['windows-acl-run: '] }],
-  // The supervisor reserves 125 for its own failures and prefixes every fatal
-  // line; the exit gate keeps a confined command's own 125 or printed prefix
-  // from being read as a runner refusal.
-  'android-sandbox': [{
-    allowedExitCodes: [ANDROID_SANDBOX_FAILURE_EXIT],
-    fatalSignatures: ['android-sandbox-run: '],
-  }],
 } as const satisfies Record<SelectedRunner['runner'], readonly RunnerFailureRule[]>
 
 /**
@@ -344,8 +283,6 @@ export class LocalSandboxProvider extends SandboxProvider {
   private readonly probeTimeoutMs: number
   /** Cached chain verdict; undefined until the first confined wrap needs it. */
   private selectedRunner: SelectedRunner | 'unavailable' | undefined
-  /** Cached availability report mirroring {@link selectedRunner}. */
-  private availabilityCache: SandboxAvailability | undefined
   /**
    * Server-lifetime write grants (windows-acl rung): the STANDING
    * workspace-root grant per workspace (its ACE is the cross-session reuse
@@ -392,73 +329,6 @@ export class LocalSandboxProvider extends SandboxProvider {
   }
 
   /**
-   * Report this host's confinement capability without running a command: the
-   * same platform-chain verdict {@link confine} uses, resolved once and cached,
-   * reported as availability instead of the fail-closed throw. Never throws —
-   * a failing probe or an unknown platform becomes `available: false` with the
-   * cause in `reason`.
-   * @returns the selected backend, its enforcement, and the user-facing reason and remediation.
-   */
-  availability(): SandboxAvailability {
-    this.availabilityCache ??= this.availabilityVerdict()
-    return this.availabilityCache
-  }
-
-  /** Resolve {@link availability} once; the chain verdict shared with `confine` is memoized here. */
-  private availabilityVerdict(): SandboxAvailability {
-    try {
-      if (this.runnerCommand !== undefined) {
-        return {
-          available: true,
-          backend: 'runner-command',
-          enforcement: 'full',
-          reason: `An operator-supplied runner command (${this.runnerCommand[0] ?? ''}) wraps every confined execution.`,
-          remediation: 'No action needed; remove runnerCommand to use this platform\'s chain instead.',
-        }
-      }
-      const platform = this.internals.platform ?? process.platform
-      this.selectedRunner ??= this.chainVerdict()
-      const selected = this.selectedRunner
-      if (selected === 'unavailable') {
-        const chain = this.internals.chain ?? PLATFORM_CHAINS[platform] ?? []
-        return {
-          available: false,
-          backend: 'none',
-          enforcement: 'none',
-          reason: `No file-sandbox backend is usable on ${platform}: ${chain.length === 0
-            ? 'this platform has no runner chain'
-            : `the ${chain.join(', then ')} candidate${chain.length === 1 ? '' : 's'} failed ${chain.length === 1 ? 'the functional probe' : 'every functional probe'}`}`,
-          remediation: chain.length === 0
-            ? 'Run with danger-full-access only when unconfined file effects are acceptable on this host, or move the workspace to a Linux host with bubblewrap or a Landlock-enforcing kernel.'
-            : platform === 'android'
-              ? 'Verify the Android arm64 system package is installed and that this kernel supports seccomp user notification (Linux 5.0 or later); otherwise run with danger-full-access only when unconfined file effects are acceptable on this host.'
-              : `Install bubblewrap (bwrap) or run a Landlock-enforcing kernel (Linux 5.13 or later with the Landlock LSM compiled in), then restart DSH.`,
-        }
-      }
-      const facts = BACKEND_FACTS[selected.runner]
-      return {
-        available: true,
-        backend: selected.runner,
-        enforcement: selected.enforcement,
-        reason: `Confined processes run under ${facts.mechanism}; ${selected.enforcement === 'full'
-          ? 'every promised file effect is enforced'
-          : 'part of the promised file-effect surface is not enforced, so the boundary is not absolute'}.`,
-        remediation: selected.enforcement === 'full'
-          ? 'No action needed.'
-          : `Treat this boundary as partial; use a full-enforcement host (${selected.runner === 'bwrap' ? 'bubblewrap' : 'Linux bubblewrap or Landlock'}) when an absolute file boundary is required.`,
-      }
-    } catch (error) {
-      return {
-        available: false,
-        backend: 'none',
-        enforcement: 'none',
-        reason: `sandbox availability could not be resolved: ${error instanceof Error ? error.message : String(error)}`,
-        remediation: 'Check the sandbox provider configuration and this host\'s runner installation, then restart DSH.',
-      }
-    }
-  }
-
-  /**
    * Wrap `argv` in the selected runner's invocation for `policy` — the configured
    * `runnerCommand` when present (the operator's assertion, no probe), else the platform
    * chain's runner speaking its own profile dialect.
@@ -498,12 +368,6 @@ export class LocalSandboxProvider extends SandboxProvider {
       case 'landlock': return [this.landlockLauncher(), ...landlockProfileArgs(policy)]
       case 'seatbelt': return [this.seatbeltExec(), ...seatbeltProfileArgs(policy)]
       case 'windows-acl': return this.windowsAclRunnerArgv(policy)
-      case 'android-sandbox': {
-        return [
-          this.androidSandboxRunner(),
-          ...androidSandboxArgs({ mode: policy.mode, workspaceRoot: policy.workspaceRoot, tempRoot: tmpdir() }),
-        ]
-      }
       default: return assertNever(runner)
     }
   }
@@ -690,12 +554,8 @@ export class LocalSandboxProvider extends SandboxProvider {
     const chain = this.internals.chain ?? PLATFORM_CHAINS[this.internals.platform ?? process.platform] ?? []
     const [first, ...rest] = chain
     if (first === undefined) return 'unavailable'
-    // A sole candidate needs no arbitration; its execution-time refusal still
-    // fails closed. The Android rung is the exception: its probe is the
-    // availability signal the startup decision reads before any command runs.
-    if (rest.length === 0 && first !== 'android-sandbox') {
-      return { runner: first, enforcement: STATIC_ENFORCEMENT[first] }
-    }
+    // A sole candidate needs no arbitration; its execution-time refusal still fails closed.
+    if (rest.length === 0) return { runner: first, enforcement: STATIC_ENFORCEMENT[first] }
     for (const runner of chain) {
       const enforcement = this.probeRunner(runner)
       if (enforcement !== 'unusable') return { runner, enforcement }
@@ -729,11 +589,6 @@ export class LocalSandboxProvider extends SandboxProvider {
           ?? (() => defaultProbeWindowsAcl(this.windowsAclRunnerInvocation(), this.probeTimeoutMs))
         return probe() ? 'partial' : 'unusable'
       }
-      case 'android-sandbox': {
-        const probe = this.internals.probeAndroidSandbox
-          ?? (() => defaultProbeAndroidSandbox(this.androidSandboxRunner(), { timeoutMs: this.probeTimeoutMs }))
-        return probe()
-      }
       default: return assertNever(runner)
     }
   }
@@ -746,11 +601,6 @@ export class LocalSandboxProvider extends SandboxProvider {
   /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
   private seatbeltExec(): string {
     return this.internals.seatbeltExec ?? 'sandbox-exec'
-  }
-
-  /** The `android-sandbox-run` supervisor to probe and exec (test hook over the resolved one). */
-  private androidSandboxRunner(): string {
-    return this.internals.androidSandboxRunner ?? androidSandboxRunnerPath()
   }
 
   /**

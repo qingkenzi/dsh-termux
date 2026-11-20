@@ -8,7 +8,6 @@ import type { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execa } from 'execa'
 import { describe, expect, it } from 'vitest'
-import { loginUrlFromFile } from './web-launch.ts'
 
 const repoRoot = fileURLToPath(new URL('../../../../../../', import.meta.url))
 const dshBin = join(repoRoot, 'apps/cli/lib/bin.js')
@@ -111,7 +110,7 @@ async function waitForStartup(
   }
   stdout.on('data', (chunk: string) => {
     stdoutText += chunk
-    url ??= loginUrlFromFile(stdoutText)
+    url ??= /dsh web: (http:\/\/[^\s]+)/u.exec(stdoutText)?.[1]
     finish()
   })
   stderr.on('data', (chunk: string) => {

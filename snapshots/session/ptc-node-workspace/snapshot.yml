@@ -17,5 +17,3 @@ environment:
 workspace:
   final: true
   parent: outside-temp
-requires:
-  - sandbox

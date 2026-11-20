@@ -6,7 +6,6 @@ import { inspect } from 'node:util'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
-import type {} from '@deepseek-ai/dsh-android-exec'
 import {
   auditStartupEntries, boot, StartupError,
   FAIL_LOUD_RELEASE_TIMEOUT_MS,
@@ -967,17 +966,6 @@ describe('boot', () => {
       expect(ctx.logger.exporters.size).toBe(exporters - 1)
       ctx.logger.warn('warning after startup')
       expect(messages).toEqual([['startup information'], ['startup warning'], ['warning after startup']])
-    } finally {
-      await ctx.fiber.dispose()
-    }
-  })
-
-  it('publishes the Android exec probe result before plugin entries mount', async () => {
-    const dir = tmp()
-    writeFileSync(join(dir, 'cordis.yml'), '[]\n')
-    const ctx = await boot(NAME, join(dir, 'cordis.yml'))
-    try {
-      expect(ctx.get('androidExec')).toEqual({ available: true, reason: undefined, detail: undefined })
     } finally {
       await ctx.fiber.dispose()
     }

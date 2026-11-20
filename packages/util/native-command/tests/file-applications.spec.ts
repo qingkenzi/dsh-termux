@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it, vi, onTestFinished } from 'vitest'
 import * as runner from '../src/runner.ts'
-import { nativeFileApplications, nativeFileAssociationsSupported, openNativeFileApplication } from '../src/file-applications.ts'
+import { nativeFileApplications, openNativeFileApplication } from '../src/file-applications.ts'
 
 const application = { id: '/Applications/Music.app', name: 'Music', default: true, icon: null }
 const signal = new AbortController().signal
@@ -104,47 +104,6 @@ describe('native file associations', () => {
     await expect(nativeFileApplications('/file.mp3', AbortSignal.abort(), { platform: 'darwin', run })).rejects.toThrow()
     expect(run).not.toHaveBeenCalled()
   })
-
-  it('reports associations only where a native query exists', () => {
-    for (const platform of ['darwin', 'win32', 'linux'] as const) {
-      expect(nativeFileAssociationsSupported({ platform })).toBe(true)
-    }
-    for (const platform of ['android', 'freebsd', 'aix'] as const) {
-      expect(nativeFileAssociationsSupported({ platform })).toBe(false)
-    }
-  })
-})
-
-
-describe('android file associations', () => {
-  const androids = { platform: 'android' as const, env: {} }
-  const path = '/data/data/com.termux/files/home/work/report $1; touch nope.txt'
-
-  it('returns no handlers and opens the absolute path through the viewer instead of revalidating an id', async () => {
-    const run = vi.fn(async () => ({ stdout: '', stderr: '' }))
-    await expect(nativeFileApplications(path, signal, { ...androids, run })).resolves.toEqual([])
-    expect(run).not.toHaveBeenCalled()
-    await openNativeFileApplication(path, 'com.example.viewer', signal, { ...androids, run })
-    expect(run).toHaveBeenCalledExactlyOnceWith('xdg-open', [path], expect.any(AbortSignal), 'hidden')
-  })
-
-  it('classifies a missing viewer as an unavailable manager and a refused launch as an open failure', async () => {
-    const missing = Object.assign(new Error('spawn xdg-open ENOENT'), { code: 'ENOENT' })
-    const missingRun = vi.fn().mockRejectedValue(missing)
-    await expect(openNativeFileApplication(path, 'any', signal, { ...androids, run: missingRun }))
-      .rejects.toMatchObject({ code: 'NATIVE_FILE_MANAGER_UNAVAILABLE', cause: missing })
-    const refused = new Error('termux-open refused')
-    const refusedRun = vi.fn().mockRejectedValue(refused)
-    await expect(openNativeFileApplication(path, 'any', signal, { ...androids, run: refusedRun }))
-      .rejects.toMatchObject({ code: 'NATIVE_FILE_OPEN_FAILED', cause: refused })
-  })
-
-  it('rejects an explicit application where associations are unsupported', async () => {
-    const run = vi.fn()
-    await expect(openNativeFileApplication('/file.mp3', 'com.example.viewer', signal, { platform: 'freebsd', run }))
-      .rejects.toMatchObject({ code: 'NATIVE_FILE_ASSOCIATIONS_UNSUPPORTED' })
-    expect(run).not.toHaveBeenCalled()
-  })
 })
 
 
@@ -153,9 +112,9 @@ it('uses the production command adapter and current platform when no override is
     stdout: command === 'gio' ? 'standard::content-type: audio/mpeg' : command === 'env' ? 'No applications found' : JSON.stringify([application]), stderr: '',
   }))
   onTestFinished(() => { run.mockRestore() })
-  // Android and unknown platforms have no desktop application query.
-  const expected = process.platform === 'darwin' || process.platform === 'win32' ? [application] : []
-  expect(await nativeFileApplications('/file.mp3', signal)).toEqual(expected)
+  expect(await nativeFileApplications('/file.mp3', signal)).toEqual(
+    process.platform === 'linux' || process.platform === 'android' ? [] : [application],
+  )
   await openNativeFileApplication('/file.mp3', application.id, signal, { platform: 'darwin' })
   expect(run).toHaveBeenLastCalledWith('open', ['-a', application.id, '/file.mp3'], signal, 'hidden')
 })

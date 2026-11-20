@@ -5,17 +5,15 @@
  * The default intent prefers the default browser for documents it renders when
  * the platform can name one, then falls back to the default application. WSL
  * translates every path for the Windows desktop instead of assuming a Linux
- * GUI. Termux reports `android`; it shares the Linux opener and its `$BROWSER`
- * convention because its `xdg-open` hands paths to Android's viewer, and its
- * file-manager action opens the containing directory the same way. The
- * text-editor intent never consults the browser. Windows hands every
+ * GUI. Termux reports `android`; its `xdg-open` hands paths to Android's viewer,
+ * so it shares the Linux opener and file-manager action. The text-editor intent
+ * never consults the browser. Windows hands every
  * intent to Explorer: the shell's own default-application resolution, the one
  * a double-click uses, selects the application, while a process that resolves
  * the association itself reads a narrower record and reports none.
  * @module @deepseek-ai/dsh-native-command/path-opener
  */
 
-import { NativeCommandError } from './errors.ts'
 import { isWsl } from './host-environment.ts'
 import { dirname, extname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -23,30 +21,6 @@ import { runNativeCommand, type NativeCommandRunner } from './runner.ts'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type PathOpenerRunner = NativeCommandRunner
-
-/** Whether a command rejection reports an executable absent from this host. */
-function isMissingExecutable(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
-}
-
-/**
- * Run one opener command and classify its failure. A missing executable is a
- * capability fact (`NATIVE_FILE_MANAGER_UNAVAILABLE`) rather than a refused
- * launch; cancellation keeps the caller's abort reason.
- */
-async function runOpener(
-  command: string, args: readonly string[], signal: AbortSignal, run: PathOpenerRunner,
-): Promise<void> {
-  try {
-    await run(command, args, signal, 'hidden')
-  } catch (error: unknown) {
-    signal.throwIfAborted()
-    if (isMissingExecutable(error)) {
-      throw new NativeCommandError(`${command} is unavailable`, 'NATIVE_FILE_MANAGER_UNAVAILABLE', { cause: error })
-    }
-    throw new NativeCommandError(`${command} could not open the path`, 'NATIVE_FILE_OPEN_FAILED', { cause: error })
-  }
-}
 
 /** Injectable platform facts for deterministic adapter tests. */
 export interface PathOpenerInternals {
@@ -195,8 +169,7 @@ async function openNativePathWithIntent(
   const platform = internals.platform ?? process.platform
   const run = internals.run ?? runNativeCommand
   const env = internals.env ?? process.env
-  // Termux reports `android`; its xdg-open is a symlink to termux-open, which
-  // hands the path to Android's own viewer, so it shares Linux's open path.
+  // Termux reports `android`; its xdg-open hands the path to Android's viewer.
   const effectivePlatform = platform === 'android' ? 'linux' : platform
   const wsl = effectivePlatform === 'linux' && isWsl(internals)
 
@@ -218,14 +191,11 @@ async function openNativePathWithIntent(
       await openWslPath(path, signal, run)
       return
     }
-    // Android hands the absolute path to Termux's xdg-open (termux-open),
-    // which passes it to Android's viewer as one argv element.
-    await runOpener('xdg-open', [path], signal, run)
+    await run('xdg-open', [path], signal, 'hidden')
     return
   }
 
-  throw new NativeCommandError(
-    `native path opener is unsupported on ${platform}`, 'NATIVE_FILE_MANAGER_UNAVAILABLE')
+  throw new Error(`native path opener is unsupported on ${platform}`)
 }
 
 /**
@@ -242,7 +212,7 @@ async function openNativePathWithIntent(
 export function canOpenNativePath(internals: PathOpenerInternals = {}): boolean {
   const platform = internals.platform ?? process.platform
   if (platform === 'darwin' || platform === 'win32') return true
-  // Termux/Android reaches Android's viewer through its xdg-open (termux-open).
+  // Termux reaches Android's viewer through its xdg-open.
   if (platform === 'android') return true
   if (platform !== 'linux') return false
   const env = internals.env ?? process.env
@@ -292,11 +262,7 @@ export function openNativeTextFile(
   return openNativePathWithIntent(path, signal, 'text-editor', internals)
 }
 
-/**
- * File-manager behavior available on the serving Host, including WSL's Windows
- * desktop. `directory` selects nothing: the action opens the containing folder
- * in the Host's default file manager.
- */
+/** File-manager behavior available on the serving Host, including WSL's Windows desktop. */
 export type NativeFileManager = 'finder' | 'explorer' | 'directory'
 
 /**
@@ -308,15 +274,11 @@ export function nativeFileManager(internals: PathOpenerInternals = {}): NativeFi
   const platform = internals.platform ?? process.platform
   if (platform === 'darwin') return 'finder'
   if (platform === 'win32' || (platform === 'linux' && isWsl(internals))) return 'explorer'
-  // Android has no file-manager reveal; Termux's xdg-open opens the containing
-  // directory through termux-open, which is the nearest available action.
   return platform === 'linux' || platform === 'android' ? 'directory' : null
 }
 
 /**
- * Reveal a file in Finder or Explorer, or open its parent in the default file
- * manager on Linux and Android. Android cannot select a file, so its action
- * opens the containing directory only.
+ * Reveal a file in Finder or Explorer, or open its parent in the Linux default file manager.
  * @param path - absolute file path already authorized by the caller.
  * @param signal - caller lifetime; abort terminates the native command.
  * @param internals - platform, environment, and command runner for adapter tests.
@@ -345,9 +307,8 @@ export async function revealNativePath(
     return
   }
   if (manager === 'directory') {
-    await runOpener('xdg-open', [dirname(path)], signal, run)
+    await run('xdg-open', [dirname(path)], signal, 'hidden')
     return
   }
-  throw new NativeCommandError(
-    `native file manager is unsupported on ${platform}`, 'NATIVE_FILE_MANAGER_UNAVAILABLE')
+  throw new Error(`native file manager is unsupported on ${platform}`)
 }

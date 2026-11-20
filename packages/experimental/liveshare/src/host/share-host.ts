@@ -165,7 +165,7 @@ export async function apply(ctx: Context, config: Config): Promise<() => Promise
   // One host owns this state at a time. A second host that restored the same shares would move their
   // Relay registrations away from the holder, whose next authority read would then fence them and
   // stop the owner's turn; that host reads the records and publishes nothing.
-  const ownerHostClaim: OwnerHostClaim | undefined = await takeOwnerStateClaim(dirname(ownerStateFile))
+  const ownerHostClaim: OwnerHostClaim | undefined = takeOwnerStateClaim(dirname(ownerStateFile))
   // Re-read on every use: a successor can replace the record while this host runs, and a host that
   // no longer holds the state must stop registering and changing shares. Both a claim that was never
   // taken and one whose file no longer names this host answer false.
@@ -663,9 +663,9 @@ export async function apply(ctx: Context, config: Config): Promise<() => Promise
  * @param dir - Directory that holds the owner state file.
  * @returns The held claim, or undefined while another live host holds it.
  */
-async function takeOwnerStateClaim(dir: string): Promise<OwnerHostClaim | undefined> {
+function takeOwnerStateClaim(dir: string): OwnerHostClaim | undefined {
   try {
-    return await claimOwnerHost(dir)
+    return claimOwnerHost(dir)
   } catch (error: unknown) {
     if (!(error instanceof OwnerHostClaimHeldError)) throw error
     console.warn(`[liveshare] the owner state is held by dsh pid ${String(error.holderPid)}; this instance reads the shares without registering them`)

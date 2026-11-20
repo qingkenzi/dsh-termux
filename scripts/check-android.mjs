@@ -52,13 +52,6 @@ const steps = [
     timeoutMs: 5 * MINUTE_MS,
   },
   {
-    label: 'Android seccomp supervisor',
-    command: 'native/system/packages/android-arm64/bin/android-sandbox-run',
-    args: ['--probe'],
-    timeoutMs: 2 * MINUTE_MS,
-    hint: 'run "pnpm run build:native-system" to build the seccomp supervisor, then rerun this check',
-  },
-  {
     label: 'Bundled ripgrep',
     command: 'sh',
     args: ['scripts/setup-android-rg.sh', '--verify'],

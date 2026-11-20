@@ -1,25 +1,10 @@
 /** Packaged ripgrep resolution and subprocess execution, independent of tool or Remote consumers. */
 import { existsSync } from 'node:fs'
-import { delimiter, dirname, join, parse } from 'node:path'
+import { dirname, join, parse } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 
 let rgPathPromise: Promise<string> | undefined
-
-/** Ripgrep could not be resolved from any packaged, bundled, or PATH candidate. */
-export class RipgrepUnavailableError extends Error {
-  /** Stable code consumed by the search tool error vocabulary. */
-  readonly code = 'RIPGREP_UNAVAILABLE'
-
-  /**
-   * @param message - diagnostic naming every candidate that was tried.
-   * @param options - standard error options, including the resolver failure cause.
-   */
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options)
-    this.name = 'RipgrepUnavailableError'
-  }
-}
 
 /**
  * The Android prebuild shipped beside this package in a source checkout.
@@ -32,30 +17,12 @@ function androidVendorRipgrep(): string | undefined {
 }
 
 /**
- * The first `rg` on PATH, matching Node's own PATH delimiter on this host.
- * @returns the executable path when an entry exists, otherwise undefined.
- */
-function pathRipgrep(): string | undefined {
-  const path = process.env.PATH
-  if (path === undefined) return undefined
-  for (const directory of path.split(delimiter)) {
-    if (directory.length === 0) continue
-    const candidate = join(directory, 'rg')
-    if (existsSync(candidate)) return candidate
-  }
-  return undefined
-}
-
-/**
- * Resolve ripgrep lazily, once per process. Single-file runtimes use an existing
- * `-rg` sidecar; Android source checkouts use the bundled Android prebuild;
- * Electron uses the unpacked ASAR path; ordinary installs use the packaged
- * `@vscode/ripgrep` platform package. Android also accepts an explicit
- * `DSH_RG_PATH` from the CLI bootstrap, and every platform falls back to a
- * system `rg` on PATH when the packaged module is unavailable. The first
- * resolved path is cached for the process lifetime.
+ * Resolve the packaged executable lazily, once per process. Single-file runtimes use an existing
+ * `-rg` sidecar; Android source checkouts use the bundled Android prebuild; Electron uses the
+ * unpacked ASAR path. On Android an explicit `DSH_RG_PATH` from the CLI bootstrap wins because the
+ * `@vscode/ripgrep` platform package ships no Android binary. Resolution failures reject
+ * this call, not package loading. No system executable or remote fallback is used.
  * @returns the resolved executable's absolute path.
- * @throws {RipgrepUnavailableError} No candidate executable exists.
  */
 export function resolveRgPath(): Promise<string> {
   rgPathPromise ??= Promise.resolve().then(async () => {
@@ -70,23 +37,10 @@ export function resolveRgPath(): Promise<string> {
       const bundled = androidVendorRipgrep()
       if (bundled !== undefined) return bundled
     }
-    let dependencyError: unknown
-    try {
-      const dependency = (await import('@vscode/ripgrep')).rgPath
-      return process.versions.electron === undefined
-        ? dependency
-        : dependency.replace(/\.asar(?=[\\/])/u, '.asar.unpacked')
-    } catch (error) {
-      dependencyError = error
-    }
-    const system = pathRipgrep()
-    if (system !== undefined) return system
-    throw new RipgrepUnavailableError(
-      `Could not resolve ripgrep for ${process.platform}/${process.arch}; tried `
-      + `DSH_RG_PATH, vendor/android-prebuilds/rg, @vscode/ripgrep, and PATH. `
-      + 'On Termux/Android run `sh scripts/setup-android.sh` or install the Termux `ripgrep` package.',
-      dependencyError === undefined ? undefined : { cause: dependencyError },
-    )
+    const dependency = (await import('@vscode/ripgrep')).rgPath
+    return process.versions.electron === undefined
+      ? dependency
+      : dependency.replace(/\.asar(?=[\\/])/u, '.asar.unpacked')
   })
   return rgPathPromise
 }

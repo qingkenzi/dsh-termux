@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write native/system/packages/android-arm64/README.md
 /:
-  en: 7ea71df88262240d
-  zh: fda7b9ec173fce02
+  en: 6a8024b1df2fee4b
+  zh: 256f267914dee185
 /deepseek-ai-node-addon-system-android-arm64:
-  en: 1bd969ad03aa145e
-  zh: f417410c4c905bd2
+  en: 9aedf983e2d4352e
+  zh: 06c08480374ae6af

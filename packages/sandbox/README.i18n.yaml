@@ -3,20 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/sandbox/README.md
 /:
-  en: 0e0f80abe5522496
-  zh: d68e219bc5405fcd
+  en: 93824c4cf9c185e3
+  zh: 08ab94b5ab4e1ca9
 /packages-sandbox:
   en: 41d85aba1c7b5de0
   zh: 7fb27a52e4c36aca
 /packages-sandbox/summary:
-  en: c2a061b7e5031485
-  zh: 2e7c1f5647236841
+  en: bf5684bc2296cc82
+  zh: 18467207adb06951
 /packages-sandbox/table-of-contents:
   en: 1eb35b015a6c423f
   zh: a8a3dceee2c9e943
 /packages-sandbox/packages:
-  en: 3f3571e0eabe5105
-  zh: 79b6ca77e0a5237e
+  en: b6047824d045f4c1
+  zh: 10f72b88621b2e20
 /packages-sandbox/related-documentation:
   en: 503b925cf719d3c9
   zh: e7753c9583ae24f3

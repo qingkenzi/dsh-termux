@@ -13,5 +13,3 @@ permission: read-only
 workspace:
   final: true
   parent: outside-temp
-requires:
-  - sandbox

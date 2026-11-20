@@ -49,11 +49,9 @@ The `NativeCommandRunner` type is the injectable command boundary for host integ
 
 `openNativePath(path, signal)` hands a path to the default application and prefers the named default browser for HTML and SVG where the platform can identify one. `openNativeAssociatedPath(path, signal)` always uses the file-type association, without a browser override. `openNativeTextFile(path, signal)` selects text-editor intent; on macOS it uses `open -t`. Windows hands every intent to Explorer, so the shell's own default-application resolution — the one a double-click uses — picks the application; Explorer receives the target as an encoded file URI and its exit code 1 counts as a delegated handoff, while cancellation, missing executables, and other exit codes still reject. This acknowledgement does not prove that an application opened the file. WSL paths are translated with `wslpath -w` before the Windows desktop receives them. `canOpenNativePath()` reports whether the current Host plausibly has a desktop target.
 
-`revealNativePath(path, signal)` selects the file in Finder or Explorer, including WSL path translation, and opens its parent directory through `xdg-open` on desktop Linux; Android cannot select a file, so there it opens the containing directory. `nativeFileManager()` identifies that action for Host-derived UI labels; desktop availability remains a separate `canOpenNativePath()` check. Callers must authorize the absolute file path before invoking either operation. Platform dispatch is covered by injected-runner tests; native desktop verification belongs to the corresponding platform. Explorer receives an encoded file URI as a separate argument. Its exit code 1 is accepted as a delegated handoff; cancellation, missing executables, and other exit codes still reject. This acknowledgement does not prove that an application opened the file or that a window selected it.
+`revealNativePath(path, signal)` selects the file in Finder or Explorer, including WSL path translation, and opens its parent directory through `xdg-open` on desktop Linux. `nativeFileManager()` identifies that action for Host-derived UI labels; desktop availability remains a separate `canOpenNativePath()` check. Callers must authorize the absolute file path before invoking either operation. Platform dispatch is covered by injected-runner tests; native desktop verification belongs to the corresponding platform. Explorer receives an encoded file URI as a separate argument. Its exit code 1 is accepted as a delegated handoff; cancellation, missing executables, and other exit codes still reject. This acknowledgement does not prove that an application opened the file or that a window selected it.
 
 `nativeFileApplications(path, signal)` returns registered applications, localized names, icons, and the current default. macOS 12 and later use LaunchServices; Windows uses Shell association handlers and resolves a packaged application’s indirect icon reference before extraction; Linux uses GIO with shared XDG desktop-entry and icon lookup. On macOS, copies sharing a bundle identifier and display name (staged self-updates, per-version installs) collapse to the system default, else the highest version; deliberate side-by-side installs keep distinct display names and both entries. `openNativeFileApplication(path, application, signal)` revalidates the handler against the complete registered list, so copies collapsed out of the display list stay openable, and never changes the system default. Windows delegates invocation to the Shell, and Linux delegates argument expansion to `gio launch`. WSL translates the path and uses the Windows adapter. Callers authorize the local file path. Native integration tests use private Windows file associations and Linux XDG roots on their respective platforms.
-
-Android exposes no handler registry to Termux: `nativeFileApplications()` resolves to an empty list and `nativeFileAssociationsSupported()` answers false. `openNativeFileApplication()` therefore hands the verified absolute path to `xdg-open` (Termux installs it as a `termux-open` wrapper) instead of revalidating an application id. Capability failures are `NativeCommandError`s with a stable code: `NATIVE_FILE_MANAGER_UNAVAILABLE` when no opener command exists, `NATIVE_FILE_OPEN_FAILED` when the opener refuses the path, and `NATIVE_FILE_ASSOCIATIONS_UNSUPPORTED` when an explicit application is requested on a platform without an association query. Cancellation keeps the caller's abort reason.
 
 -----
 
@@ -70,7 +68,6 @@ The command runner is a thin wrapper over Node's `execFile`. The path opener sel
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Public command-runner and path-opener exports |
-| [`src/errors.ts`](src/errors.ts) | Coded native-open failures (`NATIVE_FILE_*`) |
 | [`src/runner.ts`](src/runner.ts) | Shell-free `execFile` adapter |
 | [`src/path-opener.ts`](src/path-opener.ts) | Desktop detection, open intents, browser preference, and WSL translation |
 
@@ -108,8 +105,6 @@ Nothing here enters a request prefix; this package neither assembles nor sends a
 <a id="known-limitations-and-deferred-work"></a>
 
 Linux association discovery and explicit launching require GIO. Missing native commands reject the query, and missing artwork returns null; callers can retain file-manager reveal as their fallback.
-
-Android has no association registry, so file menus there can offer reveal only. `xdg-open` must exist on `PATH` (Termux provides it as the `termux-open` wrapper); otherwise an open or reveal reports `NATIVE_FILE_MANAGER_UNAVAILABLE` and the surface can offer the path for copying instead.
 
 
 These limits define when this runner is not the right tool. They are current package constraints, not a task backlog.

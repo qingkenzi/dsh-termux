@@ -7,15 +7,11 @@ import { OpenInAppPathController, type OpenInAppPathRemote } from '../src/client
 
 type SessionRemote = OpenInAppPathRemote['session']
 
-const DESKTOP = {
-  name: 'desktop', available: true, fileManager: 'directory' as const, associationsSupported: true,
-}
-
 function remoteOf(over: Partial<SessionRemote> = {}): OpenInAppPathRemote {
   return {
     session: {
       workspacePathApplications: async () => ({ ok: true, value: [] }),
-      workspaceDesktop: async () => ({ ok: true, value: DESKTOP }),
+      canOpenWorkspacePath: async () => ({ ok: true, value: true }),
       openWorkspacePath: async () => ({ ok: true, value: { opened: true } }),
       ...over,
     },
@@ -24,53 +20,42 @@ function remoteOf(over: Partial<SessionRemote> = {}): OpenInAppPathRemote {
 
 describe('OpenInAppPathController desktop availability', () => {
   it('starts unanswered and shares one read across concurrent loads', async () => {
-    const workspaceDesktop = vi.fn(async () => ({ ok: true as const, value: DESKTOP }))
-    const controller = new OpenInAppPathController(remoteOf({ workspaceDesktop }))
+    const canOpenWorkspacePath = vi.fn(async () => ({ ok: true as const, value: true }))
+    const controller = new OpenInAppPathController(remoteOf({ canOpenWorkspacePath }))
     expect(controller.desktop.getSnapshot()).toBeNull()
-    expect(controller.fileManager.getSnapshot()).toBeNull()
-    expect(controller.associationsSupported.getSnapshot()).toBe(false)
     await Promise.all([controller.load(), controller.load()])
     await controller.load()
-    expect(workspaceDesktop).toHaveBeenCalledOnce()
+    expect(canOpenWorkspacePath).toHaveBeenCalledOnce()
     expect(controller.desktop.getSnapshot()).toBe(true)
-    expect(controller.fileManager.getSnapshot()).toBe('directory')
-    expect(controller.associationsSupported.getSnapshot()).toBe(true)
   })
 
-  it('publishes no desktop or associations for a refusing Host, a failed answer, and a rejecting carrier', async () => {
-    const unavailable = { ...DESKTOP, available: false, fileManager: null, associationsSupported: false }
-    const refusing = new OpenInAppPathController(remoteOf({ workspaceDesktop: async () => ({ ok: true, value: unavailable }) }))
+  it('publishes no desktop for a refusing Host, a failed answer, and a rejecting carrier', async () => {
+    const refusing = new OpenInAppPathController(remoteOf({ canOpenWorkspacePath: async () => ({ ok: true, value: false }) }))
     await refusing.load()
     expect(refusing.desktop.getSnapshot()).toBe(false)
-    expect(refusing.fileManager.getSnapshot()).toBeNull()
-    expect(refusing.associationsSupported.getSnapshot()).toBe(false)
 
     const failed = new OpenInAppPathController(remoteOf({
-      workspaceDesktop: async () => ({ ok: false, error: new RemoteError('gateway/internal', 'boom', {}) }),
+      canOpenWorkspacePath: async () => ({ ok: false, error: new RemoteError('gateway/internal', 'boom', {}) }),
     }))
     await failed.load()
     expect(failed.desktop.getSnapshot()).toBe(false)
-    expect(failed.associationsSupported.getSnapshot()).toBe(false)
 
-    const rejecting = new OpenInAppPathController(remoteOf({ workspaceDesktop: () => Promise.reject(new Error('down')) }))
+    const rejecting = new OpenInAppPathController(remoteOf({ canOpenWorkspacePath: () => Promise.reject(new Error('down')) }))
     await rejecting.load()
     expect(rejecting.desktop.getSnapshot()).toBe(false)
-    expect(rejecting.fileManager.getSnapshot()).toBeNull()
   })
 })
 
 describe('OpenInAppPathController gestures', () => {
-  it('sends the default-application open without an action, the reveal with one, and the folder open explicitly', async () => {
+  it('sends the default-application open without an action and the reveal with one', async () => {
     const openWorkspacePath = vi.fn(async (_request: SessionOpenWorkspacePathRequest, _signal?: AbortSignal) =>
       ({ ok: true as const, value: { opened: true as const } }))
     const controller = new OpenInAppPathController(remoteOf({ openWorkspacePath }))
     expect(await controller.openPath('/w/clip.mp4', 'open')).toEqual({ kind: 'opened' })
     expect(await controller.openPath('/w/clip.mp4', 'reveal')).toEqual({ kind: 'revealed' })
-    expect(await controller.openFolder('/w/project')).toEqual({ kind: 'opened' })
     expect(openWorkspacePath.mock.calls.map(call => call[0])).toEqual([
       { path: '/w/clip.mp4' },
       { path: '/w/clip.mp4', action: 'reveal' },
-      { path: '/w/project', action: 'open' },
     ])
   })
 
@@ -80,20 +65,9 @@ describe('OpenInAppPathController gestures', () => {
     }))
     expect(await refused.openPath('/w/clip.mp4', 'open')).toEqual({ kind: 'failed', failure: 'openError' })
     expect(await refused.openPath('/w/clip.mp4', 'reveal')).toEqual({ kind: 'failed', failure: 'revealError' })
-    expect(await refused.openFolder('/w/project')).toEqual({ kind: 'failed', failure: 'openError' })
 
     const rejecting = new OpenInAppPathController(remoteOf({ openWorkspacePath: () => Promise.reject(new Error('down')) }))
     expect(await rejecting.openPath('/w/clip.mp4', 'open')).toEqual({ kind: 'failed', failure: 'openError' })
-  })
-
-  it('names a missing Host opener so the user can copy the path instead', async () => {
-    const missing = new OpenInAppPathController(remoteOf({
-      openWorkspacePath: async () => ({
-        ok: false, error: new RemoteError('session/native-file-manager-unavailable', 'none', {}),
-      }),
-    }))
-    expect(await missing.openFolder('/w/project')).toEqual({ kind: 'failed', failure: 'managerUnavailable' })
-    expect(await missing.openPath('/w/clip.mp4', 'reveal')).toEqual({ kind: 'failed', failure: 'managerUnavailable' })
   })
 })
 

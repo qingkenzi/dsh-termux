@@ -90,7 +90,7 @@ async function fixture(test: TestContext) {
       const ready = Promise.withResolvers<true>()
       child.stdout.on('data', (chunk: Buffer) => {
         stdout += chunk.toString()
-        if (/dsh web: (?:opening http:\/\/|login URL written to )/u.test(stdout)) ready.resolve(true)
+        if (stdout.includes('dsh web: http://')) ready.resolve(true)
       })
       child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString() })
       void child.then((result) => { ready.reject(new Error(`Web exited: ${result.exitCode}\n${stderr}`)) })

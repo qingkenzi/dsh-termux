@@ -37,7 +37,7 @@ Import `spawnRipgrep` from this package and pass the composed subprocess service
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The resolver selects the executable's existing `-rg` sidecar in a single-file runtime, then on Android an explicit `DSH_RG_PATH` or the bundled `vendor/android-prebuilds/rg`, otherwise the `@vscode/ripgrep` platform package. Electron paths replace `app.asar` with `app.asar.unpacked`; as a last resort every platform accepts a system `rg` on `PATH`. Every spawn prepends `--no-config` so an ambient rg configuration cannot enable a preprocessor. The subprocess provider owns environment scrubbing and termination; the caller owns deadlines and result budgets. See [the implementation](src/index.ts).
+The resolver selects the executable's existing `-rg` sidecar in a single-file runtime, otherwise the `@vscode/ripgrep` platform package. Electron paths replace `app.asar` with `app.asar.unpacked`. Every spawn prepends `--no-config` so an ambient rg configuration cannot enable a preprocessor. The subprocess provider owns environment scrubbing and termination; the caller owns deadlines and result budgets. See [the implementation](src/index.ts).
 
 </details>
 
@@ -65,7 +65,7 @@ None directly; consumers own model-visible results and request assembly.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Co-located executable required** — resolution uses the Host's sidecar, bundled prebuild, `@vscode/ripgrep`, or a system `rg` on PATH. A remote subprocess provider without any of those fails; there is no filesystem-traversal fallback.
+- **Co-located executable required** — resolution uses the Host's packaged binary path. A remote subprocess provider without that binary fails; there is no system-rg lookup or filesystem-traversal fallback.
 - **Record buffering** — streaming retains one incomplete record plus the current stream chunk; callers whose filenames may contain newlines use NUL separators rather than newlines. Records decode as UTF-8, so a filename that is not valid UTF-8 arrives with U+FFFD replacements and cannot be opened by that string.
 
 <a id="dev-note"></a>

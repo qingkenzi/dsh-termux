@@ -40,7 +40,7 @@ Each package provides one primitive or one data set; open a package page for how
 | [`http-proxy/`](http-proxy/README.md) | Resolves one outbound proxy policy and installs it for `fetch`, SDK agents, and spawned children |
 | [`launch-environment/`](launch-environment/README.md) | Frozen launch environment that remembers which layer supplied each value |
 | [`atomic-write/`](atomic-write/README.md) | Atomic file replacement and cross-process writer locking |
-| [`exclusive-publish/`](exclusive-publish/README.md) | Exclusive publication of a staged file by hard link, no-replace rename, or flushed copy |
+| [`exclusive-publish/`](exclusive-publish/README.md) | Exclusive publication of a staged file by hard link or flushed copy |
 | [`lazy-require/`](lazy-require/README.md) | Loads CommonJS-compatible Host dependencies on first use with caller-relative resolution |
 | [`native-command/`](native-command/README.md) | Runs host-native commands directly, never through a shell string |
 | [`ripgrep/`](ripgrep/README.md) | Resolves the packaged ripgrep binary, spawns it through the caller's subprocess service, and streams its output records |

@@ -81,7 +81,6 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/session/session-format-v3-to-v4': 'Released V3 codec reuse and adjacent migration library.',
   'packages/session/session-telemetry': 'Telemetry Service Definition and capture library; providers mount the backend.',
   'packages/session/session-title-llm': 'Shared LLM title-provider registration and request policy.',
-  'packages/platform/android-exec': 'Boot-time Android exec probe and typed failure reporting without a plugin entry.',
   'packages/subprocess/win32-process': 'Low-level Win32 process and Job Object primitives.',
   'packages/test-support/session-snapshot': 'Test infrastructure; mounts nothing into a product composition.',
   'packages/test-support/agent-loop-testkit': 'Test helper library; mounts nothing into a product composition.',

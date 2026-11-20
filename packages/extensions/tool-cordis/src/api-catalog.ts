@@ -2818,12 +2818,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Abstract process-sandbox service. confine must return enforcing argv or fail closed at wrap or runner-execution time; silent unconfined passthrough is forbidden. Functional probes arbitrate multi-runner chains and may be skipped for a sole candidate, whose own refusal remains the fail-closed end.',
     methods: [
       {
-        signature: 'abstract availability(): SandboxAvailability',
-        description: 'Report whether this host can confine processes, and how completely, before any call to confine. Implementations resolve and cache their backend selection here; a verdict that cannot be resolved reports `available: false` with the failure in SandboxAvailability.reason instead of throwing, so a deployment can explain the state and choose a default mode without catching provider failures.',
-        parameters: [],
-        returns: 'this host\'s availability, its backend, enforcement, reason, and remediation.',
-      },
-      {
         signature: 'abstract confine(argv: readonly string[], policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv>',
         description: 'Wrap `argv` so it executes confined under `policy` on this host; the caller spawns the returned argv in place of its own.',
         parameters: [{ name: 'argv', description: 'the exact argv the caller is about to spawn (program plus arguments), NOT a shell string — a shell-shaped consumer passes `[\'bash\', \'-c\', command]`.' }, { name: 'policy', description: 'the file-effect policy this execution runs under, carried per call (see {@link SandboxPolicy}).' }, { name: 'signal', description: 'cancellation while the provider resolves the policy and runner.' }],
@@ -2870,38 +2864,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read the session override without applying the deployment default.',
         parameters: [{ name: 'session', description: 'session whose log supplies the override.' }],
         returns: 'the last logged mode, or `undefined` without one.',
-      },
-    ],
-  },
-  {
-    key: 'sandboxStartup',
-    summary: 'The starting sandbox mode for this process, published as `ctx.sandboxStartup`.',
-    description: 'The starting sandbox mode for this process, published as `ctx.sandboxStartup`. Resolved once at construction from the mounted `ctx.sandbox` provider\'s availability, so every consumer of the deployment default (mode) and of its paired approval policy reads one decision.',
-    methods: [
-      {
-        signature: 'readonly mode: SandboxMode',
-        description: 'The starting file-effect mode every consumer resolves from.',
-        parameters: [],
-      },
-      {
-        signature: 'readonly availability: SandboxAvailability',
-        description: 'This host\'s provider availability verdict.',
-        parameters: [],
-      },
-      {
-        signature: 'readonly awaitingChoice: boolean',
-        description: 'Whether this host has no backend while the deployment still starts confined, so a user must choose a wider mode.',
-        parameters: [],
-      },
-      {
-        signature: 'readonly approvalPolicy: \'ask\' | \'never\'',
-        description: 'The approval policy pairing with mode.',
-        parameters: [],
-      },
-      {
-        signature: 'readonly explicit: boolean',
-        description: 'Whether mode came from explicit configuration.',
-        parameters: [],
       },
     ],
   },
@@ -3044,10 +3006,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'true when the matching open operation is available.',
       },
       {
-        signature: '@Remote workspaceDesktop(): SessionWorkspaceDesktop',
-        description: 'Describe the serving desktop for authenticated file-action routes and Client path controls.',
+        signature: 'workspaceDesktop(): { name: string; available: boolean; fileManager: \'finder\' | \'explorer\' | \'directory\' | null }',
+        description: 'Describe the serving desktop for authenticated file-action routes.',
         parameters: [],
-        returns: 'Host name, opener availability, the file-manager action, and whether file associations can be queried.',
+        returns: 'Host name, configured availability, and platform-specific file-manager behavior.',
       },
       {
         signature: '@Remote(\'openWorkspacePath\') async openWorkspacePath( request: SessionOpenWorkspacePathRequest, signal: AbortSignal, ): Promise<SessionOpenWorkspacePathValue>',
@@ -5563,14 +5525,6 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'The configured index sources changed.',
     description: 'The configured index sources changed.',
     parameters: [],
-  },
-  {
-    name: 'sandbox/availability-changed',
-    mode: 'emit',
-    signature: '\'sandbox/availability-changed\'(availability: SandboxAvailability): void',
-    summary: 'This process published a new sandbox availability verdict and the startup decision that follows it.',
-    description: 'This process published a new sandbox availability verdict and the startup decision that follows it. Payload-carrying and non-vetoing: consumers re-read `ctx.sandboxStartup` for the complete decision.',
-    parameters: [{ name: 'availability', description: 'the verdict the published decision was resolved from.' }],
   },
   {
     name: 'schedule/changed',
@@ -8226,7 +8180,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PermissionCatalog',
-    declaration: 'export interface PermissionCatalog {\n    options: PresetOption[];\n    defaultOptions: PresetOption[];\n    defaultPreset: string;\n    sandbox: SandboxAvailabilityView;\n}',
+    declaration: 'export interface PermissionCatalog {\n    options: PresetOption[];\n    defaultOptions: PresetOption[];\n    defaultPreset: string;\n}',
   },
   {
     name: 'PiAiRequestHeaderContext',
@@ -8793,22 +8747,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface RunnerFailureRule {\n    allowedExitCodes?: readonly number[];\n    fatalSignatures: readonly string[];\n    informationalLines?: readonly string[];\n}',
   },
   {
-    name: 'SandboxAvailability',
-    declaration: 'export interface SandboxAvailability {\n    available: boolean;\n    backend: string;\n    enforcement: SandboxAvailabilityEnforcement;\n    reason: string;\n    remediation: string;\n}',
-  },
-  {
-    name: 'SandboxAvailabilityEnforcement',
-    declaration: 'export type SandboxAvailabilityEnforcement = SandboxEnforcement | \'none\';',
-  },
-  {
-    name: 'SandboxAvailabilityEnforcementView',
-    declaration: 'export type SandboxAvailabilityEnforcementView = \'full\' | \'partial\' | \'none\';',
-  },
-  {
-    name: 'SandboxAvailabilityView',
-    declaration: 'export interface SandboxAvailabilityView {\n    available: boolean;\n    backend: string;\n    enforcement: SandboxAvailabilityEnforcementView;\n    reason: string;\n    remediation: string;\n    awaitingChoice: boolean;\n}',
-  },
-  {
     name: 'SandboxEnforcement',
     declaration: 'export type SandboxEnforcement = \'full\' | \'partial\';',
   },
@@ -9322,7 +9260,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionOpenWorkspacePathRequest',
-    declaration: 'export interface SessionOpenWorkspacePathRequest {\n    readonly action?: \'open\' | \'reveal\';\n    readonly application?: string;\n    readonly path: string;\n}',
+    declaration: 'export interface SessionOpenWorkspacePathRequest {\n    readonly action?: \'reveal\';\n    readonly application?: string;\n    readonly path: string;\n}',
   },
   {
     name: 'SessionOpenWorkspacePathValue',
@@ -9647,10 +9585,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionWireHeader',
     declaration: 'export interface SessionWireHeader {\n    readonly version: number;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly isSeeded: boolean;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n}',
-  },
-  {
-    name: 'SessionWorkspaceDesktop',
-    declaration: 'export interface SessionWorkspaceDesktop {\n    readonly name: string;\n    readonly available: boolean;\n    readonly fileManager: \'finder\' | \'explorer\' | \'directory\' | null;\n    readonly associationsSupported: boolean;\n}',
   },
   {
     name: 'SessionWorkspacePathApplication',
@@ -10786,7 +10720,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WebEntryUrl',
-    declaration: 'export interface WebEntryUrl {\n    readonly label: string;\n    readonly url: string;\n    readonly displayUrl: string;\n    readonly open: boolean;\n}',
+    declaration: 'export interface WebEntryUrl {\n    readonly label: string;\n    readonly url: string;\n    readonly open: boolean;\n}',
   },
   {
     name: 'WebFallback',

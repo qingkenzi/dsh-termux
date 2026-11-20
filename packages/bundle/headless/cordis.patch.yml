@@ -24,19 +24,13 @@
         sessionId: !!js ctx.headlessStartup.sessionId
         json: !!js ctx.headlessStartup.json
 
-# A one-shot run has no user to ask, so this deployment explicitly accepts the
-# same danger-full-access fallback as the GUI when the Android seccomp probe
-# fails. A startup warning and the permission state keep that acceptance visible.
-- id: sandbox-startup
-  config:
-    mode: !!js process.env.DSH_PERMISSION_MODE
-    onUnavailable: danger-full-access
-
 # Replacing config retains the base mode/root defaults while adding the CLI grants.
+# The Android conditional matches dsh-base: no sandbox backend exists there, so
+# the confined default would fail every command closed.
 - id: sandbox-policy
-  inject: [headlessStartup, sandboxStartup]
+  inject: [headlessStartup]
   config:
-    mode: !!js ctx.sandboxStartup.mode
+    mode: !!js "process.env.DSH_PERMISSION_MODE ?? (process.platform === 'android' ? 'danger-full-access' : 'workspace-write')"
     workspaceRoot: !!js process.cwd()
     additionalWritableRoots: !!js ctx.headlessStartup.additionalWritableRoots
 

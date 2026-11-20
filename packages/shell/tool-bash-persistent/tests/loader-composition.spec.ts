@@ -17,7 +17,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
 import * as TerminalLocal from '@deepseek-ai/dsh-terminal-bash'
 import SandboxProvider from '@deepseek-ai/dsh-sandbox'
-import type { ConfinedArgv, SandboxAvailability, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { ConfinedArgv, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
@@ -36,11 +36,6 @@ afterEach(async () => {
 })
 
 class PassthroughSandbox extends SandboxProvider {
-
-  /** Test doubles report themselves available so startup composition resolves. */
-  availability(): SandboxAvailability {
-    return { available: true, backend: 'test', enforcement: 'full', reason: 'test double', remediation: 'none' }
-  }
   async confine(argv: readonly string[], _policy: SandboxPolicy): Promise<ConfinedArgv> {
     return { argv: [...argv], enforcement: 'full', denialSignatures: [], runnerFailureRules: [] }
   }

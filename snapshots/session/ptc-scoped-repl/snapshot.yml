@@ -7,5 +7,3 @@ header:
   class: ptc-scoped-repl
   pin: true
 permission: workspace-write
-requires:
-  - sandbox

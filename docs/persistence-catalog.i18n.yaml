@@ -147,8 +147,8 @@
   en: 19917bc5438e60af
   zh: 19917bc5438e60af
 /session-persistence-event-catalog/events/permission/permission-preset-log-only:
-  en: 384308b07b57973c
-  zh: 105a8ae1ffddf256
+  en: 5a38e50ed89e1a80
+  zh: 5c4160ebfb3d661b
 /session-persistence-event-catalog/events/plan:
   en: 4294f78d26ed985b
   zh: 4294f78d26ed985b
@@ -1371,8 +1371,8 @@
   en: 7660c41e4129b466
   zh: bcbb1b15cb872214
 /session-persistence-event-catalog/resolved-persistence-types/string:
-  en: 8a67d45d0caaee43
-  zh: 27d3f3d5ef4a0957
+  en: 0bd8cec4019a5ad5
+  zh: c6cc79ce5aa844c4
 /session-persistence-event-catalog/resolved-persistence-types/string~2:
   en: 0089620bf4638263
   zh: 1922bef1713094bb
@@ -1764,8 +1764,8 @@
   en: f58bccca3df9c2ad
   zh: 5c92b6edeb7ce020
 /session-persistence-event-catalog/resolved-persistence-types/kind-retry:
-  en: a4463672be97b173
-  zh: c314a3a837c6422f
+  en: c628d0575f81407a
+  zh: d9a70ce1e05dcce8
 /session-persistence-event-catalog/resolved-persistence-types/kind-runtime-context:
   en: 68b5598e21cf8ba2
   zh: 95ef1685af64a5f4
@@ -1905,8 +1905,8 @@
   en: 4e102391d685eff5
   zh: 9762243a13014f3d
 /session-persistence-event-catalog/resolved-persistence-types/kind-user:
-  en: 81903b48edbfe006
-  zh: 0017768bf93289f4
+  en: 808d28208287e843
+  zh: 18a8d63978c984a7
 /session-persistence-event-catalog/resolved-persistence-types/kind-user-approval:
   en: a52d2dfbaf844127
   zh: 4c5306ca40f20873
@@ -1959,8 +1959,8 @@
   en: 88fd92dff7aa505f
   zh: b400712b3ef749aa
 /session-persistence-event-catalog/resolved-persistence-types/preset:
-  en: cce6b528b0e2e3a8
-  zh: bb1f93e0b7812ffb
+  en: 9fbb222685c7310c
+  zh: 26e3032eae149f0a
 /session-persistence-event-catalog/resolved-persistence-types/reason-turn:
   en: b8d80b4b1e6441ad
   zh: d5c52e1bfe560297

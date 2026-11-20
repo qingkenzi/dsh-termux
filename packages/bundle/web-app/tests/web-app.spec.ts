@@ -76,15 +76,12 @@ describe('web-app runtime glue', () => {
     const ctx = context()
     ctx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([{ source: 'process', values: {} }]))
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const open = vi.spyOn(internals, 'openBrowser').mockResolvedValue(undefined)
     ctx.on('webserver/entry-url', (baseUrl, entries) => {
-      entries.push({ label: 'dsh web', url: `${baseUrl}/?token=fixture`, displayUrl: `${baseUrl}/`, open: true })
+      entries.push({ label: 'dsh web', url: `${baseUrl}/?token=fixture`, open: true })
     })
-    const config = enabled
-      ? new Config({ printUrl: 'always', openBrowser: true, surfaceContext: true })
-      : new Config({ surfaceContext: false, printUrl: 'never', openBrowser: false })
-    expect(config).toMatchObject({ printUrl: enabled ? 'always' : 'never', openBrowser: enabled })
+    const config = enabled ? new Config() : new Config({ surfaceContext: false, printUrl: false, openBrowser: false })
+    expect(config).toMatchObject({ printUrl: enabled, openBrowser: enabled })
     apply(ctx, config)
     expect(log).toHaveBeenCalledTimes(enabled ? 2 : 0)
     expect(open).toHaveBeenCalledTimes(enabled ? 1 : 0)
@@ -109,7 +106,7 @@ describe('web-app runtime glue', () => {
     const ctx = context(bind)
     const contributions = shellContributions(ctx)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: true }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: true }))
     const url = `http://${advertised}:4567`
     expect(ctx.webApp.getAdvertisedUrl()).toBe(url)
     await vi.waitFor(() => {
@@ -121,7 +118,7 @@ describe('web-app runtime glue', () => {
   it('advertises the configured public root behind a prefix-stripping proxy', async () => {
     const ctx = context()
     const contributions = shellContributions(ctx)
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: true, publicUrl: 'https://proxy.example:8443/web' }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: true, publicUrl: 'https://proxy.example:8443/web' }))
     expect(ctx.webApp.getAdvertisedUrl()).toBe('https://proxy.example:8443/web/')
     await vi.waitFor(() => {
       expect(contributions.find(item => item.name === 'web-runtime')?.resolve()).toEqual({
@@ -133,7 +130,7 @@ describe('web-app runtime glue', () => {
   it('skips shell context registration when surface context is disabled', async () => {
     const ctx = context()
     const contributions = shellContributions(ctx)
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: false }))
     const available = Promise.withResolvers<undefined>()
     ctx.inject(['shellEnv'], () => { available.resolve(undefined) })
     await available.promise
@@ -147,7 +144,7 @@ describe('web-app runtime glue', () => {
   ])('warns about plaintext exposure and advertises the $bind bind address', ({ bind, advertised }) => {
     const ctx = context(bind)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: false }))
     expect(ctx.webApp.getAdvertisedUrl()).toBe(`http://${advertised}:4567`)
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       `dsh web: listening on ${bind} over plain HTTP; restrict this port to a trusted proxy or network`,
@@ -157,7 +154,7 @@ describe('web-app runtime glue', () => {
   it('keeps the plaintext warning when an HTTPS public URL fronts an HTTP listener', () => {
     const ctx = context('10.1.2.3')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false, publicUrl: 'https://proxy.example/ui/' }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: false, publicUrl: 'https://proxy.example/ui/' }))
     expect(warn).toHaveBeenCalledOnce()
     expect(ctx.webApp.getAdvertisedUrl()).toBe('https://proxy.example/ui/')
   })
@@ -165,26 +162,26 @@ describe('web-app runtime glue', () => {
   it('advertises listener TLS without a plaintext warning', () => {
     const ctx = context('10.1.2.3', 'https:')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: false }))
     expect(ctx.webApp.getAdvertisedUrl()).toBe('https://10.1.2.3:4567')
     expect(warn).not.toHaveBeenCalled()
   })
 
   it.each(['fe80::1%lo', '::127.0.0.1%lo'])('requires publicUrl when %s cannot form an advertised URL', (bind) => {
     const ctx = context(bind)
-    expect(() => { apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false })) })
+    expect(() => { apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: false })) })
       .toThrow(/carries an interface zone id, which no URL can express; pass --public-url/u)
     const declared = new Context()
     onTestFinished(() => declared.fiber.dispose())
     declared.provide('webServer', fakeHttpServer(bind))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    apply(declared, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false, publicUrl: 'https://app.example/ui/' }))
+    apply(declared, new Config({ printUrl: false, openBrowser: false, surfaceContext: false, publicUrl: 'https://app.example/ui/' }))
     expect(declared.webApp.getAdvertisedUrl()).toBe('https://app.example/ui/')
   })
 
   it('uses the bind address when publicUrl is explicitly null', () => {
     const ctx = context()
-    apply(ctx, new Config({ printUrl: 'never', openBrowser: false, surfaceContext: false, publicUrl: null as never }))
+    apply(ctx, new Config({ printUrl: false, openBrowser: false, surfaceContext: false, publicUrl: null as never }))
     expect(ctx.webApp.getAdvertisedUrl()).toBe('http://127.0.0.1:4567')
   })
 
