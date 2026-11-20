@@ -772,7 +772,7 @@ describe('Agent terminals', () => {
     expect(sandbox.confine).toHaveBeenCalledWith(['/bin/bash', '--noprofile', '--norc', '-i'], confined, expect.any(AbortSignal))
     expect(subprocess.spawnTerminal).toHaveBeenCalledWith(expect.objectContaining({
       argv: ['sandbox-run', '/bin/bash', '--noprofile', '--norc', '-i'], cwd: '/workspace',
-      env: { DSH_SESSION_ID: 'session', HISTFILE: `/tmp/dsh-agent-history-${terminal.id}` },
+      env: { DSH_SESSION_ID: 'session', HISTFILE: join(tmpdir(), `dsh-agent-history-${terminal.id}`) },
     }))
     expect(terminal.id).toMatch(/^[\w-]{1,128}$/u)
     expect(terminal.info).toMatchObject({ title: 'dev server', origin: 'agent', control: 'agent', sandboxMode: 'workspace-write', state: 'running' })
@@ -780,7 +780,7 @@ describe('Agent terminals', () => {
     expect(subprocess.spawn).not.toHaveBeenCalled()
     await terminal.close()
     expect(subprocess.spawn).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      argv: ['rm', '-f', '--', `/tmp/dsh-agent-history-${terminal.id}`], cwd: '/',
+      argv: ['rm', '-f', '--', join(tmpdir(), `dsh-agent-history-${terminal.id}`)], cwd: '/',
     }))
   })
 
@@ -820,7 +820,7 @@ describe('Agent terminals', () => {
     expect(subprocess.spawn).toHaveBeenCalledOnce()
     const [cleanup] = subprocess.spawn.mock.calls[0]!
     expect(cleanup.argv.slice(0, 3)).toEqual(['rm', '-f', '--'])
-    expect(cleanup.argv[3]).toMatch(/^\/tmp\/dsh-agent-history-/u)
+    expect(cleanup.argv[3]!.startsWith(join(tmpdir(), 'dsh-agent-history-'))).toBe(true)
     expect(controller.list(agent.id)).toEqual([])
   })
 

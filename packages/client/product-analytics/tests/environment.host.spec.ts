@@ -4,7 +4,7 @@ import { queryEnvironment } from '../src/environment-query.ts'
 import { collectEnvironment } from '../src/environment.ts'
 
 vi.mock('node:os', async importOriginal => ({ ...await importOriginal<typeof os>(),
-  platform: vi.fn(), cpus: vi.fn(), totalmem: vi.fn(), release: vi.fn(), machine: vi.fn(),
+  platform: vi.fn(), cpus: vi.fn(), availableParallelism: vi.fn(), totalmem: vi.fn(), release: vi.fn(), machine: vi.fn(),
 }))
 vi.mock('../src/environment-query.ts', () => ({ queryEnvironment: vi.fn() }))
 
@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.mocked(os.release).mockReturnValue('10.0.26300')
   vi.mocked(os.machine).mockReturnValue('x86_64')
   vi.mocked(os.totalmem).mockReturnValue(32 * 1024 ** 3)
+  vi.mocked(os.availableParallelism).mockReturnValue(20)
   vi.mocked(os.cpus).mockReturnValue(Array.from({ length: 20 }, () => ({
     model: 'Fixture CPU', speed: 2400, times: { user: 0, nice: 0, sys: 0, idle: 0, irq: 0 },
   })))
@@ -163,13 +164,13 @@ it.each([0, Number.NaN, 1.5])('marks unavailable memory %s instead of reporting 
   outputs()
   const result = await collectEnvironment(options())
   expect(result).not.toHaveProperty('memory_total_bytes')
-  expect(result.missing_fields).toMatchObject({ memory_total_bytes: 'unavailable', cpu_model: 'unavailable', cpu_logical_count: 'unavailable' })
+  expect(result.missing_fields).toMatchObject({ memory_total_bytes: 'unavailable', cpu_model: 'unavailable' })
 })
 
 it('isolates refused synchronous OS sources', async () => {
-  for (const source of [os.totalmem, os.cpus, os.release]) vi.mocked(source).mockImplementation(() => { throw new Error('source refused') })
+  for (const source of [os.totalmem, os.cpus, os.availableParallelism, os.release]) vi.mocked(source).mockImplementation(() => { throw new Error('source refused') })
   outputs()
-  expect((await collectEnvironment(options())).missing_fields).toMatchObject({ os_version: 'unavailable', memory_total_bytes: 'unavailable', cpu_model: 'unavailable', cpu_logical_count: 'unavailable' })
+  expect((await collectEnvironment(options())).missing_fields).toMatchObject({ os_version: 'unavailable', memory_total_bytes: 'unavailable', cpu_model: 'unavailable' })
 })
 
 it('marks unsupported platform queries without spawning commands', async () => {

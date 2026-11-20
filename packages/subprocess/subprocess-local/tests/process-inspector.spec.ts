@@ -29,6 +29,13 @@ function syscall(number: number, ...args: number[]): string {
   return `${number} ${six.slice(0, 6).map(value => `0x${value.toString(16)}`).join(' ')}`
 }
 
+/** One raw `/proc/<pid>/task/<tid>/syscall` line with caller-controlled 64-bit arguments. */
+function rawSyscall(number: number, ...fields: string[]): string {
+  const six = [...fields]
+  while (six.length < 6) six.push('0x0')
+  return `${number} ${six.slice(0, 6).join(' ')}`
+}
+
 function fakeInternals() {
   const files = new Map<string, string>()
   const dirs = new Map<string, string[]>()
@@ -233,6 +240,22 @@ describe('Linux process inspector', () => {
     fake.files.set('/proc/101/task/102/syscall', syscall(232, 5, 0, 1))
     fake.files.set('/proc/101/task/102/fdinfo/5', 'pos: 0\ntfd: 0 events: 19\n')
     expect(inspector.isStdinWaiting(77, 100)).toBe(true)
+
+    const arm64 = createProcessInspector('linux', 'arm64', fake.internals)
+    fake.files.set('/proc/101/task/102/syscall',
+      rawSyscall(63, '0x0', '0x0', '0x0', '0xffffffffffffffff', '0x1000000000000000', '0x0'))
+    expect(arm64.isStdinWaiting(77, 100)).toBe(true)
+    fake.files.set('/proc/101/task/102/syscall',
+      rawSyscall(76, '0x0', '0x0', '0x4', '0x0', '0x80000', '0x0'))
+    expect(arm64.isStdinWaiting(77, 100)).toBe(true)
+    fake.files.set('/proc/101/task/102/syscall',
+      rawSyscall(65, '0x0', '0x0', '0x1', '0x0', '0x0', '0x0'))
+    expect(arm64.isStdinWaiting(77, 100)).toBe(true)
+    fake.files.set('/proc/101/task/102/syscall',
+      rawSyscall(285, '0x0', '0x0', '0x1', '0x0', '0x10', '0x0'))
+    expect(arm64.isStdinWaiting(77, 100)).toBe(true)
+    fake.files.set('/proc/101/task/102/syscall', rawSyscall(63, '0xnothex'))
+    expect(arm64.isStdinWaiting(77, 100)).toBe(false)
   })
 
   it('uses the waiting thread fd table and recognizes the controlling-terminal alias', () => {
@@ -371,13 +394,44 @@ describe('macOS process inspector', () => {
     expect(fake.kills).toEqual([])
   })
 
-  it('returns undefined for missing or invalid foreground groups and dispatches platform inspectors', () => {
+  it('returns undefined for missing or invalid foreground groups', () => {
     const fake = fakeInternals()
     fake.setTpgid('-1')
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
     fake.internals.exec = () => { throw new Error('gone') }
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
+  })
+})
+
+describe('process inspector platform dispatch', () => {
+  it('returns the Linux inspector for android and reads the same /proc table', () => {
+    const fake = fakeInternals()
+    fake.dirs.set('/proc', ['10', '11'])
+    fake.files.set('/proc/10/stat', stat(10, 10, 10, 10, '500'))
+    fake.files.set('/proc/11/stat', stat(11, 10, 10, 10, '501', 10))
+    const linux = createProcessInspector('linux', 'arm64', fake.internals)
+    const android = createProcessInspector('android', 'arm64', fake.internals)
+    expect(android.constructor).toBe(linux.constructor)
+    expect(android.constructor.name).toBe('LinuxProcessInspector')
+    expect(android.foregroundPgid(10)).toBe(linux.foregroundPgid(10))
+    expect(android.snapshot().tree(10)).toEqual([
+      { pid: 11, started: '501' },
+      { pid: 10, started: '500' },
+    ])
+    expect(android.snapshot().session(10)).toEqual(linux.snapshot().session(10))
+    expect(android.isAlive({ pid: 10, started: '500' })).toBe(true)
+  })
+
+  it('keeps an unreadable /proc error visible on android instead of reporting an empty table', () => {
+    const fake = fakeInternals()
+    const inspector = createProcessInspector('android', 'arm64', fake.internals)
+    expect(() => inspector.snapshot()).toThrow('Cannot inspect processes: /proc directory is unreadable')
+  })
+
+  it('rejects platforms without a process inspector', () => {
+    const fake = fakeInternals()
     expect(createProcessInspector('win32', 'x64', fake.internals)).toBeInstanceOf(WindowsProcessInspector)
     expect(() => createProcessInspector('freebsd', 'x64', fake.internals)).toThrow('unsupported on platform freebsd')
+    expect(() => createProcessInspector('aix', 'x64', fake.internals)).toThrow('unsupported on platform aix')
   })
 })

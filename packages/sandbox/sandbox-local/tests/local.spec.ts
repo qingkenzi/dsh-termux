@@ -132,7 +132,10 @@ describe('profile dialects', () => {
     // CANONICALIZED — Seatbelt matches resolved paths (`/tmp` IS
     // `/private/tmp` on macOS), and both collapse to one grant on hosts
     // where they resolve to the same directory.
-    const roots = [...new Set(['/ws', realpathSync('/tmp'), realpathSync(tmpdir())])]
+    const tempRoots = process.platform === 'android'
+      ? [realpathSync(tmpdir())]
+      : [realpathSync('/tmp'), realpathSync(tmpdir())]
+    const roots = [...new Set(['/ws', ...tempRoots])]
     const allow = `(allow file-write* ${roots.map(root => `(subpath "${root}")`).join(' ')})`
     expect(seatbeltProfileArgs(WW)).toEqual(['-p', `${SEATBELT_RO_PROFILE} ${allow}`])
   })
