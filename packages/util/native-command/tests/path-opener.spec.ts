@@ -169,7 +169,7 @@ describe('native path opener', () => {
     })
     const expected = process.platform === 'win32'
       ? 'explorer.exe'
-      : process.platform === 'linux'
+      : process.platform === 'linux' || process.platform === 'android'
         ? 'xdg-open'
         : 'open'
     expect(run.mock.calls[0]?.[0]).toBe(expected)

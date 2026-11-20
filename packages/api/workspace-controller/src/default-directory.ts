@@ -29,6 +29,8 @@ export function validateDocumentsDirectory(directory: string, platform: NodeJS.P
 
 /**
  * Resolve the first-use directory on the Host without creating files.
+ * Native platforms read the account's Documents directory; Android has none,
+ * so the app-private home's `workspace` directory stands in for it.
  * @param documentsDirectory - explicit deployment override for the system Documents directory.
  * @param signal - caller lifetime and lookup deadline.
  * @param internals - platform facts and native command runner.
@@ -44,32 +46,37 @@ export async function defaultWorkspaceDirectory(
   signal.throwIfAborted()
   let directory = documentsDirectory
   if (directory === undefined) {
-    const run = internals.run ?? runNativeCommand
-    let stdout: string
-    switch (platform) {
-      case 'darwin':
-        ({ stdout } = await run('osascript', [
-          '-e', 'POSIX path of (path to documents folder from user domain without folder creation)',
-        ], signal, 'hidden'))
-        break
-      case 'win32':
-        ({ stdout } = await run('powershell.exe', [
-          '-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
-          '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); '
-          + '[Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments, '
-          + '[Environment+SpecialFolderOption]::DoNotVerify)',
-        ], signal, 'hidden'))
-        break
-      case 'linux':
-        ({ stdout } = await run('xdg-user-dir', ['DOCUMENTS'], signal, 'hidden'))
-        break
-      default:
-        throw new Error(`system Documents directory is unavailable on ${platform}`)
-    }
-    directory = stdout.replace(/[\r\n]+$/, '')
-    // XDG reports the home directory when this user directory is disabled.
-    if (directory === '' || (platform === 'linux' && paths.normalize(directory) === (internals.home ?? homedir()))) {
-      throw new Error('system Documents directory is unavailable')
+    const home = internals.home ?? homedir()
+    if (platform === 'android') {
+      directory = paths.join(home, 'workspace')
+    } else {
+      const run = internals.run ?? runNativeCommand
+      let stdout: string
+      switch (platform) {
+        case 'darwin':
+          ({ stdout } = await run('osascript', [
+            '-e', 'POSIX path of (path to documents folder from user domain without folder creation)',
+          ], signal, 'hidden'))
+          break
+        case 'win32':
+          ({ stdout } = await run('powershell.exe', [
+            '-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+            '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); '
+            + '[Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments, '
+            + '[Environment+SpecialFolderOption]::DoNotVerify)',
+          ], signal, 'hidden'))
+          break
+        case 'linux':
+          ({ stdout } = await run('xdg-user-dir', ['DOCUMENTS'], signal, 'hidden'))
+          break
+        default:
+          throw new Error(`system Documents directory is unavailable on ${platform}`)
+      }
+      directory = stdout.replace(/[\r\n]+$/, '')
+      // XDG reports the home directory when this user directory is disabled.
+      if (directory === '' || (platform === 'linux' && paths.normalize(directory) === home)) {
+        throw new Error('system Documents directory is unavailable')
+      }
     }
   }
   directory = validateDocumentsDirectory(directory, platform)

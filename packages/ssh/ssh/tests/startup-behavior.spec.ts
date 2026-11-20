@@ -1,5 +1,7 @@
 /** SSH startup identity and request lifetimes over the actual administrative protocol. */
 import { EventEmitter } from 'node:events'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Duplex, PassThrough } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -142,11 +144,23 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     expect(transport.spawn).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-POSIX client before starting SSH', () => {
-    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
-    try { expect(() => setup()).toThrow('POSIX client') }
-    finally { platform.mockRestore() }
-    expect(transport.spawn).not.toHaveBeenCalled()
+  it('admits Android clients and rejects non-POSIX clients before starting SSH', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get')
+    try {
+      platform.mockReturnValue('win32')
+      expect(() => setup()).toThrow('POSIX client')
+      expect(transport.spawn).not.toHaveBeenCalled()
+      platform.mockReturnValue('android')
+      const test = setup()
+      await test.service.ready
+      expect(transport.spawn).toHaveBeenCalledOnce()
+    } finally { platform.mockRestore() }
+  })
+
+  it('allocates its control directory under the host temporary directory', async () => {
+    const test = setup()
+    await test.service.ready
+    expect(transport.directory).toHaveBeenCalledWith(join(tmpdir(), 'dsh-ssh-'))
   })
 
   it('publishes only verified remote coordinates and quotes the configured executable paths', async () => {

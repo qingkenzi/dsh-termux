@@ -1,15 +1,28 @@
 /** Packaged ripgrep resolution and subprocess execution, independent of tool or Remote consumers. */
 import { existsSync } from 'node:fs'
-import { join, parse } from 'node:path'
+import { dirname, join, parse } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 
 let rgPathPromise: Promise<string> | undefined
 
 /**
+ * The Android prebuild shipped beside this package in a source checkout.
+ * @returns the executable path when the file exists, otherwise undefined.
+ */
+function androidVendorRipgrep(): string | undefined {
+  const moduleDirectory = dirname(fileURLToPath(import.meta.url))
+  const candidate = join(moduleDirectory, '../../../../vendor/android-prebuilds/rg')
+  return existsSync(candidate) ? candidate : undefined
+}
+
+/**
  * Resolve the packaged executable lazily, once per process. Single-file runtimes use an existing
- * `-rg` sidecar; Electron uses the unpacked ASAR path. Resolution failures reject
+ * `-rg` sidecar; Android source checkouts use the bundled Android prebuild; Electron uses the
+ * unpacked ASAR path. On Android an explicit `DSH_RG_PATH` from the CLI bootstrap wins because the
+ * `@vscode/ripgrep` platform package ships no Android binary. Resolution failures reject
  * this call, not package loading. No system executable or remote fallback is used.
- * @returns the packaged executable's absolute path.
+ * @returns the resolved executable's absolute path.
  */
 export function resolveRgPath(): Promise<string> {
   rgPathPromise ??= Promise.resolve().then(async () => {
@@ -18,6 +31,12 @@ export function resolveRgPath(): Promise<string> {
       ? join(executable.dir, `${executable.name}-rg.exe`)
       : `${process.execPath}-rg`
     if ('pkg' in process && existsSync(executableSidecar)) return executableSidecar
+    if (process.platform === 'android') {
+      const configured = process.env.DSH_RG_PATH
+      if (configured !== undefined && existsSync(configured)) return configured
+      const bundled = androidVendorRipgrep()
+      if (bundled !== undefined) return bundled
+    }
     const dependency = (await import('@vscode/ripgrep')).rgPath
     return process.versions.electron === undefined
       ? dependency

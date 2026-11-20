@@ -112,7 +112,9 @@ it('uses the production command adapter and current platform when no override is
     stdout: command === 'gio' ? 'standard::content-type: audio/mpeg' : command === 'env' ? 'No applications found' : JSON.stringify([application]), stderr: '',
   }))
   onTestFinished(() => { run.mockRestore() })
-  expect(await nativeFileApplications('/file.mp3', signal)).toEqual(process.platform === 'linux' ? [] : [application])
+  expect(await nativeFileApplications('/file.mp3', signal)).toEqual(
+    process.platform === 'linux' || process.platform === 'android' ? [] : [application],
+  )
   await openNativeFileApplication('/file.mp3', application.id, signal, { platform: 'darwin' })
   expect(run).toHaveBeenLastCalledWith('open', ['-a', application.id, '/file.mp3'], signal, 'hidden')
 })

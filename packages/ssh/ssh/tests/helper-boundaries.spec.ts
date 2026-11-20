@@ -1,7 +1,7 @@
 /** Helper leases, stream ownership and request validation over the administrative wire. */
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
@@ -12,24 +12,23 @@ import { createHelperHarness } from './fixtures/helper.ts'
 import { runSshHelper } from '../src/helper.ts'
 import { RemoteProcesses } from '../src/helper-processes.ts'
 import { helloSchema, preparedSchema, targetSchema, writeResultSchema } from '../src/schemas.ts'
-import { SSH_MAX_TEXT_STREAMS } from '../src/protocol.ts'
+import { SshRpcPeer, SSH_MAX_TEXT_STREAMS } from '../src/protocol.ts'
 
 const entryPath = fileURLToPath(new URL('../src/helper-entry.ts', import.meta.url))
 const nextSchema = z.object({ done: z.boolean(), value: z.string() })
 
 describe.skipIf(process.platform === 'win32')('SSH helper wire and lifecycle bounds', () => {
-  it('rejects unsupported hosts and cancellation before service startup', async () => {
+  it('admits Android and rejects non-POSIX hosts before service startup', async () => {
     const input = new PassThrough()
     const output = new PassThrough()
     const controller = new AbortController()
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     try {
       await expect(runSshHelper({ input, output, kind: 'node-script', entryPath, signal: controller.signal })).rejects.toThrow('POSIX host')
-    } finally { platform.mockRestore() }
-    controller.abort(new Error('startup cancelled'))
-    try {
+      platform.mockReturnValue('android')
+      controller.abort(new Error('startup cancelled'))
       await expect(runSshHelper({ input, output, kind: 'node-script', entryPath, signal: controller.signal })).rejects.toThrow('startup cancelled')
-    } finally { input.destroy(); output.destroy() }
+    } finally { platform.mockRestore(); input.destroy(); output.destroy() }
   })
 
   it('joins teardown when cancellation arrives while services are mounting', async () => {
@@ -43,6 +42,25 @@ describe.skipIf(process.platform === 'win32')('SSH helper wire and lifecycle bou
       expect(input.destroyed).toBe(true)
       expect(output.destroyed).toBe(true)
     } finally { input.destroy(); output.destroy() }
+  })
+
+  it('allocates its private process root under the host temporary directory', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dsh-ssh-workspace-'))
+    const input = new PassThrough()
+    const output = new PassThrough()
+    const controller = new AbortController()
+    const serving = runSshHelper({ input, output, kind: 'node-script', entryPath, signal: controller.signal })
+    void serving.catch(() => {})
+    const client = new SshRpcPeer(output, input, 64 * 1024 * 1024, 128)
+    try {
+      const facts = await client.request('hello', { protocol: 3, workspace, leaseMs: 30_000 }, helloSchema)
+      expect(facts.root.startsWith(join(tmpdir(), 'dsh-ssh-'))).toBe(true)
+    } finally {
+      client.close()
+      controller.abort()
+      await serving.catch(() => {})
+      await rm(workspace, { recursive: true, force: true })
+    }
   })
 
   it('returns the negotiated bootstrap digest and rejects invalid handshake fields', async () => {
