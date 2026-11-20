@@ -39,6 +39,11 @@ const method = await publishExclusive(stagedPath, finalPath)
 需要仅属主可读写的会话日志时传入 `mode`，复制路径会在刷盘前应用它：
 
 ```ts
+import { publishExclusive } from '@deepseek-ai/dsh-util-exclusive-publish'
+
+declare const stagedPath: string
+declare const finalPath: string
+
 await publishExclusive(stagedPath, finalPath, { mode: 0o600 })
 ```
 

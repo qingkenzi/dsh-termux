@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for android-termux.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/user/guide/android-termux.md
+/run-dsh-on-android-with-termux:
+  en: 02559b30627dfdb8
+  zh: 42d34c5a48bb14d8
+/run-dsh-on-android-with-termux/prerequisites:
+  en: ba016b51093c8698
+  zh: b83f98b716ed4591
+/run-dsh-on-android-with-termux/install-from-source:
+  en: 5e385398b8e713c1
+  zh: 8a7de773efa6b4a4
+/run-dsh-on-android-with-termux/start-the-web-ui:
+  en: 03482064d50c4c69
+  zh: a413bb68983a34b5
+/run-dsh-on-android-with-termux/permission-mode:
+  en: ab4e02f0a3857780
+  zh: 8afcc13ba2f382fb
+/run-dsh-on-android-with-termux/what-works:
+  en: 6bf6650f1b1d787f
+  zh: d1a714e78d675b58
+/run-dsh-on-android-with-termux/verification-and-ci:
+  en: f0aec7ae2a5c7010
+  zh: 9e7360a6bf38e0e5
+/run-dsh-on-android-with-termux/troubleshooting:
+  en: ddccfafb18e7f2fa
+  zh: 967b66dfa60beec7
+/run-dsh-on-android-with-termux/upgrading:
+  en: 1360852a52433ba4
+  zh: de8bb55e96de80c6

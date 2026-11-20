@@ -39,6 +39,11 @@ const method = await publishExclusive(stagedPath, finalPath)
 A caller that needs an owner-only session log passes `mode`; the copy path applies it before flushing:
 
 ```ts
+import { publishExclusive } from '@deepseek-ai/dsh-util-exclusive-publish'
+
+declare const stagedPath: string
+declare const finalPath: string
+
 await publishExclusive(stagedPath, finalPath, { mode: 0o600 })
 ```
 
