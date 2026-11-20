@@ -56,6 +56,7 @@ const publicNativePackages = new Set([
   '@deepseek-ai/node-addon-system-darwin-x64',
   '@deepseek-ai/node-addon-system-linux-arm64',
   '@deepseek-ai/node-addon-system-linux-x64',
+  '@deepseek-ai/node-addon-system-android-arm64',
 ])
 /** Public source home recorded in maintained package manifests. */
 const publishedRepositoryUrl = 'git+https://github.com/deepseek-ai/deepseek-harness.git'
@@ -79,7 +80,10 @@ const localArtifactDirs = new Set(['node_modules'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   // Only `prepack` stages `docs`; every other reader of this directory sees
   // whatever the checkout holds.
-  '@deepseek-ai/dsh': ['lib/*.js', 'lib/*.js.map', 'lib/types/*.d.ts', 'lib/types/*.d.ts.map', 'docs', 'src'],
+  '@deepseek-ai/dsh': [
+    'lib/*.js', 'lib/*.js.map', 'lib/types/*.d.ts', 'lib/types/*.d.ts.map', 'docs',
+    'scripts/install-android-addons.mjs', 'src', 'vendor/android-prebuilds', 'README.md',
+  ],
   '@deepseek-ai/dsh-desktop-host': [
     'lib/index.js', 'lib/cli.js',
   ],
