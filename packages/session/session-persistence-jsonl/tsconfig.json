@@ -40,6 +40,7 @@
     },
     {
       "path": "../session-format-v3-to-v4"
-    }
+    },
+    { "path": "../../util/exclusive-publish" }
   ]
 }

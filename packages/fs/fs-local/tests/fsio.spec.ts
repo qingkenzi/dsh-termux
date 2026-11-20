@@ -6,7 +6,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { chmod, mkdtemp, readFile, rename, rm, stat, symlink, unlink, writeFile, mkdir, readdir, realpath } from 'node:fs/promises'
+import { chmod, copyFile, mkdtemp, readFile, rename, rm, stat, symlink, unlink, writeFile, mkdir, readdir, realpath } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, parse, relative, resolve } from 'node:path'
 import { createServer } from 'node:net'
@@ -699,7 +700,6 @@ describe('streamWholeText', () => {
 // Windows drives only the read-only attribute through `chmod` and reports synthetic `stat` mode
 // bits, so mode assertions are POSIX-only; native DACL preservation is asserted separately.
 const posixModes = process.platform !== 'win32'
-
 function daclAcePolicy(descriptor: Buffer): string[] {
   const daclOffset = descriptor.readUInt32LE(16)
   if (daclOffset === 0) return []
@@ -826,11 +826,97 @@ describe('writeFileAtomic — temp-file safety', () => {
 
   it('maps a non-collision guarded-create publication failure and cleans staging', async () => {
     const file = join(dir, 'a.txt')
-    const denied = Object.assign(new Error('link denied'), { code: 'EACCES' })
+    const denied = Object.assign(new Error('link denied'), { code: 'EIO' })
+    let copied = false
 
     await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
       linkFile: async () => { throw denied },
+      copyExclusiveFile: async () => { copied = true },
     }, { displayPath: file, createIfAbsent: true })).rejects.toMatchObject({ code: 'FS_IO_ERROR', cause: denied })
+    expect(copied).toBe(false)
+    await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
+  it.each(['EACCES', 'EPERM', 'ENOSYS', 'EOPNOTSUPP', 'ENOTSUP'] as const)(
+    'publishes a new file by exclusive copy when the host refuses hard links with %s', async (code) => {
+      const file = join(dir, 'created.txt')
+      const refused = Object.assign(new Error('link refused'), { code })
+      const copied: string[] = []
+
+      await writeFileAtomic(file, 'copied content', 0o640, undefined, {
+        linkFile: async () => { throw refused },
+        copyExclusiveFile: async (source, destination, flags) => {
+          expect(flags).toBe(constants.COPYFILE_EXCL)
+          expect(await readFile(source, 'utf8')).toBe('copied content')
+          copied.push(destination)
+          await copyFile(source, destination, flags)
+        },
+      }, { displayPath: file, createIfAbsent: true })
+
+      expect(copied).toEqual([file])
+      expect(await readFile(file, 'utf8')).toBe('copied content')
+      if (posixModes) expect((await stat(file)).mode & 0o777).toBe(0o640)
+      expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+    },
+  )
+
+  it.skipIf(!posixModes)('publishes a copied new file owner-only when no mode is requested', async () => {
+    const file = join(dir, 'default-mode.txt')
+    const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
+
+    await writeFileAtomic(file, 'owner only', undefined, undefined, {
+      linkFile: async () => { throw refused },
+    }, { displayPath: file, createIfAbsent: true })
+
+    expect((await stat(file)).mode & 0o777).toBe(0o600)
+  })
+
+  it('rejects a second copied create of the same path and keeps the first file', async () => {
+    const file = join(dir, 'once.txt')
+    const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
+    const internals = { linkFile: async () => { throw refused } }
+
+    await writeFileAtomic(file, 'first', undefined, undefined, internals, { displayPath: file, createIfAbsent: true })
+    await expect(writeFileAtomic(file, 'second', undefined, undefined, internals, { displayPath: file, createIfAbsent: true }))
+      .rejects.toMatchObject({
+        code: 'FS_NOT_OBSERVED',
+        message: `cannot overwrite existing "${file}" without reading it first`,
+      })
+    expect(await readFile(file, 'utf8')).toBe('first')
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
+  it('keeps collision semantics when the fallback copy loses the create race', async () => {
+    const file = join(dir, 'raced.txt')
+    const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
+    const collision = Object.assign(new Error('target existed'), { code: 'EEXIST' })
+
+    await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
+      linkFile: async () => { throw refused },
+      copyExclusiveFile: async () => { throw collision },
+    }, { displayPath: file, createIfAbsent: true })).rejects.toMatchObject({
+      code: 'FS_NOT_OBSERVED',
+      message: `cannot overwrite existing "${file}" without reading it first`,
+      cause: collision,
+    })
+    await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
+  it('maps a non-collision fallback copy failure and cleans staging', async () => {
+    const file = join(dir, 'failed-copy.txt')
+    const refused = Object.assign(new Error('link refused'), { code: 'EACCES' })
+    const copyFailure = Object.assign(new Error('copy failed'), { code: 'EIO' })
+
+    await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
+      linkFile: async () => { throw refused },
+      copyExclusiveFile: async () => { throw copyFailure },
+    }, { displayPath: file, createIfAbsent: true })).rejects.toMatchObject({
+      code: 'FS_IO_ERROR',
+      message: `cannot write "${file}": copy failed`,
+      cause: copyFailure,
+    })
     await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })
     expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
   })

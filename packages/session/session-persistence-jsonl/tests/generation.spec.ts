@@ -2,6 +2,7 @@ import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import {
+  copyFile,
   link,
   mkdir,
   mkdtemp,
@@ -40,6 +41,13 @@ import type {
 } from '@deepseek-ai/dsh-session-format'
 
 const roots: string[] = []
+
+/**
+ * Whether this host can create a hard link at all. Android app data denies
+ * link(2) with EACCES under SELinux, so cases whose precondition is one shared
+ * inode are skipped there; the port still publishes through copyFile.
+ */
+const hardLinkSupported = process.platform !== 'android'
 
 async function tempRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-jsonl-generation-'))
@@ -586,7 +594,9 @@ describe('JSONL immutable generation publication', () => {
       ...identical,
       verifyCurrentFile: async (path, compression, expectedId, expectedEventCount) => {
         const verified = await verifyJsonlCurrentGeneration(path, compression, expectedId, expectedEventCount)
-        if (path !== identical.currentPath) await link(path, identical.currentPath)
+        // The winner only needs identical bytes at the target path; hard links
+        // are denied on Android app data, so a copy keeps this case portable.
+        if (path !== identical.currentPath) await copyFile(path, identical.currentPath)
         return verified
       },
     })
@@ -1228,7 +1238,10 @@ describe('JSONL immutable generation publication', () => {
     },
   )
 
-  it('accepts an identical regular hardlink target', async () => {
+  // Android app data denies link(2) with EACCES, so this inode-identity
+  // precondition cannot be created there; the regular-target case above still
+  // covers the identical-bytes acceptance path.
+  it.skipIf(!hardLinkSupported)('accepts an identical regular hardlink target', async () => {
     const root = await tempRoot()
     const request = options(root)
     const expected = join(root, 'expected.jsonl')
@@ -1624,15 +1637,16 @@ describe('JSONL immutable generation publication', () => {
     const request = options(root)
     await writeFile(request.sourcePath, line(header(0)) + line(event0))
     let raced = false
-    const linkFile = async (existingPath: string, newPath: string) => {
-      await link(existingPath, newPath)
+    const publishRacingFile = async (existingPath: string, newPath: string) => {
+      // Bytes, not inode identity, make the winner identical.
+      await copyFile(existingPath, newPath)
       raced = true
       throw fsError('EEXIST')
     }
 
     await ensureWithOverrides(
       request,
-      { platform: 'darwin', fs: posixSimulationFs({ link: linkFile }) },
+      { platform: 'darwin', fs: posixSimulationFs({ link: publishRacingFile }) },
     )
 
     expect(raced).toBe(true)
