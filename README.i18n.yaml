@@ -2,9 +2,24 @@
 # section, a hash of its English and Chinese blocks outside code blocks and generated regions.
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
+/dsh-for-android-termux:
+  en: 18753d737d6252ba
+  zh: 6acff8cb2139498b
+/dsh-for-android-termux/quick-start:
+  en: 9535b10be9abb7a8
+  zh: 37665fe48339b410
+/dsh-for-android-termux/what-works-on-android:
+  en: c827632b4bee3136
+  zh: 1a74b3c0cb4e3ce7
+/dsh-for-android-termux/permission-mode:
+  en: b71598b95fc931c0
+  zh: 62ffec0a69b9cbd2
+/dsh-for-android-termux/upstream-readme:
+  en: 88cbcbe1f8268159
+  zh: 6a4a0671ee29d613
 /deepseek-harness:
-  en: f68c4f080ce55ff2
-  zh: 88a76d7f7f0b260e
+  en: dec7acf71149d381
+  zh: 13ed68011a93aeec
 /deepseek-harness/developer-preview:
   en: 4ef4d8a71ac143f0
   zh: 1bfc3149ba8e5543
@@ -30,5 +45,5 @@
   en: 6704e9e5a8d49a91
   zh: 85c9cdd8d56f8e9d
 /deepseek-harness/license:
-  en: 926995344fc1c72b
-  zh: c92fab5abf85932f
+  en: 6ceafc7861bb836f
+  zh: e2141739bc65395b

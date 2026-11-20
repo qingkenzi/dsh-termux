@@ -1,6 +1,53 @@
-# DeepSeek Harness
+# DSH Android/Termux 版
 
 [English](README.md) | 中文
+
+本仓库是 **DeepSeekRuntime（DSH）** 的 Android/Termux 源码构建版，来自 [DeepSeek AI](https://deepseek.com) 的开源 agent harness。它与[官方仓库](https://github.com/deepseek-ai/deepseek-harness)使用同一个 `@deepseek-ai/dsh` 包，并增加 Android-arm64 原生二进制、Termux 安装脚本与平台适配。
+
+- 上游：[deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）
+- 基线：上游 master 2026-11-13 快照
+- 安装指南：[在 Android/Termux 上运行 DSH](docs/user/guide/android-termux.zh.md)
+
+## 快速开始
+
+```sh
+pkg install nodejs-lts python clang make cmake git binutils
+pip install meson ninja
+git clone https://github.com/qingkenzi/dsh-termux.git
+cd dsh-termux
+pnpm install
+pnpm run setup:android
+pnpm run build
+pnpm run verify:android
+pnpm dsh web --no-open
+```
+
+## Android 上可用的能力
+
+| 能力 | Android/Termux |
+| --- | --- |
+| CLI、Web UI、会话、附件 | 可用 |
+| 模型请求与工具调用 | 可用 |
+| bash 与持久终端 | 可用 |
+| `grep` 与 `glob` | 可用，通过内置 ripgrep |
+| SSH 执行 | 本机有 `ssh` 客户端且可连接远端主机时可用 |
+| 文件管理器 reveal 与 Open folder | 可用，经 `xdg-open`/`termux-open` |
+| CUA、Playwright 自动化 | 不可用 |
+| 文件沙箱 | 不可用：Android 默认 `danger-full-access` |
+
+## 权限模式
+
+Android 没有可用的沙箱后端：bubblewrap、Landlock 与 Seatbelt 都不存在。因此随包默认使用 `danger-full-access`，修改文件的工具在无约束下运行。选择受限预设而没有可用后端时会 fail-closed（`SANDBOX_UNAVAILABLE`）；不要在无法实施限制的部署上运行不可信的提示词或工具。
+
+## 上游 README
+
+下面是官方 DeepSeekRuntime README，已折叠；Android 移植之外的内容均来自上游。
+
+<details>
+<summary>官方 DeepSeekRuntime README</summary>
+
+# DeepSeek Harness
+
 
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
@@ -96,3 +143,5 @@ pnpm dsh web
 [MIT](LICENSE)
 
 第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+</details>
