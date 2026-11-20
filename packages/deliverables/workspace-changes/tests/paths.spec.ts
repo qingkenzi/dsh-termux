@@ -36,9 +36,9 @@ describe('durablePathOf', () => {
 describe('temporary paths', () => {
   it('matches the platform temp roots in raw and canonical form and keeps missing candidates lexical', async () => {
     const roots = await temporaryRoots()
-    expect(roots).toContain('/tmp')
+    if (process.platform !== 'android') expect(roots).toContain('/tmp')
     expect(isTemporaryPath(join(tmpdir(), 'scratch.txt'), roots)).toBe(true)
-    expect(isTemporaryPath('/tmp/x', roots)).toBe(true)
+    expect(isTemporaryPath('/tmp/x', roots)).toBe(process.platform !== 'android')
     expect(isTemporaryPath('/tmpfoo/x', roots)).toBe(false)
     expect(isTemporaryPath('/home/u/x', roots)).toBe(false)
     expect(await temporaryRoots(['/definitely/missing/root'])).toEqual(['/definitely/missing/root'])

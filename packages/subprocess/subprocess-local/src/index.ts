@@ -252,6 +252,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
   ): 'linux-scope' | 'windows-job' | 'fallback' {
     const platform = this.internals.platform ?? process.platform
     let fallbackReason: string | undefined
+    // Android runs the Linux kernel but has no user-systemd manager, so it
+    // takes the warned fallback below instead of probing a native range.
     if (platform === 'linux') {
       const decision = this.linuxScope.select()
       const probe = decision.probe === undefined ? '' : `, probed after ${decision.probe}`

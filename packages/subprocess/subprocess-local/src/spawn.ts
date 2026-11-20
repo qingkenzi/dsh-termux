@@ -24,7 +24,7 @@ import type { BoundProcessOwner, ManagedProcessLaunch } from './managed-owner.ts
 import { waitWithAbort } from './managed-owner.ts'
 import { controlEnvironment, controlPipe } from './control-spawn.ts'
 import { SUBPROCESS_CONTROL_FD } from '@deepseek-ai/dsh-subprocess/control'
-import { linuxProcessGroupLiveMember } from './process-inspector.ts'
+import { linuxProcessGroupLiveMember, runsLinuxKernel } from './process-inspector.ts'
 import { OutputCollector, prepareManagedProcessBinding, type SpillFailureReporter } from './output.ts'
 
 type SpawnProcess = (
@@ -224,7 +224,7 @@ function fallbackOwner(
     if (platform === 'win32') return child.exitCode === null && child.signalCode === null
     try {
       process.kill(-pid, 0)
-      if (directSettled && platform === 'linux') {
+      if (directSettled && runsLinuxKernel(platform)) {
         const member = linuxGroupLiveMember(pid, liveMember)
         if (member === false) return false
         if (member !== undefined) liveMember = member
@@ -462,7 +462,7 @@ export function bindManagedProcess(
 export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInternals = {}): LocalSubprocessHandle {
   const binding = prepareManagedProcessBinding(internals)
   const platform = internals.platform ?? process.platform
-  const [program, ...args] = spec.argv
+  const [program = '', ...args] = spec.argv
   const stdio: import('node:child_process').StdioOptions = [
     spec.stdio.stdin === 'ignore' ? 'ignore' : 'pipe',
     spec.stdio.stdout === 'inherit' ? 'inherit' : 'pipe',
@@ -472,7 +472,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     while (stdio.length < SUBPROCESS_CONTROL_FD) stdio.push('ignore')
     stdio.push('overlapped')
   }
-  const child = (internals.spawn ?? spawn)(program as string, args, {
+  const child = (internals.spawn ?? spawn)(program, args, {
     cwd: spec.cwd,
     env: controlEnvironment(childEnv(spec.env), spec.stdio.control),
     stdio,

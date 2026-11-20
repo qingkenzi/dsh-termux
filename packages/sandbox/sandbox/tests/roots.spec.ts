@@ -109,7 +109,7 @@ describe('writableRoots', () => {
     roots.push(ws)
     const writable = writableRoots({ mode: 'workspace-write', workspaceRoot: ws })
     expect(writable).toContain(realpathSync.native(ws))
-    expect(writable).toContain(canonicalPath('/tmp'))
+    if (process.platform !== 'android') expect(writable).toContain(canonicalPath('/tmp'))
     expect(writable).toContain(realpathSync.native(tmpdir()))
     // Deduplicated after canonicalization (/tmp and os.tmpdir() may coincide).
     expect(new Set(writable).size).toBe(writable.length)

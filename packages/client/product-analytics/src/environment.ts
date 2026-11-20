@@ -1,5 +1,5 @@
 /** Static Desktop environment fields, independent of account and credential availability. */
-import { cpus, platform, release, totalmem } from 'node:os'
+import { availableParallelism, cpus, platform, release, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { queryEnvironment, type MissingReason, type QueryOptions, type QueryResult } from './environment-query.ts'
@@ -20,7 +20,7 @@ export interface EnvironmentAttributes {
   app_arch: string
   /** Model reported by the first logical processor. */
   cpu_model?: string
-  /** System-reported logical processor count, not available parallelism. */
+  /** System-reported usable processor count; Android's `cpus()` may be empty while parallelism is available. */
   cpu_logical_count?: number
   /** Total physical cores across CPU sockets; never inferred from logical processors. */
   cpu_physical_core_count?: number
@@ -80,7 +80,7 @@ export async function collectEnvironment(options: QueryOptions): Promise<Environ
     // CPU metadata is optional; memory and OS collection remain usable.
   }
   read('cpu_model', () => processors[0]?.model.trim())
-  read('cpu_logical_count', () => processors.length)
+  read('cpu_logical_count', availableParallelism)
 
   if (hostPlatform === 'win32') {
     const root = process.env.SystemRoot
