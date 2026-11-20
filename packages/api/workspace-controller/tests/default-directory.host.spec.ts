@@ -14,6 +14,14 @@ describe('system Documents directory', () => {
     expect(run).toHaveBeenCalledWith(command, expect.any(Array), signal, 'hidden')
   })
 
+  it('falls back to the app-private home workspace on android without a native lookup', async () => {
+    const home = '/tmp/dsh-android-home'
+    const run = vi.fn<NativeCommandRunner>()
+    await expect(defaultWorkspaceDirectory(undefined, new AbortController().signal, { platform: 'android', home, run }))
+      .resolves.toBe('/tmp/dsh-android-home/workspace/deepseek-harness/default-workspace')
+    expect(run).not.toHaveBeenCalled()
+  })
+
   it('uses the configured directory without a system lookup', async () => {
     const run = vi.fn<NativeCommandRunner>()
     await expect(defaultWorkspaceDirectory('/documents', new AbortController().signal, { platform: 'linux', run }))
@@ -34,7 +42,7 @@ describe('system Documents directory', () => {
     await expect(defaultWorkspaceDirectory('/documents', AbortSignal.abort(), { platform: 'linux' }))
       .rejects.toThrow()
     await expect(defaultWorkspaceDirectory(undefined, new AbortController().signal, { platform: 'freebsd' }))
-      .rejects.toThrow('unavailable')
+      .rejects.toThrow('system Documents directory is unavailable on freebsd')
   })
 
   it.each(['relative', 'C:relative', '\\rooted'])('rejects a Windows path without a fully qualified root: %s', (path) => {

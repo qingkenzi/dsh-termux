@@ -86,7 +86,7 @@ export const spawnSchema = z.object({
 /** Connection handshake binds sockets and workspace to one helper process. */
 export const helloSchema = z.object({
   protocol: z.literal(SSH_PROTOCOL_VERSION), hash: z.string().regex(/^[0-9a-f]{64}$/),
-  kind: z.enum(['node-script', 'executable']), platform: z.enum(['linux', 'darwin']),
+  kind: z.enum(['node-script', 'executable']), platform: z.enum(['linux', 'darwin', 'android']),
   nodeVersion: z.string(), executable: remotePath, root: remotePath, workspace: remotePath,
   bootstrapHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 }).strict()

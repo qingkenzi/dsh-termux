@@ -5,7 +5,9 @@
  * The default intent prefers the default browser for documents it renders when
  * the platform can name one, then falls back to the default application. WSL
  * translates every path for the Windows desktop instead of assuming a Linux
- * GUI. The text-editor intent never consults the browser. Windows hands every
+ * GUI. Termux reports `android`; its `xdg-open` hands paths to Android's viewer,
+ * so it shares the Linux opener and file-manager action. The text-editor intent
+ * never consults the browser. Windows hands every
  * intent to Explorer: the shell's own default-application resolution, the one
  * a double-click uses, selects the application, while a process that resolves
  * the association itself reads a narrower record and reports none.
@@ -167,10 +169,12 @@ async function openNativePathWithIntent(
   const platform = internals.platform ?? process.platform
   const run = internals.run ?? runNativeCommand
   const env = internals.env ?? process.env
-  const wsl = platform === 'linux' && isWsl(internals)
+  // Termux reports `android`; its xdg-open hands the path to Android's viewer.
+  const effectivePlatform = platform === 'android' ? 'linux' : platform
+  const wsl = effectivePlatform === 'linux' && isWsl(internals)
 
   if (!wsl && intent === 'default' && BROWSER_DOCUMENTS.has(extname(path).toLowerCase())
-    && await openInBrowser(path, signal, platform, run, env)) return
+    && await openInBrowser(path, signal, effectivePlatform, run, env)) return
 
   if (platform === 'darwin') {
     await run('open', intent === 'text-editor' ? ['-t', path] : [path], signal, 'hidden')
@@ -182,7 +186,7 @@ async function openNativePathWithIntent(
     return
   }
 
-  if (platform === 'linux') {
+  if (effectivePlatform === 'linux') {
     if (wsl) {
       await openWslPath(path, signal, run)
       return
@@ -208,6 +212,8 @@ async function openNativePathWithIntent(
 export function canOpenNativePath(internals: PathOpenerInternals = {}): boolean {
   const platform = internals.platform ?? process.platform
   if (platform === 'darwin' || platform === 'win32') return true
+  // Termux reaches Android's viewer through its xdg-open.
+  if (platform === 'android') return true
   if (platform !== 'linux') return false
   const env = internals.env ?? process.env
   return isWsl(internals) || present(env.DISPLAY) || present(env.WAYLAND_DISPLAY)
@@ -268,7 +274,7 @@ export function nativeFileManager(internals: PathOpenerInternals = {}): NativeFi
   const platform = internals.platform ?? process.platform
   if (platform === 'darwin') return 'finder'
   if (platform === 'win32' || (platform === 'linux' && isWsl(internals))) return 'explorer'
-  return platform === 'linux' ? 'directory' : null
+  return platform === 'linux' || platform === 'android' ? 'directory' : null
 }
 
 /**
