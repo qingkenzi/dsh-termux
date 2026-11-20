@@ -8,6 +8,7 @@
 
 import { getDshRuntimeVersion, loadLayeredEnv, StartupError } from '@deepseek-ai/dsh-app-boot'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { prepareAndroidAddons } from './android-addons.ts'
 import { parseDshArgs } from './args.ts'
 import { reportStartupFailure } from './startup-diagnostics.ts'
 import type { RunProfileOptions } from './profile-boot.ts'
@@ -27,6 +28,8 @@ export async function runCli(options: RunCliOptions = {}): Promise<void> {
   const version = getDshRuntimeVersion()
   const { manageDesktopProfile, ...profileOptions } = options
   const invocation = parseDshArgs(process.argv.slice(2), version, manageDesktopProfile)
+  // Publish the Android ripgrep before profile-boot imports util-ripgrep, which caches its first resolution.
+  prepareAndroidAddons()
 
   switch (invocation.mode) {
     case 'profile': {
