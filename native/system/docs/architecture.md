@@ -6,7 +6,7 @@ The system package family supplies native mechanisms to Node callers: a Linux co
 
 The ESM package `@deepseek-ai/node-addon-system` and its optional platform packages share one version. Platform metadata chooses the operating system and CPU; each package's `prebuilds.json` declares the files it must contain.
 
-The `./landlock-run` entry owns Landlock path resolution, grant argv, and the functional probe. It does not load native addons. The `./flock` entry lazily loads `system.node` only when `tryLockExclusive(fd)` is called. Importing either JavaScript entry therefore works without a matching native payload. The package exposes these capability subpaths and its manifest, without a root export.
+The `./landlock-run` entry owns Landlock path resolution, grant argv, and the functional probe; It does not load native addons. The `./flock` entry lazily loads `system.node` only when `tryLockExclusive(fd)` is called. Importing either JavaScript entry therefore works without a matching native payload. The package exposes these capability subpaths and its manifest, without a root export.
 
 ## Separate mechanisms
 
@@ -20,6 +20,6 @@ The JSONL backend retains its inode check, materialization timing, and close lif
 
 ## Builds and release
 
-Repository builds and `build:bench` explicitly build the host addon before running consumers. Each platform builds natively on its CI runner. Landlock is static-musl; Linux addons are separately built for glibc and musl, and macOS uses a Mach-O bundle. Stable Node-API removes the Node-major build dimension, not OS, CPU, or libc differences. CI exercises identical addon bytes under Node 20, 22, 24, and 26; Linux also runs the musl addon in Alpine containers.
+Repository builds and `build:bench` explicitly build the host addon before running consumers. Each platform builds natively on its CI runner. Landlock is static-musl; Linux addons are separately built for glibc and musl, macOS uses a Mach-O bundle, and Android arm64 uses a bionic ELF flock addon with 16 KB page alignment. Stable Node-API removes the Node-major build dimension, not OS, CPU, or libc differences. CI exercises identical addon bytes under Node 20, 22, 24, and 26; Linux also runs the musl addon in Alpine containers.
 
 Platform prepack validates file formats, architecture, payload completeness, and Node-API exports. The packed-install rehearsal installs local tarballs, checks their bytes, and exercises the installed mechanisms. Missing capabilities fail explicitly; no consumer install runs a compiler. [Packaging](packaging.md) and [release](release.md) own the operational details.

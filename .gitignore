@@ -38,6 +38,7 @@ __pycache__/
 python/**/.pytest_cache/
 apps/web/dist/
 apps/cli/docs/
+apps/cli/vendor/
 .artifacts/
 .dsh-build/
 .dsh-report/

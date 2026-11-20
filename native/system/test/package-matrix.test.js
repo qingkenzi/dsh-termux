@@ -57,21 +57,27 @@ test('the real Landlock subpath imports without platform packages or dlopen, whi
 
 // These minimal headers exercise format rejection, not executable behavior.
 // flock.test.js and packed-install verification execute the real addon.
-function fixture(t, { platform = 'linux', arch = 'x64', kind = 'node-api' } = {}) {
+function fixture(t, { platform = 'linux', arch = platform === 'android' ? 'arm64' : 'x64', kind = 'node-api' } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'system-package-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const executable = kind === 'static-musl';
-  const binary = executable
+  const binary = kind === 'static-musl'
     ? { tool: 'landlock-run', kind, path: 'bin/landlock-run' }
-    : { tool: 'flock', kind, napi: 8, ...(platform === 'linux' ? { libc: 'glibc' } : {}), path: 'bin/system.node' };
+    : {
+        tool: 'flock',
+        kind,
+        napi: 8,
+        ...(platform === 'linux' ? { libc: 'glibc' } : {}),
+        path: platform === 'android' ? 'bin/bionic/system.node' : 'bin/system.node',
+      };
   const spec = { platform: `${platform}-${arch}`, binaries: [binary] };
   const manifest = { name: 'fixture', os: [platform], cpu: [arch] };
   const bytes = Buffer.alloc(256);
-  if (platform === 'linux') {
+  if (platform === 'linux' || platform === 'android') {
     bytes.writeUInt32LE(0x464c457f, 0);
     bytes[4] = 2;
     bytes[5] = 1;
-    bytes.writeUInt16LE(executable ? 2 : 3, 16);
+    bytes.writeUInt16LE(binary.kind === 'static-musl' ? 2 : 3, 16);
     bytes.writeUInt16LE(arch === 'x64' ? 62 : 183, 18);
   } else {
     bytes.writeUInt32LE(0xfeedfacf, 0);
@@ -102,6 +108,12 @@ test('accepts the Linux static launcher format', (t) => {
   assert.equal(verifyPlatformBinaries(fixture(t, { kind: 'static-musl' }).dir).count, 1);
 });
 
+test('accepts the Android arm64 bionic addon without a libc field', (t) => {
+  const f = fixture(t, { platform: 'android' });
+  assert.equal(f.spec.binaries[0].libc, undefined);
+  assert.equal(verifyPlatformBinaries(f.dir).count, 1);
+});
+
 for (const [name, change, expected] of [
   ['unknown platform', (f) => { f.manifest.os = ['win32']; }, /os\/cpu/],
   ['mismatched platform', (f) => { f.spec.platform = 'linux-arm64'; }, /disagrees/],
@@ -130,6 +142,48 @@ test('rejects Linux libc metadata on macOS', (t) => {
   f.binary.libc = 'musl';
   f.save();
   assert.throws(() => verifyPlatformBinaries(f.dir), /must not declare/);
+});
+
+test('rejects Android metadata whose cpu is not arm64', (t) => {
+  assert.throws(
+    () => verifyPlatformBinaries(fixture(t, { platform: 'android', arch: 'x64' }).dir),
+    /AArch64/,
+  );
+});
+
+test('rejects an Android addon with the wrong ELF architecture', (t) => {
+  const f = fixture(t, { platform: 'android' });
+  f.bytes.writeUInt16LE(62, 18);
+  fs.writeFileSync(f.file, f.bytes);
+  assert.throws(() => verifyPlatformBinaries(f.dir), /ELF architecture/);
+});
+
+test('rejects an Android addon with an executable ELF file type', (t) => {
+  const f = fixture(t, { platform: 'android' });
+  f.bytes.writeUInt16LE(2, 16);
+  fs.writeFileSync(f.file, f.bytes);
+  assert.throws(() => verifyPlatformBinaries(f.dir), /ELF file type/);
+});
+
+test('rejects an Android addon without Node-API exports', (t) => {
+  const f = fixture(t, { platform: 'android' });
+  f.bytes.fill(0, 64);
+  fs.writeFileSync(f.file, f.bytes);
+  assert.throws(() => verifyPlatformBinaries(f.dir), /Node-API entry points/);
+});
+
+test('rejects Android libc metadata', (t) => {
+  const f = fixture(t, { platform: 'android' });
+  f.binary.libc = 'glibc';
+  f.save();
+  assert.throws(() => verifyPlatformBinaries(f.dir), /must not declare/);
+});
+
+test('rejects an Android Landlock launcher payload', (t) => {
+  assert.throws(
+    () => verifyPlatformBinaries(fixture(t, { platform: 'android', kind: 'static-musl' }).dir),
+    /kind\/tool\/NAPI/,
+  );
 });
 
 for (const [offset, value] of [[0, 0], [4, 0], [12, 2]]) {

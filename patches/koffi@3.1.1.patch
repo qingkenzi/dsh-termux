@@ -1,0 +1,13 @@
+diff --git a/lib/native/base/base.cc b/lib/native/base/base.cc
+index a157161b44c2838ca26b72728cb089a32b688e3d..d33d3c1363548d1935b9eda5f13232cc2845c272 100644
+--- a/lib/native/base/base.cc
++++ b/lib/native/base/base.cc
+@@ -2949,7 +2949,7 @@ static FileType FileModeToType(mode_t mode)
+ 
+ static StatResult StatAt(int fd, bool fd_is_directory, const char *filename, unsigned int flags, FileInfo *out_info)
+ {
+-#if defined(__linux__)
++#if defined(__linux__) && !defined(__ANDROID__)
+     const char *pathname = filename;
+     int stat_flags = (flags & (int)StatFlag::FollowSymlink) ? 0 : AT_SYMLINK_NOFOLLOW;
+     int stat_mask = STATX_TYPE | STATX_MODE | STATX_MTIME | STATX_BTIME | STATX_SIZE;

@@ -1,6 +1,7 @@
 /** Lazy POSIX flock entry; importing it does not load a native addon. */
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { getSystemErrorName } from 'node:util'
 
 interface FlockBinding {
@@ -9,9 +10,60 @@ interface FlockBinding {
 
 let binding: FlockBinding | undefined
 
+/**
+ * Candidate Android addon paths in load order: the published platform package,
+ * then the entry package's source-compatible copy.
+ * @returns Absolute candidate paths, including candidates that do not exist so
+ *   load failures name every location that was tried.
+ */
+function androidAddonCandidates(): string[] {
+  const candidates: string[] = []
+  try {
+    const manifest = createRequire(import.meta.url)
+      .resolve('@deepseek-ai/node-addon-system-android-arm64/package.json')
+    candidates.push(join(dirname(manifest), 'bin/bionic/system.node'))
+  } catch (cause: unknown) {
+    // A missing optional platform package falls back to the source copy; a
+    // resolution failure for an installed package stays visible.
+    if ((cause as NodeJS.ErrnoException | undefined)?.code !== 'MODULE_NOT_FOUND') throw cause
+  }
+  candidates.push(fileURLToPath(new URL('../bin/bionic/system.node', import.meta.url)))
+  return candidates
+}
+
+/**
+ * Load the Android addon from the first candidate that registers.
+ * @returns The loaded flock binding.
+ */
+function loadAndroidBinding(): FlockBinding {
+  const require = createRequire(import.meta.url)
+  const candidates = androidAddonCandidates()
+  let cause: unknown
+  for (const addon of candidates) {
+    try {
+      return require(addon) as FlockBinding
+    } catch (error: unknown) {
+      cause = error
+    }
+  }
+  throw Object.assign(
+    new Error(`flock addon for ${process.platform}-${process.arch} is missing or unloadable at `
+      + `${candidates.join(' or ')}; run pnpm run build:native-system, or sh scripts/setup-android.sh `
+      + 'to restore the prebuilt copy'),
+    { code: 'ERR_FLOCK_ADDON_MISSING', cause },
+  )
+}
+
 function loadBinding(): FlockBinding {
   if (binding) return binding
   const { platform, arch } = process
+  // Termux/Android (bionic) implements flock(2). The published platform package
+  // carries the addon; the entry copy remains for source-only builds and
+  // scripts/setup-android.sh.
+  if (platform === 'android') {
+    binding = loadAndroidBinding()
+    return binding
+  }
   if (platform !== 'linux' && platform !== 'darwin') {
     throw Object.assign(new Error(`flock is not supported on ${platform}-${arch}`), {
       code: 'ERR_FLOCK_UNSUPPORTED_PLATFORM',

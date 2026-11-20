@@ -1,0 +1,15 @@
+{
+  "tool": "ripgrep",
+  "version": "14.1.1",
+  "target": "aarch64-linux-android",
+  "path": "rg",
+  "size": 4908152,
+  "sha256": "d5aa71af88bf9b99f2ad62699d8f644cf8528306b6d17ee954899e49d98a81b3",
+  "source": "https://github.com/BurntSushi/ripgrep/releases/tag/14.1.1",
+  "build": {
+    "command": "cargo install ripgrep --version 14.1.1 --locked --root .selfcheck/rg-build",
+    "features": "default features with pcre2 disabled by the available toolchain",
+    "postProcess": "strip --strip-all",
+    "pageSizeCompatibility": "ELF LOAD p_align 0x4000"
+  }
+}
