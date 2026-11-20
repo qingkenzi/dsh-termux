@@ -1,10 +1,12 @@
 /**
  * Build this host's declared system binaries. Landlock is a static musl
- * executable; flock uses stable Node-API with separate Linux libc builds.
- * Node headers come from the Node installation running this script.
+ * executable; the Android package carries the bionic flock addon; flock uses
+ * stable Node-API with separate Linux libc builds. Node headers come from the
+ * Node installation running this script.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
@@ -22,6 +24,109 @@ interface Binary {
   path: string
   napi?: number
   libc?: string
+}
+
+/** ELF `PT_LOAD` program-header type. */
+const ELF_PT_LOAD = 1
+/** Android 16 KB page devices require each loadable segment aligned to at least 0x4000. */
+const ANDROID_LOAD_ALIGN = 0x4000
+
+/**
+ * Read the `p_align` of every ELF64 `PT_LOAD` program header.
+ * @param file - Little-endian ELF64 binary to inspect.
+ * @returns One alignment value per loadable segment.
+ */
+function loadSegmentAlignments(file: string): number[] {
+  const data = readFileSync(file)
+  if (data.length < 64 || data.readUInt32LE(0) !== 0x464c457f || data[4] !== 2 || data[5] !== 1) {
+    throw new Error(`build: ${file} is not a little-endian ELF64 binary`)
+  }
+  const programHeaders = Number(data.readBigUInt64LE(32))
+  const entrySize = data.readUInt16LE(54)
+  const entryCount = data.readUInt16LE(56)
+  if (entrySize < 56 || programHeaders === 0 || programHeaders + entryCount * entrySize > data.length) {
+    throw new Error(`build: ${file} has truncated ELF program headers`)
+  }
+  const alignments: number[] = []
+  for (let index = 0; index < entryCount; index++) {
+    const offset = programHeaders + index * entrySize
+    if (data.readUInt32LE(offset) === ELF_PT_LOAD) alignments.push(Number(data.readBigUInt64LE(offset + 48)))
+  }
+  return alignments
+}
+
+/**
+ * Reject a compiled Android addon that cannot load on a 16 KB page device.
+ * @param file - Compiled addon to inspect.
+ */
+function verifyAndroidLoadAlignment(file: string): void {
+  const alignments = loadSegmentAlignments(file)
+  if (alignments.length === 0) throw new Error(`build: ${file} has no PT_LOAD program headers`)
+  const smallest = Math.min(...alignments)
+  if (smallest < ANDROID_LOAD_ALIGN) {
+    throw new Error(`build: ${file} has a PT_LOAD segment aligned to 0x${smallest.toString(16)}; `
+      + `Android 16 KB page devices require 0x${ANDROID_LOAD_ALIGN.toString(16)} or greater`)
+  }
+}
+
+/**
+ * Compile the Android payloads into the platform package: the bionic flock
+ * addon (also copied to the entry package for source-only checkouts and
+ * `scripts/setup-android.sh`).
+ *
+ * Termux reports `android` on bionic libc, so the addon has no glibc/musl
+ * variant and lives at a fixed `bionic/` path. It pins the linker page size and
+ * is verified for 16 KB page devices. Node-API is ABI-stable, so the addon
+ * source and flags match the Linux build. Android has no other native target, so
+ * `--host-addon-only` and a full build produce the same payload.
+ * @param headers - Node-API header directory from the running Node installation.
+ */
+function buildAndroidBinaries(headers: string): void {
+  const spec = JSON.parse(readFileSync(join(root, 'packages/android-arm64/prebuilds.json'), 'utf8')) as {
+    binaries: Binary[]
+  }
+  const addon = spec.binaries.find((candidate) => (
+    candidate.kind === 'node-api' && candidate.tool === 'flock' && candidate.napi === 8
+  ))
+  if (addon === undefined) {
+    throw new Error('build: packages/android-arm64/prebuilds.json declares no Node-API v8 flock addon')
+  }
+  const addonSource = sources[addon.tool]
+  if (addonSource === undefined) throw new Error(`build: unknown tool ${addon.tool}`)
+  if (!existsSync(join(headers, 'node_api.h'))) {
+    throw new Error(`build: Node-API headers missing at ${headers}; install the Node development headers for this Termux nodejs package`)
+  }
+  const addonOutput = join(root, 'packages/android-arm64', addon.path)
+  const entryCopy = join(root, 'packages/entry/bin/bionic/system.node')
+  mkdirSync(join(root, '.release'), { recursive: true })
+  const temporary = mkdtempSync(join(root, '.release', 'native-build-'))
+  try {
+    const pending = join(temporary, 'system.node')
+    const result = spawnSync('cc', [
+      '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-fPIC', '-fvisibility=hidden',
+      '-DNAPI_VERSION=8', '-I', headers, '-shared', '-Wl,-z,max-page-size=16384', '-o', pending,
+      join(root, addonSource),
+    ], { stdio: 'inherit' })
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error('build: cc failed for the Android flock addon')
+    verifyAndroidLoadAlignment(pending)
+    mkdirSync(dirname(addonOutput), { recursive: true })
+    mkdirSync(dirname(entryCopy), { recursive: true })
+    copyFileSync(pending, addonOutput)
+    copyFileSync(pending, entryCopy)
+  } finally {
+    rmSync(temporary, { recursive: true, force: true })
+  }
+  // A binary that cannot register here would only fail the first session write.
+  createRequire(import.meta.url)(addonOutput)
+  console.log(`build: verified 16 KB page alignment and built packages/android-arm64/${addon.path}`)
+  console.log('build: built entry/bin/bionic/system.node as the source-compatible copy')
+}
+
+if (process.platform === 'android') {
+  const headers = resolve(dirname(process.execPath), '../include/node')
+  buildAndroidBinaries(headers)
+  process.exit(0)
 }
 
 if (process.platform !== 'linux' && process.platform !== 'darwin') {

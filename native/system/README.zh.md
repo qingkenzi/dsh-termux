@@ -28,11 +28,11 @@ kind: "package-library"
 
 ## Support
 
-Linux x64/arm64 包包含静态 Landlock 可执行文件，以及分别用于 glibc/musl 的 `system.node` 文件。macOS x64/arm64 包仅包含 `system.node`。Landlock 还需要支持强制执行的 Linux 内核；Windows 使用 Harness 既有锁实现。[支持矩阵](docs/support-matrix.md) 指定构建者与验证负责人。
+Linux x64/arm64 包包含静态 Landlock 可执行文件，以及分别用于 glibc/musl 的 `system.node` 文件。macOS x64/arm64 包仅包含 `system.node`。Android arm64 包包含 bionic `system.node`：它没有 Landlock 可执行文件，不声明 libc 变体，并将每个 `PT_LOAD` 段按 16 KB 内存页对齐。Landlock 还需要支持强制执行的 Linux 内核；Windows 使用 Harness 既有锁实现。[支持矩阵](docs/support-matrix.md) 指定构建者与验证负责人。
 
 ## Development
 
-在本目录运行 `pnpm build:ts` 构建入口、`pnpm build:native` 构建当前宿主声明的原生产物、`pnpm build:test-oracle` 构建独立的 flock 系统调用 fixture（测试前置数据）。随后用 `pnpm test` 验证入口、锁、打包及可用的内核行为。Linux 完整构建需要 musl-gcc；macOS 使用 cc。根目录 `pnpm run build:native-system` 只构建源码测试所需的当前宿主 addon。
+在本目录运行 `pnpm build:ts` 构建入口、`pnpm build:native` 构建当前宿主声明的原生产物、`pnpm build:test-oracle` 构建独立的 flock 系统调用 fixture（测试前置数据）。随后用 `pnpm test` 验证入口、锁、打包及可用的内核行为。Linux 完整构建需要 musl-gcc；macOS 使用 cc。根目录 `pnpm run build:native-system` 只构建源码测试所需的当前宿主 addon。在 Android 上，两种构建命令都会把 bionic flock addon 编译到 `packages/android-arm64/bin/bionic/system.node`，并保留 `packages/entry/bin/bionic/system.node` 作为源码兼容副本，当任一 `PT_LOAD` 段的对齐小于 0x4000 时构建失败。
 
 [架构](docs/architecture.md)、[打包](docs/packaging.md)和[发布流程](docs/release.md)分别负责实现与发布细节。
 

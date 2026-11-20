@@ -16,6 +16,8 @@ const packagesRoot = path.join(root, 'packages');
 
 /** ELF `e_machine` (offset 18, little-endian) per platform-package `cpu` value. */
 const E_MACHINE = { x64: 62, arm64: 183 };
+/** Operating systems whose platform packages carry ELF payloads. */
+const ELF_OS = new Set(['linux', 'android']);
 
 export function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -45,15 +47,20 @@ export function packageDirs() {
 
 /**
  * Verify platform metadata, complete bin/ payloads, executable permissions,
- * and native file formats before packing. Node addons must export Node-API.
+ * and native file formats before packing. Linux and Android addons are ELF;
+ * Linux addons name their libc variant, while the Android addon runs on bionic
+ * alone and declares none. Node addons must export Node-API.
  */
 export function verifyPlatformBinaries(packageDir) {
   const manifest = readJson(path.join(packageDir, 'package.json'));
   const prebuilds = readJson(path.join(packageDir, 'prebuilds.json'));
   const cpu = manifest.cpu?.[0];
   const os = manifest.os?.[0];
-  if (!(cpu in E_MACHINE) || !['linux', 'darwin'].includes(os)) {
+  if (!(cpu in E_MACHINE) || !['linux', 'darwin', 'android'].includes(os)) {
     throw new Error(`${manifest.name}: unsupported or missing os/cpu metadata`);
+  }
+  if (os === 'android' && cpu !== 'arm64') {
+    throw new Error(`${manifest.name}: Android platform packages carry AArch64 binaries only, not ${cpu}`);
   }
   if (prebuilds.platform !== `${os}-${cpu}`) {
     throw new Error(`${manifest.name}: prebuild platform disagrees with package os/cpu`);
@@ -72,8 +79,8 @@ export function verifyPlatformBinaries(packageDir) {
     if (addon && os === 'linux' && !['glibc', 'musl'].includes(binary.libc)) {
       throw new Error(`${manifest.name}: Linux addon must declare glibc or musl`);
     }
-    if (addon && os === 'darwin' && binary.libc !== undefined) {
-      throw new Error(`${manifest.name}: macOS addon must not declare a Linux libc`);
+    if (addon && os !== 'linux' && binary.libc !== undefined) {
+      throw new Error(`${manifest.name}: ${os} addon must not declare a Linux libc`);
     }
 
     const file = path.join(packageDir, binary.path);
@@ -84,14 +91,17 @@ export function verifyPlatformBinaries(packageDir) {
       catch { throw new Error(`${manifest.name}: ${binary.path} is not executable`); }
     }
     const data = fs.readFileSync(file);
-    if (os === 'linux') {
+    if (ELF_OS.has(os)) {
       if (data.length < 64 || data.readUInt32LE(0) !== 0x464c457f || data[4] !== 2 || data[5] !== 1) {
         throw new Error(`${manifest.name}: ${binary.path} is not a little-endian ELF64 binary`);
       }
       if (data.readUInt16LE(18) !== E_MACHINE[cpu]) {
         throw new Error(`${manifest.name}: ${binary.path} has the wrong ELF architecture`);
       }
-      if (data.readUInt16LE(16) !== (executable ? 2 : 3)) {
+      // The Linux launcher is a static ET_EXEC; Android executables are PIE
+      // (ET_DYN), the only executable file type Android loads.
+      const expectedType = binary.kind === 'static-musl' ? 2 : 3;
+      if (data.readUInt16LE(16) !== expectedType) {
         throw new Error(`${manifest.name}: ${binary.path} has the wrong ELF file type`);
       }
     } else {

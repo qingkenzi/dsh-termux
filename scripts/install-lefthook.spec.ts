@@ -67,6 +67,10 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
+if (process.env.DSH_TEST_LEFTHOOK_MISSING_PLATFORM === '1' && process.argv.slice(2).join(' ') === '--version') {
+  console.error("Error: Cannot find module 'lefthook-android-arm64/bin/lefthook'")
+  process.exit(1)
+}
 if (process.argv.slice(2).join(' ') !== 'install --force') process.exit(64)
 const rootOutput = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' })
 const root = rootOutput.endsWith('\\n') ? rootOutput.slice(0, -1) : rootOutput
@@ -240,6 +244,19 @@ describe('worktree-local Lefthook installer', { timeout: 90_000 }, () => {
       expect(existsSync(join(common, 'config.worktree'))).toBe(false)
     })
   }
+
+  it('skips hook installation when the platform package is absent', async () => {
+    const fixture = createFixture()
+    const common = commonDirectory(fixture)
+
+    const result = await runInstaller(fixture, fixture.main, { DSH_TEST_LEFTHOOK_MISSING_PLATFORM: '1' })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stderr).toContain('lefthook has no binary for this platform')
+    expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
+    expect(existsSync(join(common, 'config.worktree'))).toBe(false)
+    expect(git(fixture, fixture.main, ['config', '--get', 'core.repositoryFormatVersion'])).toBe('0')
+  })
 
   it('isolates main and linked worktrees without changing legacy common hooks', async () => {
     const fixture = createFixture()

@@ -574,6 +574,37 @@ function runLefthook(root, lefthook) {
   if (result.status !== 0) throw commandFailure(lefthook, args, result)
 }
 
+/**
+ * Whether the installed Lefthook launcher can find a binary for this platform.
+ * The `lefthook` npm package resolves one optional `lefthook-<os>-<arch>`
+ * dependency at execution time. Platforms without that package (Android,
+ * and any other unsupported target) fail before `install` runs; hook
+ * installation is a contributor convenience, so this case skips instead of
+ * failing the entire dependency install.
+ * @param root - repository root used as the probe working directory.
+ * @param lefthook - absolute launcher path.
+ * @returns true when the launcher executes; false only for a missing
+ *   platform package.
+ */
+function lefthookRunsOnThisPlatform(root, lefthook) {
+  const result = spawnSync(lefthook, ['--version'], {
+    cwd: root,
+    env: environmentWithoutCommandGitConfig(),
+    encoding: 'utf8',
+  })
+  if (result.status === 0) return true
+  const output = `${result.stderr ?? ''}${result.stdout ?? ''}`
+  if (/Cannot find module ['"]lefthook-[^'"]+['"]/u.test(output)
+    && /lefthook-[a-z0-9-]+/iu.test(output)) {
+    console.warn(
+      '[install-lefthook] lefthook has no binary for this platform; skipping hook installation. '
+      + 'Git hooks remain unavailable here; CI runs them on supported platforms.',
+    )
+    return false
+  }
+  return true
+}
+
 function configSource(entry) {
   return `${entry.origin}: ${JSON.stringify(entry.value)}`
 }
@@ -629,6 +660,7 @@ async function main() {
   const isWindows = process.platform === 'win32'
   const lefthook = join(root, 'node_modules', '.bin', isWindows ? 'lefthook.cmd' : 'lefthook')
   if (!existsSync(lefthook)) return
+  if (!lefthookRunsOnThisPlatform(root, lefthook)) return
 
   assertSupportedGit(root)
   const gitDirectory = stripGitLineTerminator(git(['rev-parse', '--absolute-git-dir'], root).stdout)
