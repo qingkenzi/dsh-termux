@@ -25,10 +25,12 @@
         json: !!js ctx.headlessStartup.json
 
 # Replacing config retains the base mode/root defaults while adding the CLI grants.
+# The Android conditional matches dsh-base: no sandbox backend exists there, so
+# the confined default would fail every command closed.
 - id: sandbox-policy
   inject: [headlessStartup]
   config:
-    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    mode: !!js "process.env.DSH_PERMISSION_MODE ?? (process.platform === 'android' ? 'danger-full-access' : 'workspace-write')"
     workspaceRoot: !!js process.cwd()
     additionalWritableRoots: !!js ctx.headlessStartup.additionalWritableRoots
 
