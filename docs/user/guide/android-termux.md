@@ -36,6 +36,10 @@ pnpm dsh web --no-open
 
 The server prints `dsh web: http://...` on stdout; open that URL once in a browser. The browser cookie keeps the configured lifetime (30 days by default), so a server restart does not require opening the URL again. `--no-open` suppresses the automatic browser launch only.
 
+## Deployment scripts
+
+The fork also ships the device launcher and watchdog in `deploy/termux/`: `dsh` resolves the checkout beside it, `keep-alive.sh` restarts the server and republishes the login URL, and `dsh-menu.sh` adds an interactive menu. Copy them into `~/dsh` and start the watchdog with `tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'`; `deploy/termux/README.md` lists the files, environment variables, and the one-shot rc.3-to-rc.5 migration scripts.
+
 ## Permission mode
 
 Android carries no supported sandbox backend: bubblewrap, Landlock, and Seatbelt do not exist there. The shipped Android default is therefore `danger-full-access`, which means file-modifying tools run unconfined; the permission picker shows that preset when the Web UI opens.
