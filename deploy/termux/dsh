@@ -1,0 +1,19 @@
+#!/bin/sh
+# DeepSeekRuntime (dsh) launcher for Termux/Android.
+# Usage: ./dsh --help | ./dsh web | ./dsh tui | ...
+set -eu
+HERE=$(cd "$(dirname "$0")" && pwd)
+REPO="$HERE/deepseek-harness"
+cd "$REPO"
+
+# Native Android addons are restored after any `pnpm install`.
+if [ ! -f node_modules/.bin/tsx ]; then
+  echo "dependencies not installed; run: cd deepseek-harness && CI=true pnpm install --offline && ./scripts/setup-android.sh" >&2
+  exit 1
+fi
+NDIR=$(find node_modules/.pnpm -maxdepth 1 -type d -name 'node-addon-require-builtin@0.1.9*' | head -1)
+if [ -n "$NDIR" ] && [ ! -f "$NDIR/node_modules/node-addon-require-builtin/build/napi/napi-v9-android-arm64/require_builtin.node" ]; then
+  ./scripts/setup-android.sh
+fi
+
+exec node --import tsx/esm apps/cli/src/bin.ts "$@"

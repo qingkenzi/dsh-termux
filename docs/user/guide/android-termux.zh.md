@@ -36,6 +36,10 @@ pnpm dsh web --no-open
 
 服务器会在 stdout 打印 `dsh web: http://...`；在浏览器中打开该 URL 一次即可。浏览器 cookie 会保持配置的有效期（默认 30 天），因此重启服务器后无需再次打开该 URL。`--no-open` 只抑制自动启动浏览器。
 
+## 部署脚本
+
+该移植还在 `deploy/termux/` 提供设备端启动器与看门狗：`dsh` 解析自身旁边的检出，`keep-alive.sh` 负责重启服务器并重新发布登录地址，`dsh-menu.sh` 提供交互菜单。把它们复制到 `~/dsh`，用 `tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'` 启动看门狗；文件清单、环境变量与 rc.3→rc.5 的一次性迁移脚本见 `deploy/termux/README.md`。
+
 ## 权限模式
 
 Android 不提供任何受支持的沙箱后端：bubblewrap、Landlock 与 Seatbelt 在那里都不存在。因此随包发布的 Android 默认值是 `danger-full-access`，即修改文件的工具在无约束下运行；Web UI 打开时，权限选择器会显示该预设。
