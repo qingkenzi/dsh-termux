@@ -27,6 +27,7 @@
 #   ROLLBACK_EXPECT   [ASIDE package.json version] version the restored CLI reports
 #   ROLLBACK_BRANCH   [ASIDE branch] branch the restored checkout must report
 #   DSH_HOME          [$HOME/.dsh] the watchdog lock lives in $DSH_HOME/run
+#   CUTOVER_URL_WAIT_SECONDS [240] seconds the smoke test waits for a login URL
 set -u
 BASE=${DSH_TERMUX_BASE:-$HOME/dsh}
 FROM=${CUTOVER_FROM:-$BASE/deepseek-harness}
@@ -34,6 +35,10 @@ TO=${CUTOVER_TO:-$BASE/next}
 ASIDE=${CUTOVER_ASIDE:-$BASE/previous}
 FAILED=${CUTOVER_FAILED:-$BASE/failed}
 PORT=3080
+# A cold first start of a newly placed checkout compiles its TypeScript through
+# tsx and takes far longer than a warm restart, so the smoke test waits minutes
+# rather than the tens of seconds a restart needs.
+URL_WAIT_SECONDS=${CUTOVER_URL_WAIT_SECONDS:-240}
 LOG="$BASE/.logs/dsh-web.log"
 RUN=${DSH_HOME:-$HOME/.dsh}/run
 # The watchdog this script restarts reads the same two variables; export the
@@ -158,7 +163,7 @@ start_service() {
 wait_url() {
   wait_url_offset=$1
   tries=0
-  while [ "$tries" -lt 60 ]; do
+  while [ "$tries" -lt "$URL_WAIT_SECONDS" ]; do
     url=$(tail -c +"$((wait_url_offset + 1))" "$LOG" 2>/dev/null \
       | grep -o "http://127\.0\.0\.1:$PORT/?token=[A-Za-z0-9_-]*" | tail -1)
     if [ -n "${url:-}" ]; then printf '%s' "$url"; return 0; fi
@@ -186,7 +191,7 @@ smoke() {
   smoke_offset=$2
   smoke_branch=$3
   [ -n "$smoke_want" ] || { say 'smoke failed: no expected version to compare against'; return 1; }
-  url=$(wait_url "$smoke_offset") || { say "smoke failed: no login URL within 60s (see $LOG)"; return 1; }
+  url=$(wait_url "$smoke_offset") || { say "smoke failed: no login URL within ${URL_WAIT_SECONDS}s (see $LOG)"; return 1; }
   code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 "$url" 2>/dev/null || true)
   case "$code" in
     200|303) ;;
