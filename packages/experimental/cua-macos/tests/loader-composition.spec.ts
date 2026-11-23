@@ -25,6 +25,7 @@ import * as NativeProvider from '../src/index.ts'
 import { createCuaApi } from '@deepseek-ai/dsh-cua/api'
 import type { CuaElementId } from '@deepseek-ai/dsh-cua/api'
 import { installNativeFixture, startFixtureHost } from './native-fixture.ts'
+import { runtimeDirectoryAvailable } from './runtime-directory.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
 /** Element ids are opaque strings; these fixtures use the macOS decimal form. */
@@ -68,8 +69,9 @@ const AuditEvent = z.object({
   requestId: z.string().optional(), params: z.record(z.string(), z.json()).optional(),
 })
 
-// The fixture uses a POSIX executable shebang; stream/protocol unit tests run on every host.
-it.skipIf(process.platform === 'win32')('shares one application between retained Agent objects while isolating native handles and releasing each connection', async () => {
+// The fixture uses a POSIX executable shebang and the provider's /tmp runtime directory; the
+// stream and protocol unit tests hold the remaining hosts.
+it.skipIf(process.platform === 'win32' || !runtimeDirectoryAvailable)('shares one application between retained Agent objects while isolating native handles and releasing each connection', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-native-composition-'))
   const context = new Context()
   const fixture: { close?: () => Promise<void> } = {}

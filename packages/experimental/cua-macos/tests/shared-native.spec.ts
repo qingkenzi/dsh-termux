@@ -1,4 +1,9 @@
-/** Real Unix sockets exercise connection isolation and native startup ownership. */
+/**
+ * Real Unix sockets exercise connection isolation and native startup ownership.
+ *
+ * The provider owns `/tmp/dsh-cua-<uid>` and only that path is mocked, so the cases below need a
+ * writable `/tmp`; `runtime-directory.ts` names the hosts that have one.
+ */
 import { createHash, randomUUID } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { createServer, Socket } from 'node:net'
@@ -8,6 +13,7 @@ import type { SubprocessHandle, SubprocessOutcome, SubprocessRuntime } from '@de
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { NativeClientConfig } from '@deepseek-ai/dsh-cua/native-client'
 import { createSharedNativeChannel, type NativeChannel } from '../src/shared-native.ts'
+import { runtimeDirectoryAvailable } from './runtime-directory.ts'
 
 const runtime = vi.hoisted(() => ({ source: '', directory: '', foreignOwner: false }))
 vi.mock('node:fs/promises', async (original) => {
@@ -168,7 +174,7 @@ function nextBytes(channel: NativeChannel, lines = 1): Promise<Buffer> {
   })
 }
 
-describe.skipIf(process.platform === 'win32')('shared native Unix connection', () => {
+describe.skipIf(process.platform === 'win32' || !runtimeDirectoryAvailable)('shared native Unix connection', () => {
   it('keeps concurrent Agent scopes independent and leaves other sockets alive when one closes', async () => {
     const f = await fixture()
     const first = f.open()

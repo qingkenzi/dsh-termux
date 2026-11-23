@@ -5,9 +5,30 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
-import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { SandboxUnavailableError, type SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import Sandbox from '@deepseek-ai/dsh-sandbox-local'
 import PtcWorkflowEngine from '../src/index.ts'
 import { fakeParent, mountPtcRuntime } from './setup.ts'
+
+/**
+ * Probe the local sandbox independently, so that a host without an enforcing
+ * backend skips the cases whose premise is confinement rather than reading the
+ * PTC launch failure that follows from it.
+ */
+const sandboxUsable = await (async () => {
+  const probe = new Context()
+  try {
+    await probe.plugin(Sandbox, {})
+    await probe.sandbox.confine([process.execPath, '--version'], { mode: 'read-only', workspaceRoot: process.cwd() })
+    return true
+  } catch (error: unknown) {
+    // A host whose chain (Linux: bwrap then Landlock) has no usable rung answers
+    // this probe negatively — Android ships neither. Any other fault is a defect
+    // in the probe host and stays loud.
+    if (error instanceof SandboxUnavailableError) return false
+    throw error
+  } finally { await probe.fiber.dispose() }
+})()
 
 async function setup(mode: SandboxMode, executionMode: 'per-call' | 'persistent-in-memory' = 'per-call') {
   const ctx = new Context()
@@ -24,7 +45,10 @@ async function setup(mode: SandboxMode, executionMode: 'per-call' | 'persistent-
   return { ctx, parent: await fakeParent(ctx), ...files }
 }
 
-it('runs the default workflow config through the source PTC runtime', async () => {
+// The premise is an enforcing confinement backend for the requested mode, and
+// this host has none; the PTC sandbox runtime does not run on Android, so the
+// case is skipped there rather than rewritten around the missing capability.
+it.skipIf(!sandboxUsable)('runs the default workflow config through the source PTC runtime', async () => {
   const { ctx, parent } = await setup('read-only')
   const run = ctx.workflowEngine.start({
     script: 'return args.left * args.right',
@@ -38,7 +62,8 @@ it('runs the default workflow config through the source PTC runtime', async () =
   } finally { await run.dispose() }
 })
 
-it.each(['per-call', 'persistent-in-memory'] as const)('enforces workspace writes in %s workflows', async (executionMode) => {
+// Same premise: both parameters assert enforcement through a real backend.
+it.skipIf(!sandboxUsable).each(['per-call', 'persistent-in-memory'] as const)('enforces workspace writes in %s workflows', async (executionMode) => {
   const mode = 'workspace-write'
   const { ctx, parent, root, cwd } = await setup(mode, executionMode)
   const outside = join(root, 'outside.txt')

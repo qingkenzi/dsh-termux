@@ -1,6 +1,6 @@
 /** Real command entries and receipts; every test owns its destination directory. */
 
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, symlink, unlink, writeFile } from 'node:fs/promises'
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -38,6 +38,38 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 let compiled: string
 
+/**
+ * Create one probe file and link a second name to it in a private directory.
+ * @returns `true` when the host accepts link(2) for that probe.
+ */
+async function probeHardLinkSupport(): Promise<boolean> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-command-link-probe-'))
+  try {
+    const target = join(root, 'target')
+    await writeFile(target, '')
+    await link(target, join(root, 'alias'))
+    return true
+  } catch (error: unknown) {
+    // A refused link(2) is the probe's negative answer: EACCES in Android app
+    // data under SELinux, EPERM on some mounts. Any other fault is a defect in
+    // the fixture host and stays loud.
+    if (!(error instanceof Error && 'code' in error)) throw error
+    return false
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Whether this host can create a hard link. Installing a command entry publishes
+ * the approved symlink under a second name (`linkEntry`), so every case that
+ * installs one needs that capability; Android app data denies link(2) with
+ * EACCES under SELinux, and the Electron desktop application does not run there,
+ * so those cases are skipped instead of rewritten around the missing capability.
+ * Cases that never install still run.
+ */
+const hardLinkSupported = await probeHardLinkSupport()
+
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'dsh-command-link-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
@@ -52,7 +84,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     if (process.platform === 'darwin') prepareCommandLink(compiled, process.arch === 'arm64' ? 'arm64' : 'x64', '13.0')
   })
   afterAll(async () => { if (compiled !== undefined) await rm(compiled, { recursive: true, force: true }) })
-  it('installs and removes only its own link', async () => {
+  it.skipIf(!hardLinkSupported)('installs and removes only its own link', async () => {
     const f = await fixture()
     const before = await inspectFileCommand(f.options)
     const installed = await installFileCommand(f.options, before.fingerprint)
@@ -63,7 +95,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readFile(f.options.launcher, 'utf8')).toBe('desktop\n')
   })
 
-  it('preserves the raw target of an existing relative npm link and restores it', async () => {
+  it.skipIf(!hardLinkSupported)('preserves the raw target of an existing relative npm link and restores it', async () => {
     const f = await fixture()
     await writeFile(join(f.root, 'npm-cli'), 'npm\n', { mode: 0o755 })
     await symlink('npm-cli', f.options.destination)
@@ -74,7 +106,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readFile(f.options.destination, 'utf8')).toBe('npm\n')
   })
 
-  it('restores a regular executable with its bytes and permission bits', async () => {
+  it.skipIf(!hardLinkSupported)('restores a regular executable with its bytes and permission bits', async () => {
     const f = await fixture()
     const bytes = Buffer.from([0, 1, 2, 255])
     await writeFile(f.options.destination, bytes, { mode: 0o751 })
@@ -92,7 +124,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readlink(f.options.destination)).toBe('another-command')
   })
 
-  it('repairs a moved application without replacing the original backup', async () => {
+  it.skipIf(!hardLinkSupported)('repairs a moved application without replacing the original backup', async () => {
     const f = await fixture()
     await symlink('npm-cli', f.options.destination)
     const first = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
@@ -110,7 +142,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readlink(options.destination)).toBe('npm-cli')
   })
 
-  it.each(['install', 'remove'] as const)('preserves a replacement arriving during %s after the approved entry was read', async (operation) => {
+  it.skipIf(!hardLinkSupported).each(['install', 'remove'] as const)('preserves a replacement arriving during %s after the approved entry was read', async (operation) => {
     const f = await fixture()
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
     const receipt = join(f.root, '.dsh-desktop-command.json')
@@ -128,7 +160,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readFile(receipt, 'utf8')).toBe(originalReceipt)
   })
 
-  it('leaves a command installed by someone else after Desktop registration intact', async () => {
+  it.skipIf(!hardLinkSupported)('leaves a command installed by someone else after Desktop registration intact', async () => {
     const f = await fixture()
     await symlink('old-npm', f.options.destination)
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
@@ -141,7 +173,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readlink(installed.backup!)).toBe('old-npm')
   })
 
-  it('refuses to restore a modified backup', async () => {
+  it.skipIf(!hardLinkSupported)('refuses to restore a modified backup', async () => {
     const f = await fixture()
     await writeFile(f.options.destination, 'original\n', { mode: 0o755 })
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
@@ -150,7 +182,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readlink(f.options.destination)).toBe(f.options.launcher)
   })
 
-  it('retains ownership and the original inode when receipt publication fails during repair', async () => {
+  it.skipIf(!hardLinkSupported)('retains ownership and the original inode when receipt publication fails during repair', async () => {
     const f = await fixture()
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
     const inode = (await lstat(f.options.destination)).ino
@@ -164,7 +196,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     await expect(lstat(f.options.destination)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('preserves a backup replaced after the removal decision and restores the Desktop link', async () => {
+  it.skipIf(!hardLinkSupported)('preserves a backup replaced after the removal decision and restores the Desktop link', async () => {
     const f = await fixture()
     await writeFile(f.options.destination, 'original\n', { mode: 0o755 })
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
@@ -180,7 +212,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect((await inspectFileCommand(f.options)).managed).toBe(true)
   })
 
-  it('retains both removal and restoration failures with the preserved link location', async () => {
+  it.skipIf(!hardLinkSupported)('retains both removal and restoration failures with the preserved link location', async () => {
     const f = await fixture()
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
     barrier.beforeUnlink = (path) => {
@@ -200,7 +232,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readlink(join(f.root, preserved[0]!))).toBe(f.options.launcher)
   })
 
-  it('cleans the obsolete Desktop link after backup restoration even when receipt removal fails', async () => {
+  it.skipIf(!hardLinkSupported)('cleans the obsolete Desktop link after backup restoration even when receipt removal fails', async () => {
     const f = await fixture()
     await symlink('previous-command', f.options.destination)
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
@@ -218,7 +250,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readlink(f.options.destination)).toBe('previous-command')
   })
 
-  it('leaves a replacement at the original backup path after restoration has claimed its source', async () => {
+  it.skipIf(!hardLinkSupported)('leaves a replacement at the original backup path after restoration has claimed its source', async () => {
     const f = await fixture()
     await writeFile(f.options.destination, 'original\n', { mode: 0o755 })
     const installed = await installFileCommand(f.options, (await inspectFileCommand(f.options)).fingerprint)
@@ -257,7 +289,7 @@ describe.skipIf(process.platform === 'win32')('macOS command entry ownership', (
     expect(await readFile(f.options.launcher, 'utf8')).toBe('desktop\n')
   })
 
-  it('serializes simultaneous choices so only one stale snapshot can install', async () => {
+  it.skipIf(!hardLinkSupported)('serializes simultaneous choices so only one stale snapshot can install', async () => {
     const f = await fixture()
     const state = await inspectFileCommand(f.options)
     const results = await Promise.allSettled([

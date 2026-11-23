@@ -33,13 +33,15 @@ import sharp from 'sharp'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import * as NativeProvider from '../src/index.ts'
 import { installNativeFixture, startFixtureHost } from './native-fixture.ts'
+import { runtimeDirectoryAvailable } from './runtime-directory.ts'
 
 const WIDTH = 2048
 const HEIGHT = 1024
 const MODEL = 'large-image-vision-fixture'
 
-// The external native substitute is a POSIX executable; it never accesses the desktop.
-it.skipIf(process.platform === 'win32')('delivers a valid PNG larger than 4 MiB through disk storage and Node PTC into the next model image request', async () => {
+// The external native substitute is a POSIX executable that never accesses the desktop, and the
+// provider keeps its shared runtime directory under /tmp.
+it.skipIf(process.platform === 'win32' || !runtimeDirectoryAvailable)('delivers a valid PNG larger than 4 MiB through disk storage and Node PTC into the next model image request', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-cua-large-image-'))
   const context = new Context()
   const fixture: { close?: () => Promise<void> } = {}

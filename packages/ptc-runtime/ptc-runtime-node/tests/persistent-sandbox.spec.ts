@@ -7,10 +7,31 @@ import { join } from 'node:path'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { Context } from '@deepseek-ai/cordis'
 import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
+import Sandbox from '@deepseek-ai/dsh-sandbox-local'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { mountRuntime } from './setup.ts'
 import type { Config } from '../src/index.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
+
+/**
+ * Probe the local sandbox independently, so that a host without an enforcing
+ * backend skips the cases whose premise is confinement instead of reporting the
+ * run failures that follow from it. The cases that mock `confine` keep running.
+ */
+const sandboxUsable = await (async () => {
+  const probe = new Context()
+  try {
+    await probe.plugin(Sandbox, {})
+    await probe.sandbox.confine([process.execPath, '--version'], { mode: 'read-only', workspaceRoot: process.cwd() })
+    return true
+  } catch (error: unknown) {
+    // A host whose chain (Linux: bwrap then Landlock) has no usable rung answers
+    // this probe negatively — Android ships neither. Any other fault is a defect
+    // in the probe host and stays loud.
+    if (error instanceof SandboxUnavailableError) return false
+    throw error
+  } finally { await probe.fiber.dispose() }
+})()
 
 /** Both retained REPL evaluators: Node's REPL and the scoped REPL. */
 const repls = [
@@ -32,7 +53,11 @@ async function setup(mode: 'read-only' | 'workspace-write', config: Config) {
 }
 
 describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
-  it('retains variables under read-only confinement and denies writes across calls', async () => {
+  // A confined run needs an enforcing backend, and this host has none; the PTC
+  // sandbox runtime does not run on Android, so the cases that need one are
+  // skipped there rather than rewritten around the missing capability. The two
+  // cases that mock `confine` still run.
+  it.skipIf(!sandboxUsable)('retains variables under read-only confinement and denies writes across calls', async () => {
     const { cwd, run } = await setup('read-only', repl)
     expect((await run('const fsp = await import("node:fs/promises"); var count = 1;')).error).toBeUndefined()
     expect((await run('++count')).value).toBe(2)
@@ -42,7 +67,7 @@ describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
     expect((await run('count')).value).toBe(2)
   })
 
-  it('retains workspace write access while refusing a sibling path', async () => {
+  it.skipIf(!sandboxUsable)('retains workspace write access while refusing a sibling path', async () => {
     const { root, cwd, run } = await setup('workspace-write', repl)
     expect((await run('const fsp = await import("node:fs/promises"); await fsp.writeFile("inside.txt", "allowed")')).error).toBeUndefined()
     const result = await run(`await fsp.writeFile(${JSON.stringify(join(root, 'outside.txt'))}, "denied")`)
@@ -51,7 +76,7 @@ describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
     await expect(readFile(join(root, 'outside.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('refuses reuse under another policy until the owner has been released', async () => {
+  it.skipIf(!sandboxUsable)('refuses reuse under another policy until the owner has been released', async () => {
     const { cwd, runtime, owner, run } = await setup('read-only', repl)
     expect((await run('var retained = 42;')).error).toBeUndefined()
     const spec = runtime.resolve({ program: 'typeof retained', bindings: [], stateOwner: owner, sandboxPolicy: { mode: 'workspace-write', workspaceRoot: cwd } })
@@ -91,7 +116,7 @@ describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
     }
   })
 
-  it('clears a registered live REPL through the file-policy setter before starting under the new mode', async () => {
+  it.skipIf(!sandboxUsable)('clears a registered live REPL through the file-policy setter before starting under the new mode', async () => {
     const { ctx, cwd, runtime, owner } = await setup('workspace-write', repl)
     const session = ctx.sessions.create(brandString<SessionId>('retained-policy-change'), { meta: { cwd } })
     const run = (program: string) => runtime.run(runtime.resolve({
@@ -110,7 +135,7 @@ describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
     await expect(readFile(join(cwd, 'denied-after-switch.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('keeps a one-shot wider policy separate from standing variables and subsequent writes', async () => {
+  it.skipIf(!sandboxUsable)('keeps a one-shot wider policy separate from standing variables and subsequent writes', async () => {
     const { ctx, cwd, runtime, owner } = await setup('read-only', repl)
     const session = ctx.sessions.create(brandString<SessionId>('temporary-policy'), { meta: { cwd } })
     const standing = ctx.sandboxPolicy.resolve({ session })
@@ -128,7 +153,7 @@ describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
     expect(ctx.sandboxPolicy.resolve({ session }).mode).toBe('read-only')
   })
 
-  it('preserves the current execution context for bindings in a reused REPL', async () => {
+  it.skipIf(!sandboxUsable)('preserves the current execution context for bindings in a reused REPL', async () => {
     const { ctx, cwd, runtime, owner } = await setup('workspace-write', repl)
     const session = ctx.sessions.create(brandString<SessionId>('binding-context'), { meta: { cwd } })
     const context = new AsyncLocalStorage<string>()
@@ -142,7 +167,7 @@ describe.each(repls)('retained REPL with scoped REPL $replScoped', (repl) => {
 })
 
 // Windows ACL rejects additional roots; its refusal is covered by sandbox-local's runner tests.
-it.skipIf(process.platform === 'win32').each([...repls, retainedScript])('keeps $executionMode directory grants with scoped REPL $replScoped until the retained process is released', async (config) => {
+it.skipIf(process.platform === 'win32' || !sandboxUsable).each([...repls, retainedScript])('keeps $executionMode directory grants with scoped REPL $replScoped until the retained process is released', async (config) => {
   const { root, cwd, runtime, owner } = await setup('workspace-write', config)
   const extra = join(root, 'extra')
   await mkdir(extra)
@@ -172,7 +197,7 @@ it.skipIf(process.platform === 'win32').each([...repls, retainedScript])('keeps 
 })
 
 // Windows ACL rejects additional roots before launching a process.
-it.skipIf(process.platform === 'win32').each([...repls, retainedScript].flatMap(config => (['add', 'remove'] as const).map(change => ({ ...config, change }))))('uses current grants for the first $executionMode process with scoped REPL $replScoped after a syntax error and grant $change', async ({ change, ...config }) => {
+it.skipIf(process.platform === 'win32' || !sandboxUsable).each([...repls, retainedScript].flatMap(config => (['add', 'remove'] as const).map(change => ({ ...config, change }))))('uses current grants for the first $executionMode process with scoped REPL $replScoped after a syntax error and grant $change', async ({ change, ...config }) => {
   const { root, cwd, ctx, runtime, owner } = await setup('workspace-write', config)
   const extra = join(root, 'extra')
   await mkdir(extra)
@@ -203,7 +228,7 @@ it.skipIf(process.platform === 'win32').each([...repls, retainedScript].flatMap(
   }
 })
 
-it.each([{ executionMode: 'per-call' } as const, ...repls])('cancels active $executionMode execution with scoped REPL $replScoped after a synchronous policy change', async (config) => {
+it.skipIf(!sandboxUsable).each([{ executionMode: 'per-call' } as const, ...repls])('cancels active $executionMode execution with scoped REPL $replScoped after a synchronous policy change', async (config) => {
   const { ctx, cwd, runtime, owner } = await setup('workspace-write', config)
   const session = ctx.sessions.create(brandString<SessionId>('active-execution'), { meta: { cwd } })
   const entered = Promise.withResolvers<undefined>()

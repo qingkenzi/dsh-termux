@@ -25,6 +25,35 @@ vi.mock('chokidar', async (original) => {
   } }
 })
 
+/**
+ * Create one probe file and link a second name to it in a private directory.
+ * @returns `true` when the host accepts link(2) for that probe.
+ */
+function canCreateHardLink(): boolean {
+  const probe = mkdtempSync(join(tmpdir(), 'dsh-hmr-link-probe-'))
+  try {
+    const target = join(probe, 'target')
+    writeFileSync(target, '')
+    linkSync(target, join(probe, 'alias'))
+    return true
+  } catch (error: unknown) {
+    // A refused link(2) is the probe's negative answer: EACCES in Android app
+    // data under SELinux, EPERM on some mounts. Any other fault is a defect in
+    // the fixture host and stays loud.
+    if (!(error instanceof Error && 'code' in error)) throw error
+    return false
+  } finally {
+    rmSync(probe, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Whether this host can create a hard link. Android app data denies link(2) with
+ * EACCES under SELinux, so a fixture whose premise is one module file reachable
+ * under a second name cannot be built there; every other reload case still runs.
+ */
+const hardLinkSupported = canCreateHardLink()
+
 /** Silence the Loader's report of an entry whose import fails. */
 function quiet(ctx: Context): void {
   const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})
@@ -172,7 +201,10 @@ it('leaves plugins running when no loaded file changed', async () => {
   expect(f.trace).toEqual([])
 })
 
-it('keeps a module whose file gains a hard link', async () => {
+// The premise is a second name for the same inode, and this host refuses
+// link(2); the HMR development server does not run on Android, so the case is
+// skipped there rather than rewritten around the missing capability.
+it.skipIf(!hardLinkSupported)('keeps a module whose file gains a hard link', async () => {
   const f = await fixture()
   f.trace.length = 0
   linkSync(join(f.dir, 'node_modules', 'addon', 'index.mjs'), join(f.home, 'store-copy.mjs'))
