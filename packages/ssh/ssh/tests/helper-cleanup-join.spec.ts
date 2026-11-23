@@ -1,6 +1,7 @@
 /** Helper shutdown joins completed-process resources before relinquishing ownership. */
 import { once } from 'node:events'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
@@ -17,7 +18,7 @@ vi.mock('node:fs/promises', async (original) => {
 
 describe.skipIf(process.platform === 'win32')('SSH completed-process cleanup ownership', () => {
   it.each(['success', 'failure'] as const)('joins finalization after native %s while retaining the direct result', async (kind) => {
-    const root = await mkdtemp('/tmp/dsh-ssh-final-')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-final-'))
     const ctx = new Context()
     const filesystem = await ctx.plugin(LocalFileSystem, { cwd: root })
     const subprocess = await ctx.plugin(LocalSubprocessRuntime)

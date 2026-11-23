@@ -1,5 +1,7 @@
 /** Reservation and process ownership across asynchronous preparation and cancellation. */
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { once } from 'node:events'
 import { Context } from '@deepseek-ai/cordis'
@@ -11,7 +13,7 @@ const request = { argv: ['true'], cwd: '/tmp', graceMs: 100, stdio: { stdin: 'ig
 
 describe.skipIf(process.platform === 'win32')('SSH helper allocation ownership', () => {
   it('joins directory and listener allocation before completing close', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-life-')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-life-'))
     const owner = new RemoteProcesses(new Context(), root, 1, 5000)
     try {
       const prepared = owner.prepare(request)
@@ -24,7 +26,7 @@ describe.skipIf(process.platform === 'win32')('SSH helper allocation ownership',
   })
 
   it('reserves capacity before asynchronous listener allocation', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-life-')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-life-'))
     const owner = new RemoteProcesses(new Context(), root, 1, 5000)
     try {
       const first = owner.prepare(request)
@@ -34,7 +36,7 @@ describe.skipIf(process.platform === 'win32')('SSH helper allocation ownership',
   })
 
   it('does not publish a process after termination interrupts cwd resolution', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-life-')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-life-'))
     const ctx = new Context()
     const resolving = Promise.withResolvers<undefined>()
     const releaseCwd = Promise.withResolvers<never>()

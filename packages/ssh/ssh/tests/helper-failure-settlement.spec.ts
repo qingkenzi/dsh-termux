@@ -1,6 +1,8 @@
 /** Failed native launches release remote capacity while retaining the original result error. */
 import { once } from 'node:events'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
@@ -11,7 +13,7 @@ import { authenticateStream } from '../src/stream-security.ts'
 
 describe.skipIf(process.platform === 'win32')('SSH failed process settlement', () => {
   it('reuses a one-process capacity after ENOENT and preserves late done errors', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-failed-')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-failed-'))
     const ctx = new Context()
     const filesystem = await ctx.plugin(LocalFileSystem, { cwd: root })
     const subprocess = await ctx.plugin(LocalSubprocessRuntime)

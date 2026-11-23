@@ -1,6 +1,8 @@
 /** A confined process may replace a writable socket path but cannot read authenticated stream bytes. */
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { once } from 'node:events'
 import { Context } from '@deepseek-ai/cordis'
@@ -15,7 +17,7 @@ import { authenticateStream } from '../src/stream-security.ts'
 
 describe.skipIf(process.platform === 'win32')('SSH stream pathname replacement', () => {
   it('keeps the key and payload private when a workspace-write process rebinds and relays the listener', async ({ skip }) => {
-    const root = await realpath(await mkdtemp('/tmp/dsh-ssh-rebind-'))
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-ssh-rebind-')))
     const ctx = new Context()
     const fs = ctx.plugin(LocalFileSystem, { cwd: root })
     const subprocess = ctx.plugin(LocalSubprocessRuntime)

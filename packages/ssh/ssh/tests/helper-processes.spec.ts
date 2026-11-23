@@ -1,6 +1,8 @@
 /** Process reservations retain native cleanup ownership across stream and allocation failures. */
 import { once } from 'node:events'
 import { chmod, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { PassThrough } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
@@ -22,7 +24,7 @@ const ordinaryRequest = { argv: ['target'], cwd: '/tmp', graceMs: 20, stdio: { s
 const terminalRequest = { argv: ['target'], cwd: '/tmp', graceMs: 20, terminal: { terminalType: 'dumb', rows: 24, cols: 80 } }
 
 async function harness() {
-  const root = await mkdtemp('/tmp/dsh-ssh-owner-')
+  const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-owner-'))
   const ctx = new Context()
   const resolve = vi.fn(async () => ({ targetKey: root, displayPath: root }))
   const spawn = vi.fn<(spec: unknown) => SubprocessHandle>()
@@ -199,7 +201,7 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
   })
 
   it('rolls back a listener path that exceeds the operating system socket limit', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-long-')
+    const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-long-'))
     const longRoot = `${root}/${'x'.repeat(140)}`
     await mkdir(longRoot)
     const owner = new RemoteProcesses(new Context(), longRoot, 1, 5000)

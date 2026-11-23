@@ -3,6 +3,8 @@ import { PassThrough } from 'node:stream'
 import { createConnection, type Socket } from 'node:net'
 import { once } from 'node:events'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { runSshHelper } from '../../src/helper.ts'
@@ -11,7 +13,7 @@ import { helloSchema, type SshStreamEndpoint } from '../../src/schemas.ts'
 import { authenticateStream } from '../../src/stream-security.ts'
 
 export async function createHelperHarness(handshake = true, leaseMs = 30_000, kind: 'node-script' | 'executable' = 'node-script') {
-  const root = await realpath(await mkdtemp('/tmp/dsh-ssh-rpc-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-ssh-rpc-')))
   const input = new PassThrough()
   const output = new PassThrough()
   const controller = new AbortController()

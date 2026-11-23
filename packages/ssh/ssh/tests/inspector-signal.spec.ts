@@ -2,6 +2,8 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { Context } from '@deepseek-ai/cordis'
 import { LocalSandboxProvider } from '@deepseek-ai/dsh-sandbox-local'
@@ -17,7 +19,7 @@ process.stdout.write('ready\\n');
 
 describe.skipIf(process.platform !== 'darwin')('SSH helper inspector signal hardening', () => {
   it.each([false, true])('observes actual debugger activation with SIGUSR1 disabled=%s', async (disabled) => {
-    const root = await realpath(await mkdtemp('/tmp/dsh-ssh-inspector-'))
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-ssh-inspector-')))
     const ctx = new Context()
     const sandbox = await ctx.plugin(LocalSandboxProvider)
     const child = spawn(process.execPath, [...(disabled ? ['--disable-sigusr1'] : []), '--inspect-port=0', '-e', fixture], {

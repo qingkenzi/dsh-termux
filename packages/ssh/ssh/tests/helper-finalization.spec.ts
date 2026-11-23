@@ -1,6 +1,8 @@
 /** Authenticated transport faults and competing native-range finalization. */
 import { once } from 'node:events'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createConnection, type Socket } from 'node:net'
 import { PassThrough } from 'node:stream'
 import { setImmediate } from 'node:timers/promises'
@@ -37,7 +39,7 @@ function nativeProcess() {
 }
 
 async function harness(child: ReturnType<typeof nativeProcess>, control: boolean) {
-  const root = await mkdtemp('/tmp/dsh-ssh-finalize-')
+  const root = await mkdtemp(join(tmpdir(), 'dsh-ssh-finalize-'))
   const ctx = new Context()
   const owner = new RemoteProcesses(ctx, root, 1, 5000)
   const sockets: Socket[] = []
