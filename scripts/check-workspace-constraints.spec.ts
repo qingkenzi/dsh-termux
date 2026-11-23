@@ -569,7 +569,12 @@ it('publishes CLI runtime declarations and rejects a payload that omits them', (
   const manifest = JSON.parse(readFileSync(new URL('../apps/cli/package.json', import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
   expect(checkWorkspaceManifest({ dir: 'apps/cli', manifest })).toEqual([])
   expect(checkWorkspaceManifest({ dir: 'apps/cli', manifest: { ...manifest, files: ['lib/*.js'] } }))
-    .toEqual([expect.stringContaining('@deepseek-ai/dsh: package.json files must be ["lib/*.js","lib/*.js.map","lib/types/*.d.ts","lib/types/*.d.ts.map","docs","src"]')])
+    // Mirrors `appPackageFiles` in check-workspace-constraints.ts, which carries
+    // the Android port's addon restore script and prebuilt addons beside the
+    // staged docs and README.
+    .toEqual([expect.stringContaining('@deepseek-ai/dsh: package.json files must be '
+      + '["lib/*.js","lib/*.js.map","lib/types/*.d.ts","lib/types/*.d.ts.map","docs",'
+      + '"scripts/install-android-addons.mjs","src","vendor/android-prebuilds","README.md"]')])
 })
 
 it('requires the shared Web injection entry in the published payload', () => {

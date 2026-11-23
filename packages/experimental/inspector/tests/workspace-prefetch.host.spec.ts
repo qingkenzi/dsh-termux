@@ -26,10 +26,25 @@ it('pins the npm source and uses workspace Vite without a webpack dependency', (
   expect(Object.keys(dependencies ?? {}).some(name => name.includes('webpack'))).toBe(false)
 })
 
+const lifecycleHooks = ['preinstall', 'install', 'postinstall', 'prepare'] as const
+
+/**
+ * Install-time scripts that a published package may keep because they consume
+ * only files the payload already carries. The Android port restores the native
+ * addons from `vendor/android-prebuilds` in the CLI `postinstall`, which
+ * downloads nothing; the ban this suite enforces is on fetching external
+ * resources at install time. Every other hook command stays forbidden, so an
+ * unreviewed addition to these scripts fails here.
+ */
+const allowedLifecycleHooks: Readonly<Record<string, Readonly<Partial<Record<typeof lifecycleHooks[number], string>>>>> = {
+  '../../../../apps/cli/package.json': { postinstall: 'node scripts/install-android-addons.mjs' },
+}
+
 it.each(['../../../../apps/cli/package.json', '../../inspector-profile/package.json', '../package.json'])(
   'keeps download lifecycle hooks out of the published package %s', (path) => {
     const { scripts = {} } = manifest(path)
-    for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) expect(scripts[hook]).toBeUndefined()
+    const allowed = allowedLifecycleHooks[path] ?? {}
+    for (const hook of lifecycleHooks) expect(scripts[hook]).toBe(allowed[hook])
   },
 )
 
