@@ -82,6 +82,9 @@ describe('managed subprocess control pipe', () => {
     expect(await handle.waitForExit()).toBe(true)
   })
 
+  // The 256 KiB round trip over the control pipe, the child's own exit, and its
+  // stdio collection exceed the default 5 s budget on ARM/Android and under a
+  // concurrent suite load, so this case states its own budget.
   it.each(['managed', 'fallback'] as const)('returns exact binary control bytes through %s independently of stdio', async (backend) => {
     root = await mkdtemp(join(tmpdir(), 'dsh-control-'))
     ctx = new Context()
@@ -108,7 +111,7 @@ describe('managed subprocess control pipe', () => {
     expect(handle.collected.stdout?.readFrom(0).text).toBe('ordinary stdout\n')
     expect(handle.collected.stderr?.readFrom(0).text).toBe('ordinary stderr\n')
     expect(await handle.waitForExit()).toBe(true)
-  })
+  }, 15_000)
 
   it('rejects a caller-authored control marker before starting a child', async () => {
     ctx = new Context()

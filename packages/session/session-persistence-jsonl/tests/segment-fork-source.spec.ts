@@ -1,6 +1,6 @@
 /** Explicit fork source sharing, JSONL copying, and creation ownership. @module */
 import { Context } from '@deepseek-ai/cordis'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { link, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -19,6 +19,41 @@ const first: SessionEvent<'turn/start'> = { type: 'turn/start', seq: SessionSeq(
 const marker: SessionEvent<'session/end-seed'> = { type: 'session/end-seed', seq: SessionSeq(1), time: 0, data: { inherited: true } }
 const options = { inheritedEventCount: SessionLogOffset(1), parentSource: { sessionId: parentId,
   endSeq: SessionLogOffset(1), events: [first, marker] } }
+
+/**
+ * Create one probe file and link a second name to it in a private directory.
+ * @returns `true` when the host accepts link(2) for that probe.
+ */
+async function probeHardLinkSupport(): Promise<boolean> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-fork-link-probe-'))
+  try {
+    const target = join(root, 'target')
+    await writeFile(target, '')
+    await link(target, join(root, 'alias'))
+    return true
+  } catch (error: unknown) {
+    // A refused link(2) is the probe's negative answer: EACCES in Android app
+    // data under SELinux, EPERM on some mounts. Any other fault is a defect in
+    // the fixture host and stays loud.
+    if (!(error instanceof Error && 'code' in error)) throw error
+    return false
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Whether this host can create a hard link at all. SQLite session persistence
+ * publishes each route marker by linking a temporary name to the final one, so
+ * every case below that reaches that publication requires link(2); Android app
+ * data refuses it with EACCES under SELinux, and those cases are skipped there.
+ * The JSONL backend publishes without link(2), so its cases always run.
+ */
+const hardLinkSupported = await probeHardLinkSupport()
+
+/** Why the sqlite-backed cases cannot run here: their route publication needs link(2). */
+const noHardLink = 'SQLite route publication needs link(2), which this host refuses'
+
 async function fixture(storage: 'sqlite' | 'jsonl' = 'sqlite') {
   const root = await mkdtemp(join(tmpdir(), 'dsh-fork-event-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
@@ -115,7 +150,8 @@ it('leaves no JSONL child when creation is cancelled before its first write', as
   await child.close()
 })
 
-it.each(['sqlite', 'jsonl'] as const)('refuses competing child creation and retains the committed fork after close (%s)', async (backend) => {
+it.for(['sqlite', 'jsonl'] as const)('refuses competing child creation and retains the committed fork after close (%s)', async (backend, context) => {
+  context.skip(backend === 'sqlite' && !hardLinkSupported, noHardLink)
   const { storage } = await fixture(backend)
   const attempts = await Promise.allSettled([
     storage.create(header(childId, true), options), storage.create(header(childId, true), options),
@@ -130,7 +166,10 @@ it.each(['sqlite', 'jsonl'] as const)('refuses competing child creation and reta
   try { expect((await reader.read()).events).toEqual([first, marker]) } finally { await reader.close() }
 })
 
-it('shares an imported JSONL parent through its SQLite root segment', async () => {
+// A SQLite child publishes its route marker with link(2), which Android app data
+// refuses, so this SQLite root-segment case cannot run there; the JSONL fork cases
+// below cover the same supplied-history copy through the JSONL backend.
+it.skipIf(!hardLinkSupported)('shares an imported JSONL parent through its SQLite root segment', async () => {
   const { root, storage } = await fixture()
   const id = SessionId('legacy')
   const parentHeader = header(id)
@@ -148,7 +187,8 @@ it('shares an imported JSONL parent through its SQLite root segment', async () =
   } finally { db.close() }
 })
 
-it.each(['sqlite', 'jsonl'] as const)('forks an empty parent after its durability checkpoint (%s)', async (backend) => {
+it.for(['sqlite', 'jsonl'] as const)('forks an empty parent after its durability checkpoint (%s)', async (backend, context) => {
+  context.skip(backend === 'sqlite' && !hardLinkSupported, noHardLink)
   const { storage } = await fixture(backend)
   const pendingId = SessionId('pending')
   const parent = await storage.create(header(pendingId))
@@ -163,7 +203,8 @@ it.each(['sqlite', 'jsonl'] as const)('forks an empty parent after its durabilit
   await reader.close()
 })
 
-it.each(['sqlite', 'jsonl'] as const)('materializes an empty child from a zero-length parent prefix (%s)', async (backend) => {
+it.for(['sqlite', 'jsonl'] as const)('materializes an empty child from a zero-length parent prefix (%s)', async (backend, context) => {
+  context.skip(backend === 'sqlite' && !hardLinkSupported, noHardLink)
   const { storage } = await fixture(backend)
   const child = await storage.create(header(childId), {
     parentSource: { sessionId: parentId, endSeq: SessionLogOffset(0), events: [] },
@@ -173,7 +214,9 @@ it.each(['sqlite', 'jsonl'] as const)('materializes an empty child from a zero-l
   try { expect((await reader.read()).events).toEqual([]) } finally { await reader.close() }
 })
 
-it('refuses an absent parent even for an empty prefix and releases child ownership (sqlite)', async () => {
+// The child that must release its ownership is a SQLite one, so its absent-parent
+// refusal publishes a route marker with link(2) and cannot run where that is refused.
+it.skipIf(!hardLinkSupported)('refuses an absent parent even for an empty prefix and releases child ownership (sqlite)', async () => {
   const { storage } = await fixture('sqlite')
   await expect(storage.create(header(childId, true), {
     inheritedEventCount: SessionLogOffset(0), parentSource: {
