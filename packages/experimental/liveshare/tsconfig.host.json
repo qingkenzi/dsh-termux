@@ -23,6 +23,7 @@
     { "path": "../../sandbox/sandbox-policy" },
     { "path": "../../util/http-proxy" },
     { "path": "../../util/atomic-write" },
+    { "path": "../../util/exclusive-publish" },
     { "path": "../../api/gateway/tsconfig.host.json" },
     { "path": "../../api/remote-access/tsconfig.host.json" },
     { "path": "../../client/connection/tsconfig.host.json" },

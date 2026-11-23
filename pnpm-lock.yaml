@@ -11993,6 +11993,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol
+      '@deepseek-ai/dsh-util-exclusive-publish':
+        specifier: workspace:*
+        version: link:../../util/exclusive-publish
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values
@@ -17050,6 +17053,9 @@ importers:
       '@deepseek-ai/dsh-session-persistence-jsonl':
         specifier: workspace:*
         version: link:../session-persistence-jsonl
+      '@deepseek-ai/dsh-util-exclusive-publish':
+        specifier: workspace:*
+        version: link:../../util/exclusive-publish
       '@deepseek-ai/node-addon-system':
         specifier: workspace:~
         version: link:../../../native/system/packages/entry

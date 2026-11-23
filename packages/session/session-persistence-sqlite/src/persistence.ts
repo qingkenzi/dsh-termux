@@ -1,6 +1,6 @@
 /** SQLite Session persistence and durable takeover of legacy JSONL identities. @module */
 import { createHash, randomUUID } from 'node:crypto'
-import { link, mkdir, open, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdir, open, readFile, readdir, rm } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Config } from './index.ts'
@@ -12,6 +12,7 @@ import type { SessionAccess, SessionPersistenceCreateOptions, SessionPersistence
   SessionPersistenceStatOptions, SessionPersistenceListOptions, SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
+import { publishExclusive } from '@deepseek-ai/dsh-util-exclusive-publish'
 import { publishNewFileWin32, ensureDurableDirectoryWin32 } from './win32.ts'
 import { SqliteStore, isAbsent } from './sqlite.ts'
 import { SessionWriteLease } from './lease.ts'
@@ -116,6 +117,10 @@ export class SqliteSessionPersistence extends SessionPersistence {
 
   /**
    * Atomically publish durable backend selection once per Session in this provider after the database commit.
+   *
+   * Publication is exclusive: a name another writer already created is read and validated rather
+   * than replaced. A host that refuses hard links publishes an exclusive copy instead, because
+   * Android app data answers EACCES to `link(2)`.
    * @param id - committed Session identity.
    */
   protected async publish(id: SessionId): Promise<void> {
@@ -135,8 +140,9 @@ export class SqliteSessionPersistence extends SessionPersistence {
       try { await file.writeFile(JSON.stringify({ id, database: this.sqlite.path }) + '\n'); await file.sync() }
       finally { await file.close() }
       try {
+        // A host that refuses hard links (Android app data answers EACCES) publishes an exclusive copy.
         if (process.platform === 'win32') await publishNewFileWin32(temporary, path)
-        else await link(temporary, path)
+        else await publishExclusive(temporary, path, { mode: 0o600 })
       } catch (error: unknown) {
         if (error !== null && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') {
           this.readMarker(await readFile(path, 'utf8'), path, id)

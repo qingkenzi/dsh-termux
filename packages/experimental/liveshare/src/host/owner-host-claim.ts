@@ -17,7 +17,7 @@
  * [owner state note](../../../../../.agents/notes/implemented/feature/2026-11-11-liveshare-owner-state-host-claim.md)
  * records why a recorded claim beats kernel arbitration.
  *
- * The claim is created exclusively (`wx`), so at most one creator wins on a local filesystem. A
+ * The claim is published exclusively, so at most one creator wins on a local filesystem. A
  * holder is live while its recorded pid is; a record left by a process that is gone is reclaimed by
  * the next host, and so is one that names this process. The liveness check protects no share data and
  * no Session log, and pid reuse can at worst leave a live host without its shares until its next
@@ -26,8 +26,9 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { publishExclusiveSync } from '@deepseek-ai/dsh-util-exclusive-publish'
 import { base64Url } from './base64-url.ts'
 import { isRecord } from './wire-json.ts'
 
@@ -116,8 +117,13 @@ export function claimOwnerHost(dir: string, options: OwnerHostClaimOptions = {})
 /**
  * Publish one claim record under its final name, or report that another record already holds it.
  *
- * The record is written beside the claim and then linked into place: a link publishes the whole file
- * it names or fails because the name exists, so no reader ever sees a claim that is not yet written.
+ * The record is written beside the claim and then published exclusively, so the claim name appears
+ * only for the record this call wrote, and a competing host that published first keeps its file.
+ * Publication prefers a hard link, which shows readers the whole record at once; a host that
+ * refuses hard links (Android app data under SELinux answers EACCES) publishes an exclusive copy
+ * instead, and a reader can observe that copy while its bytes are still being written. The window
+ * is safe because a record that does not parse names no holder, and the claim loop treats such a
+ * record as held rather than reclaiming it.
  * @param path - Claim file path.
  * @param record - Claim record to publish.
  * @param hostId - Host the record names, which names the temporary file too.
@@ -127,7 +133,7 @@ function publishClaim(path: string, record: string, hostId: string): boolean {
   const staged = `${path}.${hostId}.tmp`
   writeFileSync(staged, record, { mode: 0o600 })
   try {
-    linkSync(staged, path)
+    publishExclusiveSync(staged, path, { mode: 0o600 })
     return true
   } catch (error: unknown) {
     /* v8 ignore next -- POSIX-only failure path: a directory at the claim path refuses the write too. */

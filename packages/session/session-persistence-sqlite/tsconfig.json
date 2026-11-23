@@ -39,6 +39,9 @@
       "path": "../../util/brand"
     },
     {
+      "path": "../../util/exclusive-publish"
+    },
+    {
       "path": "../../../native/system/packages/entry"
     }
   ]

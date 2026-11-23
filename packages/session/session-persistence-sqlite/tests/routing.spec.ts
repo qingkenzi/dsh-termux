@@ -3,7 +3,8 @@ import { Context } from '@deepseek-ai/cordis'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionId, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { SqliteSessionPersistence } from '../src/persistence.ts'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
@@ -49,8 +50,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 vi.mock('../src/win32.ts', async (importOriginal) => {
   const windows = await importOriginal<typeof import('../src/win32.ts')>()
   const actual = await import('node:fs/promises')
+  // The stand-in publishes through an exclusive copy: Android app data refuses link(2), and the
+  // assertions below cover the win32 namespace's skip of the POSIX directory sync, not the syscall.
   return { ...windows, ensureDurableDirectoryWin32: (path: string) => actual.mkdir(path, { recursive: true }),
-    publishNewFileWin32: (source: string, target: string) => actual.link(source, target) }
+    publishNewFileWin32: (source: string, target: string) => actual.copyFile(source, target, constants.COPYFILE_EXCL) }
 })
 
 class Adapter extends SqliteSessionPersistence {
@@ -139,7 +142,7 @@ it.each(['identity', 'parse', 'race', 'link-failure'] as const)('retains routing
     await writeFile(path, original)
   } else {
     await rm(path)
-    faults.op = 'link'; faults.error = Object.assign(new Error('link failure'), { code: fault === 'race' ? 'EEXIST' : 'EACCES' })
+    faults.op = 'link'; faults.error = Object.assign(new Error('link failure'), { code: fault === 'race' ? 'EEXIST' : 'EIO' })
     faults.race = fault === 'race'
     if (fault === 'race') await storage.publishRoute(header.id)
     else await expect(storage.publishRoute(header.id)).rejects.toThrow('link failure')
@@ -148,6 +151,21 @@ it.each(['identity', 'parse', 'race', 'link-failure'] as const)('retains routing
   await storage.publishRoute(header.id)
 })
 
+
+it('publishes an exclusive copy when the host refuses hard links', async () => {
+  const { root, storage } = await fixture()
+  faults.op = 'link'; faults.error = Object.assign(new Error('link denied'), { code: 'EACCES' })
+  await storage.publishRoute(header.id)
+  faults.op = ''
+  const directory = join(root, '.segments')
+  const names = await readdir(directory)
+  expect(names.filter(name => name.startsWith('.route-'))).toEqual([])
+  const name = names.find(entry => entry.endsWith('.json'))
+  if (name === undefined) throw new Error('Missing route')
+  expect(JSON.parse(await readFile(join(directory, name), 'utf8'))).toMatchObject({ id: header.id })
+  // The published copy is the marker: a repeated publication validates it instead of replacing it.
+  await storage.publishRoute(header.id)
+})
 
 it.each(['open', 'stat', 'readdir', 'exists'] as const)('refuses database initialization after a %s failure', async (op) => {
   const { root } = await fixture()
