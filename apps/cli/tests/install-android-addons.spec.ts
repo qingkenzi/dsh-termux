@@ -38,7 +38,7 @@ async function fixture(options: { readonly manifestSha?: string; readonly payloa
   await writeFile(join(packageRoot, 'package.json'), `${JSON.stringify({ name: 'dsh-fixture' })}\n`)
   await writeFile(join(dependency, 'package.json'), `${JSON.stringify({
     name: 'node-addon-require-builtin',
-    version: '0.1.9',
+    version: '0.1.10',
     exports: { './package.json': './package.json' },
   })}\n`)
   const sourceDirectory = join(packageRoot, 'vendor', 'android-prebuilds')

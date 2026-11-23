@@ -6,8 +6,13 @@ build inputs because npm's platform packages do not ship Android bionic builds.
 | File | Tool | Version | Target | SHA-256 |
 | --- | --- | --- | --- | --- |
 | `system.node` | `@deepseek-ai/node-addon-system` flock addon | 0.1.2 | `aarch64-linux-android` | `23088d7c148231572547c8ff39494a16b31a258d4d233499443b20c569d2ee86` |
-| `require_builtin.node` | `node-addon-require-builtin` | 0.1.9 | `aarch64-linux-android` | `73fb205f9ba9ed43a7462359f0dd1b568fec671cede4a15e9978316a8d6bebfd` |
+| `require_builtin.node` | `node-addon-require-builtin` | 0.1.10 | `aarch64-linux-android` | `73fb205f9ba9ed43a7462359f0dd1b568fec671cede4a15e9978316a8d6bebfd` |
 | `rg` | ripgrep | 14.1.1 | `aarch64-linux-android` | `d5aa71af88bf9b99f2ad62699d8f644cf8528306b6d17ee954899e49d98a81b3` |
+
+`require_builtin.node` is built from the 0.1.9 sources. Release 0.1.10 changes
+only the version metadata: `node-addon-native-custom-loader` ships the same
+JavaScript in both releases and loads the addon from the same
+`build/napi/napi-v9-android-arm64` slot, so the existing binary stays correct.
 
 `addons.manifest.json` pins the size and SHA-256 of all three files. Regenerate
 it with `node scripts/android-addons-manifest.mjs` after replacing a binary;

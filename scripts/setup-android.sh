@@ -142,10 +142,10 @@ resolve_require_builtin() {
     DSTFILE_REQUIRE="${require_json%/package.json}/build/napi/napi-v9-android-arm64/require_builtin.node"
     return 0
   fi
-  echo "setup-android: could not resolve node-addon-require-builtin from apps/cli; falling back to the pinned 0.1.9 install" >&2
-  PINNED_REQUIRE=$(find "$REPO/node_modules/.pnpm" -maxdepth 1 -type d -name 'node-addon-require-builtin@0.1.9*' | head -1)
+  echo "setup-android: could not resolve node-addon-require-builtin from apps/cli; falling back to the pinned 0.1.10 install" >&2
+  PINNED_REQUIRE=$(find "$REPO/node_modules/.pnpm" -maxdepth 1 -type d -name 'node-addon-require-builtin@0.1.10*' | head -1)
   [ -n "$PINNED_REQUIRE" ] \
-    || fail "node-addon-require-builtin not installed; run pnpm install first (resolution failed and the pinned fallback found no 0.1.9 install)"
+    || fail "node-addon-require-builtin not installed; run pnpm install first (resolution failed and the pinned fallback found no 0.1.10 install)"
   DSTFILE_REQUIRE=$PINNED_REQUIRE/node_modules/node-addon-require-builtin/build/napi/napi-v9-android-arm64/require_builtin.node
 }
 
