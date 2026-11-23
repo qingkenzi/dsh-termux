@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
 /dsh-for-android-termux:
-  en: 442abdeb97bd2ddf
-  zh: d59b0c28415d52f3
+  en: e5c4c53314788ae8
+  zh: fa785390b3269c8a
 /dsh-for-android-termux/quick-start:
   en: 9535b10be9abb7a8
   zh: 37665fe48339b410
 /dsh-for-android-termux/what-works-on-android:
-  en: c827632b4bee3136
-  zh: 1a74b3c0cb4e3ce7
+  en: a1a90b95a700fbb4
+  zh: 6fcc7392b2912818
 /dsh-for-android-termux/permission-mode:
   en: b71598b95fc931c0
   zh: 62ffec0a69b9cbd2

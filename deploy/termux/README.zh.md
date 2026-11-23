@@ -8,7 +8,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `dsh` | 解析自身旁边的检出并执行源码 CLI；固定版本的 require-builtin 二进制缺失时恢复 Android addon。 |
+| `dsh` | 解析自身旁边的检出或自身所在的检出目录并执行源码 CLI；固定版本的 require-builtin 二进制缺失时恢复 Android addon。 |
 | `keep-alive.sh` | 运行 `dsh web`，崩溃后重启，把登录地址发布为 Termux 通知，并在 `~/.dsh/run/watchdog.lock` 持有单实例锁。 |
 | `url.sh` | 打印看门狗发布的登录地址，优先读取 `latest.url`，回退到 `web-<pid>.url`。 |
 | `relogin.sh` | 重启一次服务器并打印新的登录地址。 |
@@ -35,6 +35,8 @@ tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'
 ## 环境变量
 
 `DSH_TERMUX_BASE` 默认为 `$HOME/dsh`，用于定位启动器、检出与 `.logs` 目录。`DSH_HOME` 默认为 `$HOME/.dsh`，用于定位运行目录、会话与设置。看门狗、菜单与 `url.sh` 假定 Web 端口为 `3080`；端口本身由组合后的 profile 决定。看门狗按 `DSH_WATCHDOG_URL_WAIT_SECONDS`（默认 180 秒）等待首个登录地址，因为源码冷启动要在绑定端口前先编译整个应用。
+
+`dsh` 按顺序在两个位置解析检出：先找 `$DSH_TERMUX_BASE/deepseek-harness`，再找脚本自身所在的目录。因此脚本既可以放在 `deepseek-harness` 检出旁边，也可以直接放进检出根目录。
 
 ## 迁移脚本
 

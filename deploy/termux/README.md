@@ -8,7 +8,7 @@ These scripts are the Termux deployment layer around a source checkout. They are
 
 | File | Purpose |
 | --- | --- |
-| `dsh` | Resolves the checkout beside itself and executes the source CLI, restoring the Android addons when the pinned require-builtin binary is missing. |
+| `dsh` | Resolves the checkout beside itself or as its own directory and executes the source CLI, restoring the Android addons when the pinned require-builtin binary is missing. |
 | `keep-alive.sh` | Runs `dsh web`, restarts it after a crash, publishes the login URL as a Termux notification, and holds a single-instance lock in `~/.dsh/run/watchdog.lock`. |
 | `url.sh` | Prints the login URL published by the watchdog, preferring `latest.url` and falling back to `web-<pid>.url`. |
 | `relogin.sh` | Restarts the server once and prints the new login URL. |
@@ -35,6 +35,8 @@ tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'
 ## Environment
 
 `DSH_TERMUX_BASE` defaults to `$HOME/dsh` and locates the launcher, the checkout, and the `.logs` directory. `DSH_HOME` defaults to `$HOME/.dsh` and locates the run directory, sessions, and settings. The watchdog, menu, and `url.sh` assume the Web port `3080`; the port itself comes from the composed profile. The watchdog waits `DSH_WATCHDOG_URL_WAIT_SECONDS` (180s) for the first login URL, because a cold source start compiles the application before it binds.
+
+`dsh` resolves the checkout in two places, in this order: `$DSH_TERMUX_BASE/deepseek-harness`, then the directory that holds the script itself. The scripts therefore work both beside a `deepseek-harness` checkout and inside the checkout root.
 
 ## Migration scripts
 

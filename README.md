@@ -5,7 +5,7 @@ English | [中文](README.zh.md)
 This repository is the Android/Termux source build of **DeepSeekRuntime (DSH)**, the open-source agent harness from [DeepSeek AI](https://deepseek.com). It carries the same `@deepseek-ai/dsh` package as the [official repository](https://github.com/deepseek-ai/deepseek-harness), plus Android-arm64 native binaries, Termux setup scripts, and platform fixes.
 
 - Upstream: [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (MIT)
-- Baseline: upstream master at version 0.2.2-rc.5 (2026-11-18)
+- Baseline: upstream release `dsh-v0.2.3-alpha.2` (2026-11-22)
 - Install guide: [Run DSH on Android with Termux](docs/user/guide/android-termux.md)
 
 ## Quick start
@@ -13,8 +13,8 @@ This repository is the Android/Termux source build of **DeepSeekRuntime (DSH)**,
 ```sh
 pkg install nodejs-lts python clang make cmake git binutils
 pip install meson ninja
-git clone https://github.com/qingkenzi/dsh-termux.git
-cd dsh-termux
+git clone https://github.com/qingkenzi/dsh-termux.git deepseek-harness
+cd deepseek-harness
 pnpm install
 pnpm run setup:android
 pnpm run build
@@ -31,7 +31,7 @@ pnpm dsh web --no-open
 | bash and persistent terminals | Yes |
 | `grep` and `glob` | Yes, through the bundled ripgrep binary |
 | SSH execution | Yes, when a local `ssh` client and remote host are available |
-| File-manager reveal and Open folder | Yes, through `xdg-open`/`termux-open` |
+| File-manager reveal and Open folder | Yes, through Termux's `xdg-open` |
 | CUA, Playwright automation | No |
 | File sandbox | No: the Android default is `danger-full-access` |
 

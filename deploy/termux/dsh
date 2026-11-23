@@ -1,17 +1,31 @@
 #!/bin/sh
 # DeepSeekRuntime (dsh) launcher for Termux/Android.
 # Usage: ./dsh --help | ./dsh web | ./dsh tui | ...
+#
+# Checkout resolution: a checkout is a directory containing apps/cli/src/bin.ts.
+# This script accepts two layouts, tried in this order: a checkout named
+# deepseek-harness in the directory that holds the script, then the directory
+# that holds the script itself.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-REPO="$HERE/deepseek-harness"
+
+if [ -f "$HERE/deepseek-harness/apps/cli/src/bin.ts" ]; then
+  REPO="$HERE/deepseek-harness"
+elif [ -f "$HERE/apps/cli/src/bin.ts" ]; then
+  REPO="$HERE"
+else
+  echo "no checkout found: tried $HERE/deepseek-harness and $HERE" >&2
+  echo "a checkout is a directory with apps/cli/src/bin.ts; place this script beside a deepseek-harness checkout or inside the checkout root" >&2
+  exit 1
+fi
 cd "$REPO"
 
 # Native Android addons are restored after any `pnpm install`.
-if [ ! -f node_modules/.bin/tsx ]; then
-  echo "dependencies not installed; run: cd deepseek-harness && CI=true pnpm install --offline && ./scripts/setup-android.sh" >&2
+if [ ! -f "$REPO/node_modules/.bin/tsx" ]; then
+  echo "dependencies not installed in $REPO; run: cd $REPO && CI=true pnpm install --offline && ./scripts/setup-android.sh" >&2
   exit 1
 fi
-NDIR=$(find node_modules/.pnpm -maxdepth 1 -type d -name 'node-addon-require-builtin@0.1.10*' | head -1)
+NDIR=$(find "$REPO/node_modules/.pnpm" -maxdepth 1 -type d -name 'node-addon-require-builtin@0.1.10*' 2>/dev/null | head -1)
 if [ -n "$NDIR" ] && [ ! -f "$NDIR/node_modules/node-addon-require-builtin/build/napi/napi-v9-android-arm64/require_builtin.node" ]; then
   ./scripts/setup-android.sh
 fi
