@@ -58,7 +58,7 @@ Android 不提供任何受支持的沙箱后端：bubblewrap、Landlock 与 Seat
 | 文件管理器 reveal 与 Open folder | 可用，经 Termux 的 `xdg-open` |
 | CUA、Playwright 自动化 | 不可用 |
 | 文件沙箱 | 不可用：Android 默认值为 `danger-full-access` |
-| SQLite 会话持久化（`session-persistence-sqlite`） | 不可用：其路由标记使用 `link(2)` 发布，Android 应用数据拒绝硬链接；随包 profile 使用 JSONL |
+| SQLite 会话持久化（`session-persistence-sqlite`） | 可用：文件系统拒绝 `link(2)` 时，其路由标记改为独占拷贝发布 |
 | `pnpm run lint`、`pnpm run duplication`、覆盖率门禁 | 由 Linux CI 负责；Android 原生 binding 不可用 |
 
 ## 验证与 CI

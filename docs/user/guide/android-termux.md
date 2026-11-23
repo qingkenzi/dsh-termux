@@ -58,7 +58,7 @@ Selecting a confined preset on a host without a working backend fails closed wit
 | File-manager reveal and Open folder | Yes, through Termux's `xdg-open` |
 | CUA, Playwright automation | No |
 | File sandbox | No: the Android default is `danger-full-access` |
-| SQLite Session persistence (`session-persistence-sqlite`) | No: its routing marker publishes with `link(2)`, which Android app data refuses; the shipped profiles use JSONL |
+| SQLite Session persistence (`session-persistence-sqlite`) | Yes: its routing marker publishes by exclusive copy where the filesystem refuses `link(2)` |
 | `pnpm run lint`, `pnpm run duplication`, coverage gate | Linux CI; Android native bindings are unavailable |
 
 ## Verification and CI
