@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-这些脚本是源码检出外层的 Termux 部署层。它们不属于 `@deepseek-ai/dsh` 包，也不是运行 CLI 的必需项；它们提供启动器、自动重启的看门狗，以及设备上使用的一次性检出迁移脚本。
+这些脚本是源码检出外层的 Termux 部署层。它们不属于 `@deepseek-ai/dsh` 包，也不是运行 CLI 的必需项；它们提供启动器、自动重启的看门狗，以及设备上使用的检出切换与回滚脚本。
 
 ## 文件
 
@@ -13,8 +13,8 @@
 | `url.sh` | 打印看门狗发布的登录地址，优先读取 `latest.url`，回退到 `web-<pid>.url`。 |
 | `relogin.sh` | 重启一次服务器并打印新的登录地址。 |
 | `dsh-menu.sh` | 交互式启动、停止、状态与地址菜单；同时带有本机的 pi-web 与 SillyTavern 快捷项。 |
-| `cutover-rc5.sh` | rc.3 到 rc.5 的一次性检出交换，含预检、重启后冒烟与失败自动回滚。 |
-| `rollback-rc3.sh` | 撤销 `cutover-rc5.sh` 执行的交换。 |
+| `cutover.sh` | 把准备好的检出换到线上位置：预检、停止看门狗与服务器、交换目录并修复 git 工作树链接、重启后冒烟，失败时自动回滚。 |
+| `rollback.sh` | 反向执行上一次 `cutover.sh` 的交换，重启先前的检出，并把被替换的检出留作排查。 |
 
 ## 安装
 
@@ -38,7 +38,7 @@ tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'
 
 ## 迁移脚本
 
-`cutover-rc5.sh` 与 `rollback-rc3.sh` 固定对应 rc.3 与 rc.5 的包版本。切换会校验两个构建、停止看门狗与服务器、交换两个检出、重写 git 工作树链接，并在报告成功前验证重启后的服务器。复用到其他版本前请修改版本常量与检出名，先运行 `cutover-rc5.sh --check`，并保留 rc.3 检出，因为仓库的 git 目录在它里面。
+`cutover.sh` 与 `rollback.sh` 不再写死版本：路径、期望版本与期望分支都来自环境变量，默认值即上面的目录布局。切换会校验两个检出、停止看门狗与服务器、交换 `CUTOVER_FROM` 与 `CUTOVER_TO`（先前的检出去到 `CUTOVER_ASIDE`）、重写 git 工作树链接、重启看门狗，并验证重启后的服务器：登录地址可访问、服务进程运行于线上路径、版本与分支符合期望。停服后的任何失败都会撤销交换并重启先前的检出。`rollback.sh` 执行反向交换，把被替换的检出留在 `CUTOVER_FAILED`。两者都支持 `--check`，只做预检，请先运行它。在新构建验证通过前请保留 aside 检出，因为在当前布局里它持有线上工作树的 `.git` 文件所指向的 git 目录。涉及的变量为 `DSH_TERMUX_BASE`、`CUTOVER_FROM`、`CUTOVER_TO`、`CUTOVER_ASIDE`、`CUTOVER_FAILED`、`CUTOVER_EXPECT_FROM`、`CUTOVER_EXPECT_TO`、`CUTOVER_BRANCH`、`ROLLBACK_EXPECT`、`ROLLBACK_BRANCH` 与 `DSH_HOME`。
 
 ## 注意
 

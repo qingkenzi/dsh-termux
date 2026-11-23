@@ -3,11 +3,11 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write deploy/termux/README.md
 /termux-deployment-scripts:
-  en: 335f2f7eb8bdb517
-  zh: f2f47d79f34f8265
+  en: b66c7296359b9612
+  zh: 319dfaa75804064c
 /termux-deployment-scripts/files:
-  en: 69b27e570769bf11
-  zh: 91596f4676e394f3
+  en: 906a7a367a0ae084
+  zh: df25805aa9b253d6
 /termux-deployment-scripts/install:
   en: 117f9765491ef517
   zh: ecb6aa1829a55fa4
@@ -15,8 +15,8 @@
   en: ad2cdf3cc899803b
   zh: 3b0a1864e90d0c81
 /termux-deployment-scripts/migration-scripts:
-  en: 6f2aef6872ec91b0
-  zh: c801880c9c814718
+  en: 6ff53944727befe7
+  zh: eaabd2bbc128ef3a
 /termux-deployment-scripts/notes:
   en: 091c8052b6dc85ff
   zh: 1a2e0f3695c4a2af
