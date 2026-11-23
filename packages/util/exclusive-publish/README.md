@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`publish-exclusive` publishes a staged file under a name that must not already exist. It tries a hard link, then `copyFile(..., COPYFILE_EXCL)` followed by a file flush. Every path reports a lost race as `EEXIST`, so a concurrent creator keeps its file and the caller can treat the target as authoritative. The caller still owns the parent directory's `fsync`, because this package publishes one entry and does not fsync directories.
+`publish-exclusive` publishes a staged file under a name that must not already exist. It tries a hard link, then `copyFile(..., COPYFILE_EXCL)` followed by a file flush. Every path reports a lost race as `EEXIST`, so a concurrent creator keeps its file and the caller can treat the target as authoritative. The caller still owns the parent directory's `fsync`, because this package publishes one entry and does not fsync directories. `publishExclusiveSync` offers the same publication on the synchronous primitives for callers that cannot await.
 
 ## Table of Contents
 
@@ -49,6 +49,22 @@ await publishExclusive(stagedPath, finalPath, { mode: 0o600 })
 
 `EEXIST` means another writer created the target; this call must not remove or replace that file. A copy failure carries the refused hard-link error as its `cause`.
 
+### Publish from synchronous code
+
+`publishExclusiveSync` runs the same two paths on `linkSync` and `copyFileSync(..., COPYFILE_EXCL)` for a caller that cannot await:
+
+```ts
+import { publishExclusiveSync } from '@deepseek-ai/dsh-util-exclusive-publish'
+
+declare const stagedPath: string
+declare const finalPath: string
+
+const method = publishExclusiveSync(stagedPath, finalPath, { mode: 0o600 })
+// 'linked' and 'copied' keep stagedPath.
+```
+
+It returns the same `PublishMethod` and rejects with the same errno values as the asynchronous function. Its `exclusive`, `link`, and `fsync` injection options take synchronous functions; the default flush opens the copy and calls `fsyncSync` on it.
+
 ### Failures to plan for
 
 A copy is visible to readers while its bytes are still being written, so a reader that races publication can observe a partial copy. The copy path removes its own partial result when copying, mode application, or flushing fails, and it aggregates a cleanup failure after the original failure. A close failure that follows a successful flush rejects the call but keeps the durable target.
@@ -65,12 +81,14 @@ A copy is visible to readers while its bytes are still being written, so a reade
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `publishExclusive` and its copy, mode, and flush steps |
+| [`src/index.ts`](src/index.ts) | `publishExclusive`, `publishExclusiveSync`, and their copy, mode, and flush steps |
 
 ### Publication order
 
 1. **Link** — `link(2)` publishes the staged inode under a second name. `EACCES`, `EPERM`, `ENOSYS`, `EOPNOTSUPP`, and `ENOTSUP` mean the host refuses hard links; every other error, including `EEXIST`, propagates.
 2. **Copy** — `copyFile(..., COPYFILE_EXCL)` creates a new inode. The copy receives `mode` when given, then is opened for `fsync` (`r+`, or `r` for a read-only copy, which POSIX permits) so a published name never outlives unflushed bytes.
+
+`publishExclusiveSync` performs these two steps in the same order through `linkSync`, `copyFileSync`, and `openSync`/`fsyncSync`/`closeSync`.
 
 ### Why both paths share one contract
 

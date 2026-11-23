@@ -9,14 +9,17 @@
   en: ccb1e220cde847f7
   zh: 35ba8e58d32b64eb
 /deepseek-ai-dsh-util-exclusive-publish/summary:
-  en: 1bf5dcb8d7f35aae
-  zh: 099b65618fdd8451
+  en: b544b04e7cee80ab
+  zh: 17af2c86c1b6b474
 /deepseek-ai-dsh-util-exclusive-publish/table-of-contents:
   en: 80b31a934611cb4a
   zh: 66eae4b2641b173f
 /deepseek-ai-dsh-util-exclusive-publish/use-this-package:
   en: 577217cc245d1bd2
   zh: b4e1d153e49006f5
+/deepseek-ai-dsh-util-exclusive-publish/use-this-package/publish-from-synchronous-code:
+  en: d23501b334eb0e9b
+  zh: 59616de337bd0ab5
 /deepseek-ai-dsh-util-exclusive-publish/use-this-package/failures-to-plan-for:
   en: b90fa3761b247c73
   zh: 8162ed1a4f61ef70
@@ -24,11 +27,11 @@
   en: 42b15ac6321706aa
   zh: ce1d25bffb6948cd
 /deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/source-map:
-  en: 017062e227172cd7
-  zh: 0d056cc270a58bd0
+  en: f0b1b71e7290246c
+  zh: bb468d3f71167324
 /deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/publication-order:
-  en: 3f8849d03f67d25f
-  zh: a2098de1acad1137
+  en: bf3ac0729581775c
+  zh: 85a26ffc1c662763
 /deepseek-ai-dsh-util-exclusive-publish/understand-the-implementation/why-both-paths-share-one-contract:
   en: 2f81dc72f4d9021e
   zh: 4b776a5db75b4b8d

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`publish-exclusive` 把暂存文件发布到一个必须尚不存在的名字下。它先尝试硬链接，再退化为 `copyFile(..., COPYFILE_EXCL)` 加文件刷盘。两条路径都把竞争失败报告为 `EEXIST`，因此并发创建者保留自己的文件，调用方可以把目标视为权威结果。父目录的 `fsync` 仍由调用方负责，因为本包只发布一个目录项，不刷目录。
+`publish-exclusive` 把暂存文件发布到一个必须尚不存在的名字下。它先尝试硬链接，再退化为 `copyFile(..., COPYFILE_EXCL)` 加文件刷盘。两条路径都把竞争失败报告为 `EEXIST`，因此并发创建者保留自己的文件，调用方可以把目标视为权威结果。父目录的 `fsync` 仍由调用方负责，因为本包只发布一个目录项，不刷目录。`publishExclusiveSync` 为无法 await 的调用方提供基于同步原语的同一套发布流程。
 
 ## 目录
 
@@ -49,6 +49,22 @@ await publishExclusive(stagedPath, finalPath, { mode: 0o600 })
 
 `EEXIST` 表示另一个写入者已创建目标；本次调用不得删除或替换该文件。复制失败会把被拒绝的硬链接错误挂在 `cause` 上。
 
+### 在同步代码中发布
+
+`publishExclusiveSync` 面向无法 await 的调用方，用 `linkSync` 与 `copyFileSync(..., COPYFILE_EXCL)` 走同样两条路径：
+
+```ts
+import { publishExclusiveSync } from '@deepseek-ai/dsh-util-exclusive-publish'
+
+declare const stagedPath: string
+declare const finalPath: string
+
+const method = publishExclusiveSync(stagedPath, finalPath, { mode: 0o600 })
+// 'linked' and 'copied' keep stagedPath.
+```
+
+它返回相同的 `PublishMethod`，并以相同的 errno 值失败。它的 `exclusive`、`link` 与 `fsync` 注入项接收同步函数；默认刷盘会打开副本并对其调用 `fsyncSync`。
+
 ### 需要预案的失败
 
 复制在字节尚未写完时就能被读取方看到，因此并发读取可能观察到不完整的副本。复制路径在复制、应用权限或刷盘失败时删除自己的部分结果，并在原始失败之后聚合清理失败。刷盘成功后的 close 失败会拒绝本次调用，但保留已持久化的目标。
@@ -65,12 +81,14 @@ await publishExclusive(stagedPath, finalPath, { mode: 0o600 })
 
 | 文件 | 作用 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `publishExclusive` 及其复制、权限与刷盘步骤 |
+| [`src/index.ts`](src/index.ts) | `publishExclusive`、`publishExclusiveSync` 及其复制、权限与刷盘步骤 |
 
 ### 发布顺序
 
 1. **硬链接**——`link(2)` 把暂存 inode 发布到第二个名字下。`EACCES`、`EPERM`、`ENOSYS`、`EOPNOTSUPP` 与 `ENOTSUP` 表示宿主拒绝硬链接；其余错误（包括 `EEXIST`）直接抛出。
 2. **复制**——`copyFile(..., COPYFILE_EXCL)` 创建新 inode。传入 `mode` 时先应用权限，再以 `fsync` 打开（可写副本用 `r+`，只读副本用 `r`，POSIX 允许），确保发布的文件名不会早于未刷盘的字节。
+
+`publishExclusiveSync` 以 `linkSync`、`copyFileSync` 与 `openSync`/`fsyncSync`/`closeSync` 按同样顺序执行这两步。
 
 ### 两条路径为何共享同一契约
 
