@@ -13,12 +13,12 @@ pkg install nodejs-lts python clang make cmake git binutils
 pip install meson ninja
 ```
 
-Node must be 24.9 or newer. The native setup also expects `pkg-config` and the Termux development packages listed by `scripts/setup-android-sharp.sh`.
+Node must be 24.22.3 or a newer 24.x release, or 26.13.1 or newer, which is the `engines.node` range in `package.json`. The native setup also expects `pkg-config` and the Termux development packages listed by `scripts/setup-android-sharp.sh`.
 
 ## Install from source
 
 ```sh
-git clone https://github.com/qingkenzi/dsh-termux.git
+git clone https://github.com/qingkenzi/dsh-termux.git deepseek-harness
 cd deepseek-harness
 pnpm install
 pnpm run setup:android
@@ -26,7 +26,7 @@ pnpm run build
 pnpm run verify:android
 ```
 
-`pnpm install` restores the pinned `require_builtin.node` into its dependency slot. `pnpm run setup:android` then restores the bionic flock addon, verifies the bundled ripgrep binary, and builds libvips plus the sharp addon. The command is idempotent; run it again after any `pnpm install --force` or lockfile change. Use `sh scripts/setup-android.sh --sharp=skip --check` when only the CLI is needed.
+`pnpm install` cannot supply the Android natives, because their npm platform packages ship no bionic build. `pnpm run setup:android` then restores the pinned `require_builtin.node` into its dependency slot, restores the bionic flock addon, verifies the bundled ripgrep binary, and builds libvips plus the sharp addon. The command is idempotent; run it again after any `pnpm install --force` or lockfile change. Use `sh scripts/setup-android.sh --sharp=skip --check` when only the CLI is needed.
 
 ## Start the Web UI
 
@@ -38,7 +38,7 @@ The server prints `dsh web: http://...` on stdout; open that URL once in a brows
 
 ## Deployment scripts
 
-The fork also ships the device launcher and watchdog in `deploy/termux/`: `dsh` resolves the checkout beside it, `keep-alive.sh` restarts the server and republishes the login URL, and `dsh-menu.sh` adds an interactive menu. Copy them into `~/dsh` and start the watchdog with `tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'`; `deploy/termux/README.md` lists the files, environment variables, and the one-shot rc.3-to-rc.5 migration scripts.
+The fork also ships the device deployment scripts in `deploy/termux/`: `dsh` resolves the checkout beside it, `keep-alive.sh` restarts the server and republishes the login URL, `dsh-menu.sh` adds an interactive menu, and `cutover.sh` and `rollback.sh` move the live path between prepared checkouts. Copy them into `~/dsh` and start the watchdog with `tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'`; `deploy/termux/README.md` lists the files, the environment variables, and the cutover and rollback procedure.
 
 ## Permission mode
 
@@ -55,7 +55,7 @@ Selecting a confined preset on a host without a working backend fails closed wit
 | bash and persistent terminals | Yes |
 | `grep` and `glob` | Yes, through the bundled ripgrep binary |
 | SSH execution | Yes, when a local `ssh` client and remote host are available |
-| File-manager reveal and Open folder | Yes, through `xdg-open`/`termux-open` |
+| File-manager reveal and Open folder | Yes, through Termux's `xdg-open` |
 | CUA, Playwright automation | No |
 | File sandbox | No: the Android default is `danger-full-access` |
 | SQLite Session persistence (`session-persistence-sqlite`) | No: its routing marker publishes with `link(2)`, which Android app data refuses; the shipped profiles use JSONL |
@@ -69,12 +69,12 @@ Hosted Linux CI does not substitute for this lane: it cannot provide `process.pl
 
 ## Troubleshooting
 
-- `ERR_FLOCK_ADDON_MISSING` or `ANDROID_ADDONS_MISSING`: run `pnpm run setup:android`.
-- `No usable native binding found for node-addon-require-builtin-android-arm64`: run `pnpm install` with lifecycle scripts enabled, then `pnpm run setup:android`.
+- `ERR_FLOCK_ADDON_MISSING`, or `pnpm run verify:android` failing an addon check: run `pnpm run setup:android`.
+- `No usable native binding found for node-addon-require-builtin-android-arm64`: run `pnpm install`, then `pnpm run setup:android`.
 - sharp load failure: run `pnpm run setup:android`; it rebuilds libvips when absent and restores the cached addon after a reinstall.
 - `grep` or `glob` cannot start ripgrep: run `pnpm run setup:android` to restore the bundled binary, or install the Termux `ripgrep` package.
 - `SANDBOX_UNAVAILABLE`: switch the permission preset to `danger-full-access`, or install a sandbox provider; the Android kernel has no backend the Harness supports here.
 
 ## Upgrading
 
-Pull the source, run `pnpm install`, `pnpm run setup:android`, and `pnpm run build` again. The browser session survives the upgrade because the signing secret is durable; keep `~/.dsh` backed up, since the source build does not upload it.
+Pull the source, run `pnpm install`, `pnpm run setup:android`, and `pnpm run build` again. The browser session survives the upgrade because the signing secret is durable; keep `~/.dsh` backed up, since the source build does not upload it. A device deployment switches with `deploy/termux/cutover.sh`, which runs a preflight and rolls the swap back on failure, and reverses the last swap with `deploy/termux/rollback.sh`; [deploy/termux/README.md](../../../deploy/termux/README.md) documents both.
