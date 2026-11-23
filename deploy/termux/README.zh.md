@@ -34,11 +34,11 @@ tmux new-session -d -s dsh -n watchdog '~/dsh/keep-alive.sh'
 
 ## 环境变量
 
-`DSH_TERMUX_BASE` 默认为 `$HOME/dsh`，用于定位启动器、检出与 `.logs` 目录。`DSH_HOME` 默认为 `$HOME/.dsh`，用于定位运行目录、会话与设置。看门狗、菜单与 `url.sh` 假定 Web 端口为 `3080`；端口本身由组合后的 profile 决定。
+`DSH_TERMUX_BASE` 默认为 `$HOME/dsh`，用于定位启动器、检出与 `.logs` 目录。`DSH_HOME` 默认为 `$HOME/.dsh`，用于定位运行目录、会话与设置。看门狗、菜单与 `url.sh` 假定 Web 端口为 `3080`；端口本身由组合后的 profile 决定。看门狗按 `DSH_WATCHDOG_URL_WAIT_SECONDS`（默认 180 秒）等待首个登录地址，因为源码冷启动要在绑定端口前先编译整个应用。
 
 ## 迁移脚本
 
-`cutover.sh` 与 `rollback.sh` 不再写死版本：路径、期望版本与期望分支都来自环境变量，默认值即上面的目录布局。切换会校验两个检出、停止看门狗与服务器、交换 `CUTOVER_FROM` 与 `CUTOVER_TO`（先前的检出去到 `CUTOVER_ASIDE`）、重写 git 工作树链接、重启看门狗，并验证重启后的服务器：登录地址可访问、服务进程运行于线上路径、版本与分支符合期望。停服后的任何失败都会撤销交换并重启先前的检出。`rollback.sh` 执行反向交换，把被替换的检出留在 `CUTOVER_FAILED`。两者都支持 `--check`，只做预检，请先运行它。在新构建验证通过前请保留 aside 检出，因为在当前布局里它持有线上工作树的 `.git` 文件所指向的 git 目录。涉及的变量为 `DSH_TERMUX_BASE`、`CUTOVER_FROM`、`CUTOVER_TO`、`CUTOVER_ASIDE`、`CUTOVER_FAILED`、`CUTOVER_EXPECT_FROM`、`CUTOVER_EXPECT_TO`、`CUTOVER_BRANCH`、`ROLLBACK_EXPECT`、`ROLLBACK_BRANCH` 与 `DSH_HOME`。
+`cutover.sh` 与 `rollback.sh` 不再写死版本：路径、期望版本与期望分支都来自环境变量，默认值即上面的目录布局。切换会校验两个检出、停止看门狗与服务器、交换 `CUTOVER_FROM` 与 `CUTOVER_TO`（先前的检出去到 `CUTOVER_ASIDE`）、重写 git 工作树链接、重启看门狗，并验证重启后的服务器：登录地址可访问、服务进程运行于线上路径、版本与分支符合期望。停服后的任何失败都会撤销交换并重启先前的检出。`rollback.sh` 执行反向交换，把被替换的检出留在 `CUTOVER_FAILED`。两者都支持 `--check`，只做预检，请先运行它。在新构建验证通过前请保留 aside 检出，因为在当前布局里它持有线上工作树的 `.git` 文件所指向的 git 目录。涉及的变量为 `DSH_TERMUX_BASE`、`CUTOVER_FROM`、`CUTOVER_TO`、`CUTOVER_ASIDE`、`CUTOVER_FAILED`、`CUTOVER_EXPECT_FROM`、`CUTOVER_EXPECT_TO`、`CUTOVER_BRANCH`、`CUTOVER_URL_WAIT_SECONDS`、`ROLLBACK_EXPECT`、`ROLLBACK_BRANCH` 与 `DSH_HOME`。
 
 ## 注意
 

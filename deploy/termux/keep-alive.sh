@@ -10,6 +10,9 @@ PORT=3080
 NOTIF_ID=88991
 HEALTH_EVERY=8        # 8 * 15s = 2 分钟做一次端口探测
 HEALTH_FATAL=3        # 连续 3 次探测失败才判定为卡死
+# 冷启动要经 tsx 编译整个应用，实测约 50-60s；窗口太短会让首发 URL 落不了盘，
+# latest.url 与通知就会停留在上一次启动的地址。
+URL_WAIT_SECONDS=${DSH_WATCHDOG_URL_WAIT_SECONDS:-180}
 LOG_OFFSET=0          # 本次 start 前的日志字节偏移；只接受之后的 URL 行
 
 mkdir -p "$BASE/.logs" "$RUN"
@@ -75,12 +78,12 @@ start() {
   CHILD=$!
   log "started pid=$CHILD"
   i=0
-  while [ "$i" -lt 25 ]; do
+  while [ "$i" -lt "$URL_WAIT_SECONDS" ]; do
     if publish_url; then break; fi
     sleep 1
     i=$((i + 1))
   done
-  [ "$i" -ge 25 ] && log "warn: no login URL after 25s (see $LOG)"
+  [ "$i" -ge "$URL_WAIT_SECONDS" ] && log "warn: no login URL after ${URL_WAIT_SECONDS}s (see $LOG)"
 }
 
 cleanup() {
