@@ -1,6 +1,6 @@
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1091,17 +1091,20 @@ describe('session-cwd routing (per-session workdir)', () => {
 
   it('a relative workdir is resolved against the session cwd', async () => {
     const ctx = await setup()
-    // session cwd /usr + relative 'bin' → /usr/bin
-    const result = await call(ctx, 'bash', { command: 'pwd', description: 'pwd', workdir: 'bin' }, agentInCwd('/usr'))
-    expect(text(result).trim()).toMatch(/\/usr\/bin$/)
+    const binDir = mkdtempSync(join(spillDir, 'session-cwd-bin-'))
+    mkdirSync(join(binDir, 'bin'))
+    const result = await call(ctx, 'bash', { command: 'pwd', description: 'pwd', workdir: 'bin' }, agentInCwd(binDir))
+    expect(text(result).trim()).toBe(join(binDir, 'bin'))
   })
 
   it('two sessions with different cwds each run bash in their own dir', async () => {
     const ctx = await setup()
-    const inUsr = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd('/usr'))
-    const inTmp = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd('/tmp'))
-    expect(text(inUsr).trim()).toMatch(/\/usr$/)
-    expect(text(inTmp).trim()).toMatch(/\/tmp$/)
+    const first = mkdtempSync(join(spillDir, 'session-cwd-first-'))
+    const second = mkdtempSync(join(spillDir, 'session-cwd-second-'))
+    const inFirst = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd(first))
+    const inSecond = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd(second))
+    expect(text(inFirst).trim()).toBe(first)
+    expect(text(inSecond).trim()).toBe(second)
   })
 
   it('falls back to the executor default when the agent has no session cwd', async () => {

@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import Sandbox from '@deepseek-ai/dsh-sandbox-local'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentCapabilities, SubagentProvider, SubagentResult, SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
@@ -20,6 +22,24 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 function waitFor(assertion: () => void, timeout = 60_000): Promise<void> {
   return vi.waitFor(assertion, { timeout, interval: 50 })
 }
+
+/**
+ * The late-publication case needs real read-only confinement for its workspace. Probe the
+ * sandbox independently: a host with no enforcing backend (Android ships neither bwrap nor
+ * Landlock) cannot construct that premise, so only that case is skipped. Other probe failures
+ * stay loud.
+ */
+const sandboxUsable = await (async () => {
+  const probe = new Context()
+  try {
+    await probe.plugin(Sandbox, {})
+    await probe.sandbox.confine([process.execPath, '--version'], { mode: 'read-only', workspaceRoot: process.cwd() })
+    return true
+  } catch (error: unknown) {
+    if (error instanceof SandboxUnavailableError) return false
+    throw error
+  } finally { await probe.fiber.dispose() }
+})()
 
 /** One controllable child run: the test (or auto mode) settles it. */
 interface ControlledRun {
@@ -886,7 +906,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
   })
 
   describe('process failure and pending child cleanup', () => {
-    it('waits for a late provider publication to release its file after cancellation', async () => {
+    it.skipIf(!sandboxUsable)('waits for a late provider publication to release its file after cancellation', async () => {
       const ctx = new Context()
       const { root } = await mountPtcRuntime(ctx, 'read-only')
       provideWorkingDirectoryFixture(ctx)

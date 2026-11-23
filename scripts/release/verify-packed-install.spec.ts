@@ -14,7 +14,9 @@ afterEach(() => {
 })
 
 // The release verifier invokes POSIX npm directly, not the Windows npm.cmd shim.
-describe.skipIf(process.platform === 'win32')('packed-install npm cache', () => {
+// Windows lacks the POSIX cache paths and npm install behavior this suite exercises; Termux/Android
+// cannot complete the packed native tarball install either. Linux and macOS build hosts run it.
+describe.skipIf(process.platform === 'win32' || process.platform === 'android')('packed-install npm cache', () => {
   // The verifier starts npm, lifecycle scripts, and the installed entry serially.
   it.each(['success', 'install failure', 'entry failure'] as const)(
     'owns cache writes and removes them after %s',

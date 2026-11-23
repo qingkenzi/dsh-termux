@@ -1,10 +1,13 @@
 import { chmod, mkdir, mkdtemp, readFile, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { resolvePrimaryRuntime } from '../packages/skill/tool-workspace-dependencies/src/index.ts'
 import { syncPythonRuntimeProduct } from './build-exe-for-python-sdk-resources.ts'
 
+// Building the Python SDK carrier resolves the locked Desktop primary runtime, which Android/termux
+// does not ship. Desktop build hosts run the full suite.
+describe.skipIf(process.platform === 'android')('Python SDK resource packaging', () => {
 it('copies standalone SDK products with their executable permissions', async () => {
   const root = await mkdtemp(join(tmpdir(), 'sdk-product-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
@@ -44,4 +47,5 @@ it.skipIf(process.platform === 'win32')('keeps SDK Python resources usable after
     expect(await readlink(join(destination, bin, alias))).toBe('python3.12')
     expect(await readFile(join(destination, bin, alias), 'utf8')).toBe('interpreter')
   }
+})
 })

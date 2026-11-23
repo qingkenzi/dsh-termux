@@ -182,7 +182,12 @@ function stubAttendedHost(): void {
 }
 
 describe('real Loader composition', () => {
-  it.each(['project-env', 'user-env'] as const)('keeps the native backend with materialized SSH markers from %s', async (source) => {
+  // The native backend serves only darwin/win32/linux; `resolveDirectoryPickerBackend`
+  // returns `browse` everywhere else. Skip native-selection cases on unsupported
+  // platforms; the browse-selection cases below still run on every host.
+  const nativeHost = process.platform === 'darwin' || process.platform === 'win32' || process.platform === 'linux'
+
+  it.skipIf(!nativeHost).each(['project-env', 'user-env'] as const)('keeps the native backend with materialized SSH markers from %s', async (source) => {
     stubAttendedHost()
     vi.stubEnv('SSH_CONNECTION', 'stale-connection')
     vi.stubEnv('SSH_TTY', '/dev/pts/stale')
@@ -198,7 +203,7 @@ describe('real Loader composition', () => {
   // The 60s budget covers this file's static imports (webserver plus both
   // backend node halves through tsx), which dominate on cold caches; the
   // Loader itself resolves nothing here — `loader.internal` is a module map.
-  it('mounts the native backend for an attended loopback host and unmounts it on disposal', { timeout: 60_000 }, async () => {
+  it.skipIf(!nativeHost)('mounts the native backend for an attended loopback host and unmounts it on disposal', { timeout: 60_000 }, async () => {
     stubAttendedHost()
     const { ctx, configPath } = await loadComposition('127.0.0.1')
 
@@ -287,7 +292,7 @@ describe('real Loader composition', () => {
     expect(context!.get('directoryPicker')).toBeUndefined()
   })
 
-  it('tolerates the mounted entry being removed by the tree before the chooser unloads', { timeout: 60_000 }, async () => {
+  it.skipIf(!nativeHost)('tolerates the mounted entry being removed by the tree before the chooser unloads', { timeout: 60_000 }, async () => {
     stubAttendedHost()
     const { ctx, configPath } = await loadComposition('127.0.0.1')
 

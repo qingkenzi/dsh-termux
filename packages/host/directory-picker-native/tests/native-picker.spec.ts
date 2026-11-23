@@ -230,9 +230,10 @@ describe('native directory picker', () => {
     expect((surfaced as { cause?: unknown }).cause).toBeInstanceOf(Error)
   })
 
-  it('uses the current process platform when no platform override is supplied', async () => {
-    // Deterministic on every host: the win32 tier answers from the dialog,
-    // the POSIX tiers from the command runner.
+  // Android has no native directory picker tier: production rejects on that
+  // platform, so this platform-dispatch assertion covers only the supported
+  // hosts. The unsupported-platform behavior has its own test below.
+  it.skipIf(process.platform === 'android')('uses the current process platform when no platform override is supplied', async () => {
     const run = vi.fn<DirectoryPickerRunner>(async () => ({ stdout: '/default/platform\n', stderr: '' }))
     const pickWin32Dialog = async (): Promise<string | null> => 'C:\\default\\platform'
     const expected = process.platform === 'win32' ? 'C:\\default\\platform' : '/default/platform'

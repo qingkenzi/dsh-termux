@@ -42,7 +42,8 @@ function restore(bytes: Uint8Array | undefined) {
 }
 
 describe('Node preparation of Preview Session data', () => {
-  it('packs current Sessions and migrated children beside every unchanged example file', () => {
+  // Reading and migrating the complete Preview fixture takes 6.5s on the Termux phone; budget the measured work.
+  it('packs current Sessions and migrated children beside every unchanged example file', { timeout: 20_000 }, () => {
     const fixture = previewFixtures(repoRoot)[0]!
     const original = packVfsOverlay(fixture.trees)
     const projected = packPreviewFixture(fixture.trees)

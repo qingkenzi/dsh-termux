@@ -4,10 +4,13 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { zipSync } from 'fflate'
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { downloadPrimaryRuntimeAsset, primaryRuntimePayloadDigest, prunePnpmForeignNativePackages, smokePrimaryRuntime, unpackPrimaryRuntimeWheel } from './prepare.ts'
 import lock from './lock.json' with { type: 'json' }
 
+// Android/termux installs the Python-only runtime carrier and cannot host the locked Desktop
+// packaging payload this file validates. Desktop build hosts run the full suite.
+describe.skipIf(process.platform === 'android')('primary runtime preparation', () => {
 it('covers every SDK wheel target with the shared interpreter lock', () => {
   const platforms = JSON.parse(readFileSync(new URL('../../python/sdk-runtime/platforms.json', import.meta.url), 'utf8')) as Record<string, unknown>
   expect(Object.keys(lock.targets).sort()).toEqual(Object.keys(platforms).map(target => target.replace('macos-', 'mac-')).sort())
@@ -184,4 +187,5 @@ it('names the bundled manifest whose platform field is invalid', async () => {
     await writeFile(join(root, 'dist', 'node_modules', 'invalid', 'package.json'), JSON.stringify({ os: 'darwin' }))
     expect(() => { prunePnpmForeignNativePackages(root, 'darwin', 'arm64') }).toThrow(/invalid.package\.json: npm platform constraints must be arrays of strings/u)
   } finally { await rm(root, { recursive: true, force: true }) }
+})
 })

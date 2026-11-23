@@ -29,19 +29,32 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 const INVALID_PAYLOAD = { name: 'WorkspaceDependencyError', code: 'WORKSPACE_DEPENDENCY_INVALID_PAYLOAD' }
 
+// Desktop primary runtimes target POSIX or Windows. Termux reports platform "android", which the
+// product rejects; emulate the closest supported desktop target for payload and filesystem checks.
+const HOST_PLATFORM = process.platform === 'android' ? 'linux' : process.platform
+const HOST_ARCH = process.platform === 'android' ? 'arm64' : process.arch
+const ORIGINAL_PLATFORM = process.platform
+const ORIGINAL_ARCH = process.arch
+
 const roots: string[] = []
 afterEach(async () => {
+  Object.defineProperty(process, 'platform', { value: ORIGINAL_PLATFORM, configurable: true })
+  Object.defineProperty(process, 'arch', { value: ORIGINAL_ARCH, configurable: true })
   vi.resetAllMocks()
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
 async function fixture() {
+  // Product code checks process.platform/arch for payload compatibility; tests run against a
+  // deliberately constructed desktop payload even on hosts reporting an unsupported platform.
+  Object.defineProperty(process, 'platform', { value: HOST_PLATFORM, configurable: true })
+  Object.defineProperty(process, 'arch', { value: HOST_ARCH, configurable: true })
   const directory = await mkdtemp(join(tmpdir(), 'dsh-primary-runtime-'))
   roots.push(directory)
   const source = join(directory, 'resources')
   const root = join(directory, 'home', 'dsh-runtimes', 'dsh-primary-runtime')
   const manifest: PrimaryRuntimeManifest = {
-    desktopVersion: '1.0.0', platform: process.platform, arch: process.arch,
+    desktopVersion: '1.0.0', platform: HOST_PLATFORM, arch: HOST_ARCH,
     python: '3.12.14', node: '24.21.0', pnpm: '11.7.0',
     pythonPackages: { 'python-docx': '1.2.0', 'python-pptx': '1.0.2', openpyxl: '3.1.5' },
   }

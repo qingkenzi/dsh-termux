@@ -34,6 +34,35 @@ import { gatherSweepRoots } from '../src/cleanup.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Whether OS temp roots satisfy the cleanup sweep's POSIX ancestor policy.
+ * `resolveRoot` refuses a root below a group-writable, non-sticky ancestor
+ * owned by another local user: on Android the system-owned `/data` chain fails
+ * that check, so every real filesystem sweep seeded from `tmpdir()` is
+ * correctly rejected before it touches a file. CI hosts with the usual sticky
+ * `/tmp` keep full coverage; only the affected filesystem cases skip here.
+ */
+const tempRootIsTrustworthy = (() => {
+  if (process.platform === 'win32' || process.geteuid === undefined) return true
+  const uid = process.geteuid()
+  try {
+    let child = tmpdir()
+    let childStats = statSync(child)
+    for (;;) {
+      const parent = dirname(child)
+      if (parent === child) return true
+      const stats = statSync(parent)
+      const writableByOthers = (stats.mode & 0o022) !== 0
+      const sticky = (stats.mode & 0o1000) !== 0
+      if (writableByOthers && (!sticky || childStats.uid !== uid)) return false
+      child = parent
+      childStats = stats
+    }
+  } catch {
+    return false
+  }
+})()
+
 let root: string
 
 beforeEach(() => {
@@ -255,7 +284,7 @@ function active(path: string): SweepRoot {
 }
 
 describe('startup cleanup sweep', () => {
-  it('deletes files older than the cutoff and keeps fresh ones', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('deletes files older than the cutoff and keeps fresh ones', async () => {
     const dir = sessionDir(root, 'sess-1')
     mkdirSync(dir, { recursive: true })
     const old = join(dir, 'old.txt'); writeAged(old, 'x', 40)
@@ -286,7 +315,7 @@ describe('startup cleanup sweep', () => {
     expect(existsSync(old)).toBe(true)
   })
 
-  it('prunes empty active session directories after deleting expired files', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('prunes empty active session directories after deleting expired files', async () => {
     const emptied = sessionDir(root, 'emptied')
     const kept = sessionDir(root, 'kept')
     mkdirSync(emptied, { recursive: true })
@@ -328,7 +357,7 @@ describe('startup cleanup sweep', () => {
     expect(existsSync(link)).toBe(true)
   })
 
-  it('skips a POSIX session directory writable by another local user', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('skips a POSIX session directory writable by another local user', async () => {
     if (process.platform === 'win32') return
     const dir = sessionDir(root, 'sess-1')
     mkdirSync(dir, { recursive: true })
@@ -340,7 +369,7 @@ describe('startup cleanup sweep', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipped unsafe session directory'))
   })
 
-  it('sweeps only exact session-<12hex> names, not lookalikes', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('sweeps only exact session-<12hex> names, not lookalikes', async () => {
     // `session-backup` and `session-<11hex>` match the old startsWith check but
     // are NOT backend-generated names; their old files must survive.
     const backup = join(root, 'session-backup'); mkdirSync(backup, { recursive: true })
@@ -356,7 +385,7 @@ describe('startup cleanup sweep', () => {
     expect(existsSync(realOld)).toBe(false)
   })
 
-  it('prunes an emptied DISCOVERED default root but never the active root', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('prunes an emptied DISCOVERED default root but never the active root', async () => {
     // A discovered prior-default root (pruneWhenEmpty) whose only session dir is
     // emptied should have its outer directory removed too; the active root, even
     // when fully emptied, must survive (the live process still writes into it).
@@ -375,7 +404,7 @@ describe('startup cleanup sweep', () => {
     }
   })
 
-  it('de-duplicates repeated roots and lets non-prunable status win', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('de-duplicates repeated roots and lets non-prunable status win', async () => {
     const dir = sessionDir(root, 'sess-1')
     mkdirSync(dir, { recursive: true })
     writeAged(join(dir, 'old.txt'), 'x', 40)
@@ -405,7 +434,7 @@ describe('startup cleanup sweep', () => {
     }
   })
 
-  it('covers the configured root AND discovered default roots (real gatherRoots)', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('covers the configured root AND discovered default roots (real gatherRoots)', async () => {
     // A prior default root under an isolated fake tmpdir + the configured root.
     // This test drives the REAL gatherRoots/discoverDefaultRoots path by seaming
     // only the tmpdir scan base, not gatherRoots itself.
@@ -434,7 +463,7 @@ describe('startup cleanup sweep', () => {
     }
   })
 
-  it('de-dups when the active root is itself a discovered default (real gatherRoots)', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('de-dups when the active root is itself a discovered default (real gatherRoots)', async () => {
     // The configured root lives directly under the seamed base and matches the
     // default shape, so discovery finds it AND it is the active root — the sweep
     // must run once, not choke on the duplicate, and must NOT prune the active
@@ -459,7 +488,7 @@ describe('startup cleanup sweep', () => {
     }
   })
 
-  it('de-dups a configured symlink alias by filesystem identity and keeps its target writable', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('de-dups a configured symlink alias by filesystem identity and keeps its target writable', async () => {
     const fakeTmp = mkdtempSync(join(tmpdir(), 'dsh-faketmp-'))
     const activeDefault = mkdtempSync(join(fakeTmp, DEFAULT_ROOT_PREFIX))
     const alias = join(root, 'configured-root')
@@ -500,7 +529,7 @@ describe('startup cleanup sweep', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipped unsafe root'))
   })
 
-  it('does not block activation but is awaited on disposal (quiescence)', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('does not block activation but is awaited on disposal (quiescence)', async () => {
     const dir = sessionDir(root, 'sess-1')
     mkdirSync(dir, { recursive: true })
     const old = join(dir, 'old.txt'); writeAged(old, 'x', 40)
@@ -549,7 +578,7 @@ describe('startup cleanup sweep', () => {
 })
 
 describe('discoverDefaultRoots', () => {
-  it('returns only real dsh-spill-* directories, excluding symlinks and non-matches', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('returns only real dsh-spill-* directories, excluding symlinks and non-matches', async () => {
     const base = mkdtempSync(join(tmpdir(), 'dsh-disc-'))
     try {
       // A real backend-shaped root (dsh-spill-<6>) via mkdtemp — the only match.

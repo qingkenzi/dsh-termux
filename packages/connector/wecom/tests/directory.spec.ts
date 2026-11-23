@@ -10,9 +10,20 @@ const fs = vi.hoisted(() => ({ accessSync: vi.fn() }))
 vi.mock('node:fs', async importOriginal => ({ ...await importOriginal<typeof import('node:fs')>(), accessSync: fs.accessSync }))
 
 const PLATFORM_PACKAGE = `@wecom/cli-${process.platform}-${process.arch}`
-const PACKAGE_BIN = join(
-  dirname(createRequire(import.meta.resolve('@wecom/cli/package.json')).resolve(`${PLATFORM_PACKAGE}/package.json`)), 'bin',
-)
+const require = createRequire(import.meta.resolve('@wecom/cli/package.json'))
+let platformPackageMetadataPath: string | undefined
+try {
+  platformPackageMetadataPath = require.resolve(`${PLATFORM_PACKAGE}/package.json`)
+} catch (error) {
+  // No Android/arm64 payload exists; let the naming and explicit-binDir cases run.
+  void error
+}
+const PACKAGE_BIN = platformPackageMetadataPath === undefined
+  ? '/fixture/wecom-platform-bin'
+  : join(dirname(platformPackageMetadataPath), 'bin')
+
+/** The default executable path depends on the npm platform payload. */
+const itWithPlatformCli = it.skipIf(platformPackageMetadataPath === undefined)
 
 beforeEach(() => {
   fs.accessSync.mockReset()
@@ -23,7 +34,7 @@ it('names the executable file with the .exe extension on Windows only', () => {
   expect(executableFileName('darwin')).toBe('wecom-cli')
 })
 
-it('defaults to the executable in the bin directory of the platform package that @wecom/cli installs', () => {
+itWithPlatformCli('defaults to the executable in the bin directory of the platform package that @wecom/cli installs', () => {
   expect(resolveCliExecutable(undefined)).toBe(join(PACKAGE_BIN, FILE))
   expect(fs.accessSync).toHaveBeenCalledWith(join(PACKAGE_BIN, FILE), constants.X_OK)
 })

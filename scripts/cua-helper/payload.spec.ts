@@ -61,7 +61,8 @@ it.skipIf(process.platform === 'win32')('verifies staged and repacked provider b
   await expect(verifyCuaHelperTarball(tarball, identity)).rejects.toThrow('digest')
 })
 
-it.skipIf(process.platform === 'win32')('keeps npm tarball bytes when reusing a helper and changes them after re-signing', async ({ signal }) => {
+// npm pack and tar repacking take over 5s on the Termux phone; budget the measured subprocess work.
+it.skipIf(process.platform === 'win32')('keeps npm tarball bytes when reusing a helper and changes them after re-signing', { timeout: 20_000 }, async ({ signal }) => {
   const f = fixture()
   const require = createRequire(import.meta.url)
   const pnpm = join(dirname(require.resolve('pnpm')), 'bin/pnpm.cjs')

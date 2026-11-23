@@ -6,7 +6,8 @@ import { expect, it } from 'vitest'
 import { compileBlocks, extractBlocks } from './doc-typecheck.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 
-it('checks Client examples against their JSX project and rejects invalid props without mixing Host types', () => {
+// Four child tsc builds take 10-11s on the Termux phone; budget the measured subprocess work.
+it('checks Client examples against their JSX project and rejects invalid props without mixing Host types', { timeout: 40_000 }, () => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-doc-faces-'))
   try {
     for (const face of ['host', 'client'] as const) {

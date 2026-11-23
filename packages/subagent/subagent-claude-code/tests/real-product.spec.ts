@@ -95,6 +95,11 @@ const claudeBin = join(
   platformRoot,
   process.platform === 'win32' ? 'claude.exe' : 'claude',
 )
+// The SDK's real CLI lives in an npm platform payload. The SDK declares no
+// Android payload, so skip only the cases that execute that product binary;
+// the fixture server and mocked protocol tests remain available.
+const realClaudeAvailable = sdkPackage.optionalDependencies[platformPackage] !== undefined && existsSync(claudeBin)
+const describeWithRealClaude = describe.skipIf(!realClaudeAvailable)
 const settingsModel = 'dsh-settings-inheritance-marker'
 const fakeKey = 'dsh-fake-anthropic-key'
 
@@ -289,7 +294,7 @@ function startRequest(
   })
 }
 
-describe('real Claude Agent SDK 0.3.263 and its distributed Claude Code 2.1.263 fixture', {
+describeWithRealClaude('real Claude Agent SDK 0.3.263 and its distributed Claude Code 2.1.263 fixture', {
   timeout: 60_000,
 }, () => {
   it('inherits host settings and sends the exact task and fake key to local Messages', async () => {

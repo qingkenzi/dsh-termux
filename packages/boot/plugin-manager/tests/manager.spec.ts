@@ -292,8 +292,9 @@ it('disposal waits for an active GitHub check to stop', async () => {
   expect(pnpm).not.toHaveBeenCalled()
 })
 
+// Real Git plus two pnpm child invocations take 5.0-5.1s on the Termux phone; budget the measured subprocess work.
 it.each(['github:acme/connected', 'https://github.com/acme/connected.git', 'git+ssh://git@github.com/acme/connected.git'])(
-  'installs %s through real Git and pnpm with private repository SSH fallback', async (spec) => {
+  'installs %s through real Git and pnpm with private repository SSH fallback', { timeout: 20_000 }, async (spec) => {
     const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
     const env = { GIT_CONFIG_GLOBAL: '', GIT_CONFIG_NOSYSTEM: '1' }
     const { manager, dir, connection } = await fixture('startup', false, undefined, {}, {
@@ -836,7 +837,8 @@ it('retains approved policy and reports it as changed when the registry fails be
   expect(parse(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8'))).toEqual({ allowBuilds: { native: true } })
 })
 
-it('runs a real pnpm dependency script only after approval and retry', async () => {
+// Two real pnpm children on the Termux phone exceed the default 5s; budget the measured work.
+it('runs a real pnpm dependency script only after approval and retry', { timeout: 20_000 }, async () => {
   const { manager, dir, profile } = await fixture('startup')
   const addon = join(profile.cwd, 'addon')
   mkdirSync(addon)
@@ -860,7 +862,8 @@ it('runs a real pnpm dependency script only after approval and retry', async () 
   expect(readFileSync(built, 'utf8')).toBe('built')
 })
 
-it('offers approval for a real git-hosted package pnpm refused to prepare', async () => {
+// A blocked install and an approved retry each run a real pnpm child (5.1s here); budget both.
+it('offers approval for a real git-hosted package pnpm refused to prepare', { timeout: 20_000 }, async () => {
   // Both the fixture's Git and the manager's pnpm child read only this empty configuration.
   const env = { GIT_CONFIG_GLOBAL: '', GIT_CONFIG_NOSYSTEM: '1' }
   const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
@@ -1511,7 +1514,8 @@ it('applies watched configuration while pnpm installation is still running', asy
   expect(ctx.get('managedProbe')).toBeUndefined()
 })
 
-it('installs and removes with the bundled pnpm when PATH contains no pnpm', async () => {
+// Real pnpm install and removal exceed the default 5s on the Termux phone.
+it('installs and removes with the bundled pnpm when PATH contains no pnpm', { timeout: 20_000 }, async () => {
   const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
   const { manager, dir } = await fixture('startup', false, undefined, { pnpmCommand: 'must-not-be-used' }, {
     command: process.execPath, args: ['--expose-internals', pnpm], env: { PATH: '', ELECTRON_RUN_AS_NODE: '1' },

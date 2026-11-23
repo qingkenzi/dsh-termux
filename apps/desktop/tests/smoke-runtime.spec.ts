@@ -12,6 +12,10 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { assertOfficeSkillsLoadable, smokeDesktopRuntime } from '../scripts/smoke-runtime.ts'
 import { runtimeFixture } from './runtime-fixture.ts'
 
+// Termux/Android installs Python-only primary runtime metadata and does not ship the packaged
+// Desktop runtime or Office skills this suite probes. Desktop build hosts run the full suite.
+const packagedDesktopRuntime = process.platform !== 'android'
+
 const boundary = vi.hoisted(() => ({
   start: vi.fn<() => Promise<{ url: string; injections: []; authenticationCookie: string }>>(),
   stop: vi.fn(async () => {}),
@@ -39,7 +43,7 @@ const loadedSkills = [
   { name: 'office', bytes: 1317 },
 ]
 
-it('uses the private readiness Cookie for every packaged runtime HTTP probe', async () => {
+it.skipIf(!packagedDesktopRuntime)('uses the private readiness Cookie for every packaged runtime HTTP probe', async () => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-smoke-auth-'))
   const ctx = new Context()
   onTestFinished(async () => {
@@ -116,7 +120,7 @@ it('uses the private readiness Cookie for every packaged runtime HTTP probe', as
   expect(existsSync(smokeHome!)).toBe(false)
 })
 
-describe('assertOfficeSkillsLoadable', () => {
+describe.skipIf(!packagedDesktopRuntime)('assertOfficeSkillsLoadable', () => {
   it('accepts the office skill with a nonempty body and no path', () => {
     expect(() => { assertOfficeSkillsLoadable(loadedSkills) }).not.toThrow()
   })

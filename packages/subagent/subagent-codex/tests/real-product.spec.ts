@@ -44,6 +44,17 @@ const codexPackage = JSON.parse(readFileSync(
 )) as { version: string; bin: { codex: string } }
 const codexEntry = resolve(dirname(codexPackageJson), codexPackage.bin.codex)
 const codexPackageRoot = dirname(dirname(codexEntry))
+// Codex maps Android to a Linux target and loads a native executable from
+// the matching npm platform payload. Probe the wrapper through the same
+// target mapping; only app-server cases need that payload.
+const realCodex = execFileAsync(process.execPath, [codexEntry, '--version'], {
+  env: { ...process.env, PATH: `${codexBinDir}${delimiter}${process.env.PATH ?? ''}` },
+}).then(() => true, (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  if (/Missing optional dependency @openai\/codex-[\w-]+/.test(message)) return false
+  throw error
+})
+const itWithRealCodex = it.skipIf(!await realCodex)
 
 const roots: string[] = []
 const fixtures: ResponsesFixture[] = []
@@ -212,7 +223,7 @@ function responseInputTexts(body: Record<string, unknown>): string[] {
 }
 
 describe('real @openai/codex 0.153.4 product', () => {
-  it('starts approve-for-me through the real app-server and returns exact text', async () => {
+  itWithRealCodex('starts approve-for-me through the real app-server and returns exact text', async () => {
     const sentinel = 'REAL_CODEX_SENTINEL_0_149_1'
     const task = 'Return the fixture sentinel exactly.'
     const { harness, fixture } = await realHarness([
@@ -291,7 +302,7 @@ describe('real @openai/codex 0.153.4 product', () => {
     })).rejects.toThrow(/Missing optional dependency @openai\/codex-[a-z0-9-]+/)
   }, 30_000)
 
-  it('runs two named instances concurrently and unloads one without revoking its run', async () => {
+  itWithRealCodex('runs two named instances concurrently and unloads one without revoking its run', async () => {
     const safeInstance = await realInstanceFixture([{ kind: 'hold' }])
     const bypassInstance = await realInstanceFixture([{
       kind: 'complete',
@@ -368,7 +379,7 @@ describe('real @openai/codex 0.153.4 product', () => {
     expect(ctx.subagents.getProvider('codex-bypass')).toBeUndefined()
   }, 60_000)
 
-  it('overrides on-request with never and reports a denied command safely', async () => {
+  itWithRealCodex('overrides on-request with never and reports a denied command safely', async () => {
     const command = process.platform === 'win32'
       ? 'cmd /c type nul > approval-side-effect'
       : 'touch approval-side-effect'
@@ -431,7 +442,7 @@ describe('real @openai/codex 0.153.4 product', () => {
     await expectQuiescent(harness.handles)
   }, 60_000)
 
-  it('reports a real service failure and an early app-server exit safely', async () => {
+  itWithRealCodex('reports a real service failure and an early app-server exit safely', async () => {
     {
       const { harness } = await realHarness([{
         kind: 'error',
@@ -474,7 +485,7 @@ describe('real @openai/codex 0.153.4 product', () => {
     }
   }, 60_000)
 
-  it('executes an explicitly selected dangerous bypass write in the isolated workspace', async () => {
+  itWithRealCodex('executes an explicitly selected dangerous bypass write in the isolated workspace', async () => {
     const sideEffect = 'bypass-side-effect'
     const { harness, fixture } = await realHarness((workspace): readonly ResponsesBehavior[] => {
       const target = join(workspace, sideEffect)
@@ -516,7 +527,7 @@ describe('real @openai/codex 0.153.4 product', () => {
     await expectQuiescent(harness.handles)
   }, 60_000)
 
-  it('settles cancellation locally and leaves the real app-server tree quiescent', async () => {
+  itWithRealCodex('settles cancellation locally and leaves the real app-server tree quiescent', async () => {
     const { harness, fixture } = await realHarness([{ kind: 'hold' }])
     const controller = new AbortController()
     const run = await startExternalActivation(harness.ctx, 'codex', {

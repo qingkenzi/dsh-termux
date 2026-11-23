@@ -3,9 +3,12 @@ import { once } from 'node:events'
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cachedMacOSSignature, type MacOSCachedSigner } from '../scripts/macos-signature-cache.ts'
 
+// Termux/Android has no macOS code-signing toolchain, and its restrictive umask
+// drops the executable bits this fixture expects. Desktop build hosts run the full suite.
+describe.skipIf(process.platform === 'android')('macOS signature cache', () => {
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 function fixture(): { root: string; file: string; cache: string; signer: MacOSCachedSigner } {
@@ -136,4 +139,5 @@ it('rejects candidate mutation during verification', async () => {
   await expect(cachedMacOSSignature(file, cache, signer)).rejects.toThrow('candidate changed')
   expect(readFileSync(file, 'utf8')).toBe('original')
   expect(readdirSync(cache)).toEqual([])
+})
 })

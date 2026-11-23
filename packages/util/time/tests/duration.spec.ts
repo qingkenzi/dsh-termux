@@ -83,7 +83,8 @@ describe('Duration decompose', () => {
     expect(Object.isFrozen(Duration.fromMilliseconds(3_661_999).decompose())).toBe(true)
   })
 
-  it('keeps the whole-part identity across the accepted range', () => {
+  // 122,000 decompose round-trips take 7.4s on the Termux phone (CI is faster); budget the measured CPU work.
+  it('keeps the whole-part identity across the accepted range', { timeout: 20_000 }, () => {
     for (let span = 0; span <= 120_000; span += 1) {
       expect(partSum(Duration.fromMilliseconds(span).decompose())).toBe(span)
     }

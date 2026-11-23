@@ -6,7 +6,9 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { smokePrimaryRuntime } from '../scripts/prepare-primary-runtime.ts'
 
-it('rejects a Python-only native Desktop payload before executing interpreters', async () => {
+// Termux/Android carriers use Python-only primary runtime metadata, so the Desktop packaged-node
+// precondition cannot be represented on this host. Desktop build hosts run the case.
+it.skipIf(process.platform === 'android')('rejects a Python-only native Desktop payload before executing interpreters', async () => {
   const root = await mkdtemp(join(tmpdir(), 'desktop-python-only-'))
   try {
     await writeFile(join(root, 'runtime.json'), JSON.stringify({

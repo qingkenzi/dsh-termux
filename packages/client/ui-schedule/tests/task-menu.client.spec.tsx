@@ -7,12 +7,38 @@
 import * as uiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { TaskMenu } from '../src/client/TaskMenu.tsx'
 import type { TaskMenuEntry } from '../src/client/TaskMenu.tsx'
 import taskMenuCss from '../src/client/TaskMenu.module.css'
 
 afterEach(cleanup)
+
+// jsdom's default user agent contains "android", which suppresses the desktop
+// autofocus this spec covers; pin a desktop device for the whole file.
+const DESKTOP_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+const userAgentDescriptor = () => {
+  let owner: object | null = navigator
+  while (owner) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, 'userAgent')
+    if (descriptor) return { owner, descriptor }
+    owner = Object.getPrototypeOf(owner)
+  }
+  throw new Error('navigator.userAgent descriptor not found')
+}
+const installDesktopDevice = () => {
+  Object.defineProperty(navigator, 'userAgent', { configurable: true, value: DESKTOP_USER_AGENT })
+  const spy = vi.spyOn(uiPrimitives, 'isMobileDevice').mockReturnValue(false)
+  return () => spy.mockRestore()
+}
+let restoreDesktopDevice: (() => void) | undefined
+beforeAll(() => { restoreDesktopDevice = installDesktopDevice() })
+afterAll(() => {
+  restoreDesktopDevice?.()
+  const { owner, descriptor } = userAgentDescriptor()
+  if (owner === navigator) Reflect.deleteProperty(navigator, 'userAgent')
+  else Object.defineProperty(owner, 'userAgent', descriptor)
+})
 
 /** Rows every walking case uses: one enabled row and one disabled row. */
 const ITEMS: readonly TaskMenuEntry[] = [

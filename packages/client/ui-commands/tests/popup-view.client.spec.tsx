@@ -11,7 +11,7 @@
  * clamps to the space above the composer.
  */
 import * as uiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { SelectOption } from '../src/client/contract.ts'
 import type { PopupSpec, TokenSegment } from '../src/client/popup.ts'
@@ -23,6 +23,32 @@ import { zh } from '../src/client/locales.ts'
 
 // The framework-injected t seat, stubbed over the zh dictionaries (the default locale).
 const t: Parameters<typeof PopupSelectView>[0]['t'] = makeTranslate(zh, commonZh)
+
+// jsdom's default user agent contains "android", which suppresses the desktop
+// autofocus this spec covers; pin a desktop device for the whole file.
+const DESKTOP_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+const userAgentDescriptor = () => {
+  let owner: object | null = navigator
+  while (owner) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, 'userAgent')
+    if (descriptor) return { owner, descriptor }
+    owner = Object.getPrototypeOf(owner)
+  }
+  throw new Error('navigator.userAgent descriptor not found')
+}
+const installDesktopDevice = () => {
+  Object.defineProperty(navigator, 'userAgent', { configurable: true, value: DESKTOP_USER_AGENT })
+  const spy = vi.spyOn(uiPrimitives, 'isMobileDevice').mockReturnValue(false)
+  return () => spy.mockRestore()
+}
+let restoreDesktopDevice: (() => void) | undefined
+beforeAll(() => { restoreDesktopDevice = installDesktopDevice() })
+afterAll(() => {
+  restoreDesktopDevice?.()
+  const { owner, descriptor } = userAgentDescriptor()
+  if (owner === navigator) Reflect.deleteProperty(navigator, 'userAgent')
+  else Object.defineProperty(owner, 'userAgent', descriptor)
+})
 
 // jsdom has no scrollIntoView; the view calls it on the highlighted row.
 const scrollIntoView = vi.fn()

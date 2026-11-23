@@ -4,9 +4,9 @@
  */
 
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -15,6 +15,35 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import LocalSpillStore, { sessionDir } from '@deepseek-ai/dsh-spill-local'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Whether OS temp roots satisfy the cleanup sweep's POSIX ancestor policy.
+ * `resolveRoot` refuses a root below a group-writable, non-sticky ancestor
+ * owned by another local user: on Android the system-owned `/data` chain fails
+ * that check, so the real Loader's startup sweep is correctly rejected before
+ * it touches a fixture seeded from `tmpdir()`. CI hosts with the usual sticky
+ * `/tmp` keep full coverage.
+ */
+const tempRootIsTrustworthy = (() => {
+  if (process.platform === 'win32' || process.geteuid === undefined) return true
+  const uid = process.geteuid()
+  try {
+    let child = tmpdir()
+    let childStats = statSync(child)
+    for (;;) {
+      const parent = dirname(child)
+      if (parent === child) return true
+      const stats = statSync(parent)
+      const writableByOthers = (stats.mode & 0o022) !== 0
+      const sticky = (stats.mode & 0o1000) !== 0
+      if (writableByOthers && (!sticky || childStats.uid !== uid)) return false
+      child = parent
+      childStats = stats
+    }
+  } catch {
+    return false
+  }
+})()
 
 let root: string | undefined
 let context: Context | undefined
@@ -27,7 +56,7 @@ afterEach(async () => {
 })
 
 describe('spill-local real Loader composition through cordis.yml', () => {
-  it('loads cleanupPeriodDays and prunes only expired session contents', async () => {
+  it.skipIf(!tempRootIsTrustworthy)('loads cleanupPeriodDays and prunes only expired session contents', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-spill-loader-'))
     const oldDir = sessionDir(root, 'old-session')
     const freshDir = sessionDir(root, 'fresh-session')

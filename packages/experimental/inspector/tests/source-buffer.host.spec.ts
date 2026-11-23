@@ -100,7 +100,8 @@ describe('Inspector source buffer', () => {
       .toThrow('maxSourceFrameBytes cannot carry a Cordis tree snapshot')
   })
 
-  it('retains every pruned Cordis snapshot whose collector uses the state budget', async (test) => {
+  // 200 plugin registrations and 256 serialized tree snapshots take ~6s on the Termux phone.
+  it('retains every pruned Cordis snapshot whose collector uses the state budget', { timeout: 20_000 }, async (test) => {
     const root = new Context()
     test.onTestFinished(async () => { await root.fiber.dispose() })
     for (let index = 0; index < 200; index++) await root.plugin({ name: `plugin-${String(index)}`, apply() {} })
