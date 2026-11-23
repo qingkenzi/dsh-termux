@@ -19,6 +19,7 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
+import { constants, createZstdCompress } from 'node:zlib'
 import {
   JsonlGenerationSourceChangedError,
   JsonlGenerationTargetConflictError,
@@ -43,11 +44,62 @@ import type {
 const roots: string[] = []
 
 /**
+ * Create one probe file and link a second name to it in a private directory.
+ * @returns `true` when the host accepts link(2) for that probe.
+ */
+async function probeHardLinkSupport(): Promise<boolean> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-jsonl-link-probe-'))
+  try {
+    const target = join(root, 'target')
+    await writeFile(target, '')
+    await link(target, join(root, 'alias'))
+    return true
+  } catch (error: unknown) {
+    // A refused link(2) is the probe's negative answer: EACCES in Android app
+    // data under SELinux, EPERM on some mounts. Any other fault is a defect in
+    // the fixture host and stays loud.
+    if (!(error instanceof Error && 'code' in error)) throw error
+    return false
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Compress one probe input through both Zstandard writers the migration uses:
+ * the one-shot `compressZstdFrame` for the header and `createZstdCompress` with
+ * the same checksum parameter for the event stream.
+ * @returns `true` when both writers emit the same bytes for that input.
+ */
+async function probeZstdWriterAgreement(): Promise<boolean> {
+  const input = Buffer.from('{"type":"session","version":0}\n{"type":"turn/start","seq":0}\n')
+  const streamed = await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    const stream = createZstdCompress({ params: { [constants.ZSTD_c_checksumFlag]: 1 } })
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+    stream.on('error', reject)
+    stream.on('end', () => resolve(Buffer.concat(chunks)))
+    stream.end(input)
+  })
+  return (await compressZstdFrame(input)).equals(streamed)
+}
+
+/**
  * Whether this host can create a hard link at all. Android app data denies
  * link(2) with EACCES under SELinux, so cases whose precondition is one shared
  * inode are skipped there; the port still publishes through copyFile.
  */
-const hardLinkSupported = process.platform !== 'android'
+const hardLinkSupported = await probeHardLinkSupport()
+
+/**
+ * Whether this runtime's one-shot and streaming Zstandard writers emit identical
+ * frames for the same input. One-shot compression knows the whole input, so its
+ * frame header carries the content size in a single-segment frame; streaming
+ * compression knows no total size and writes a window descriptor instead. Both
+ * decode to the same plaintext, so only byte-for-byte comparisons between the
+ * two writers' output depend on this agreement.
+ */
+const zstdWritersAgree = await probeZstdWriterAgreement()
 
 async function tempRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-jsonl-generation-'))
@@ -1212,9 +1264,19 @@ describe('JSONL immutable generation publication', () => {
     expect((await readdir(root)).sort()).toEqual(['session.jsonl', `session.v${SESSION_FORMAT_VERSION}.jsonl`])
   })
 
-  it.each(['none', 'zstd'] as const)(
+  // This case compares the winner's raw bytes against a fixture both frames of
+  // which the one-shot writer produced, while the migration streams its event
+  // frame. Where the two writers disagree on the frame header (see
+  // `zstdWritersAgree`) the comparison describes the fixture, not the migration,
+  // so the zstd case is skipped there; the decode-based zstd cases above still
+  // cover the streaming writer, and the none case always runs.
+  it.for(['none', 'zstd'] as const)(
     'accepts a valid append on a %s target created by another migration',
-    async (compression) => {
+    async (compression, context) => {
+      context.skip(
+        compression === 'zstd' && !zstdWritersAgree,
+        'one-shot and streaming Zstandard writers emit different frame headers on this runtime',
+      )
       const root = await tempRoot()
       const request = options(root, compression)
       const source = compression === 'zstd'
@@ -1238,9 +1300,10 @@ describe('JSONL immutable generation publication', () => {
     },
   )
 
-  // Android app data denies link(2) with EACCES, so this inode-identity
-  // precondition cannot be created there; the regular-target case above still
-  // covers the identical-bytes acceptance path.
+  // The link(2) probe found no usable shared inode on this host, so this
+  // inode-identity precondition cannot be created here (Android app data denies
+  // link(2) with EACCES); the regular-target case above still covers the
+  // identical-bytes acceptance path.
   it.skipIf(!hardLinkSupported)('accepts an identical regular hardlink target', async () => {
     const root = await tempRoot()
     const request = options(root)

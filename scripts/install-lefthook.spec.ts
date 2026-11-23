@@ -39,6 +39,35 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0)) removeFixtureSafely(fixture)
 })
 
+/**
+ * Create one probe file and link a second name to it in a private directory.
+ * @returns `true` when the host accepts link(2) for that probe.
+ */
+function canCreateHardLink(): boolean {
+  const probe = mkdtempSync(join(tmpdir(), 'dsh-lefthook-link-probe-'))
+  const target = join(probe, 'target')
+  writeFileSync(target, '')
+  try {
+    linkSync(target, join(probe, 'alias'))
+    return true
+  } catch (error: unknown) {
+    // A refused link(2) is the probe's negative answer: EACCES in Android app
+    // data under SELinux, EPERM on some mounts. Any other fault is a defect in
+    // the fixture host and stays loud.
+    if (!(error instanceof Error && 'code' in error)) throw error
+    return false
+  } finally {
+    rmSync(probe, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Whether this host can create a hard link. Android app data denies link(2) with
+ * EACCES under SELinux, so fixtures that need one inode with two names cannot be
+ * built there; every other installation case still runs.
+ */
+const hardLinkSupported = canCreateHardLink()
+
 function commandResult(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): CommandResult {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8', env })
   return { status: result.status, stderr: result.stderr, stdout: result.stdout }
@@ -468,46 +497,57 @@ syncBuiltinESMExports()
     )
   })
 
-  it.skipIf(process.platform === 'win32')('refuses a multiply linked ownership marker before relocation rewrites it', async () => {
-    const fixture = createFixture()
-    const oldRoot = fixture.main
-    const first = await runInstaller(fixture, oldRoot)
-    expect(first.status, first.stderr).toBe(0)
-    const oldHooks = hooksPath(fixture, oldRoot)
-    const markerName = '.dsh-lefthook-owned'
-    const externalMarker = join(fixture.container, 'external-marker')
-    linkSync(join(oldHooks, markerName), externalMarker)
-    const externalContent = readFileSync(externalMarker, 'utf8')
-    const movedRoot = join(fixture.container, 'moved-main')
-    renameSync(oldRoot, movedRoot)
-
-    const result = await runInstaller(fixture, movedRoot)
-
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain('invalid ownership marker')
-    expect(readFileSync(externalMarker, 'utf8')).toBe(externalContent)
-  })
-
-  it.skipIf(process.platform === 'win32')('refuses aliased generated hooks before Lefthook can overwrite their targets', async () => {
-    for (const kind of ['symlink', 'hardlink'] as const) {
+  // The fixture needs one inode with two names; the link(2) probe reports whether
+  // this host grants it. win32 keeps its earlier skip because the same case relies
+  // on POSIX directory-rename semantics.
+  it.skipIf(process.platform === 'win32' || !hardLinkSupported)(
+    'refuses a multiply linked ownership marker before relocation rewrites it',
+    async () => {
       const fixture = createFixture()
-      const first = await runInstaller(fixture, fixture.main)
+      const oldRoot = fixture.main
+      const first = await runInstaller(fixture, oldRoot)
       expect(first.status, first.stderr).toBe(0)
-      const hook = join(hooksPath(fixture, fixture.main), 'pre-commit')
-      const externalHook = join(fixture.container, `${kind}-external-hook`)
-      rmSync(hook)
-      write(externalHook, `external ${kind} target\n`)
-      if (kind === 'symlink') symlinkSync(externalHook, hook)
-      else linkSync(externalHook, hook)
-      const externalContent = readFileSync(externalHook, 'utf8')
+      const oldHooks = hooksPath(fixture, oldRoot)
+      const markerName = '.dsh-lefthook-owned'
+      const externalMarker = join(fixture.container, 'external-marker')
+      linkSync(join(oldHooks, markerName), externalMarker)
+      const externalContent = readFileSync(externalMarker, 'utf8')
+      const movedRoot = join(fixture.container, 'moved-main')
+      renameSync(oldRoot, movedRoot)
 
-      const result = await runInstaller(fixture, fixture.main)
+      const result = await runInstaller(fixture, movedRoot)
 
       expect(result.status).toBe(1)
-      expect(result.stderr).toContain('non-regular or multiply linked hook entry')
-      expect(readFileSync(externalHook, 'utf8')).toBe(externalContent)
-    }
-  })
+      expect(result.stderr).toContain('invalid ownership marker')
+      expect(readFileSync(externalMarker, 'utf8')).toBe(externalContent)
+    },
+  )
+
+  // The hardlink alias needs one inode with two names from the link(2) probe; the
+  // symlink alias needs the POSIX symlinks that keep this case off win32.
+  it.skipIf(process.platform === 'win32' || !hardLinkSupported)(
+    'refuses aliased generated hooks before Lefthook can overwrite their targets',
+    async () => {
+      for (const kind of ['symlink', 'hardlink'] as const) {
+        const fixture = createFixture()
+        const first = await runInstaller(fixture, fixture.main)
+        expect(first.status, first.stderr).toBe(0)
+        const hook = join(hooksPath(fixture, fixture.main), 'pre-commit')
+        const externalHook = join(fixture.container, `${kind}-external-hook`)
+        rmSync(hook)
+        write(externalHook, `external ${kind} target\n`)
+        if (kind === 'symlink') symlinkSync(externalHook, hook)
+        else linkSync(externalHook, hook)
+        const externalContent = readFileSync(externalHook, 'utf8')
+
+        const result = await runInstaller(fixture, fixture.main)
+
+        expect(result.status).toBe(1)
+        expect(result.stderr).toContain('non-regular or multiply linked hook entry')
+        expect(readFileSync(externalHook, 'utf8')).toBe(externalContent)
+      }
+    },
+  )
 
   it('restores the marker-backed stale hook path when relocation reinstall fails', async () => {
     const fixture = createFixture()
